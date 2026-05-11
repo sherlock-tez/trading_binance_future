@@ -1,0 +1,46 @@
+binance:
+  testnet: true
+
+trading:
+  symbols:
+    - BTCUSDT
+    - BTCUSDC
+    - ETHUSDT
+    - ETHUSDC
+  signal_timeframe: 1h
+  sup_res_timeframes:
+    - 3h
+    - 6h
+    - 12h
+    - 1d
+    - 1w
+  leverage: 10
+  max_open_positions: 1
+  position_equity_ratio: 0.95
+  maker_only: true
+
+strategy:
+  rsi_period: 14
+  macd_fast: 12
+  macd_slow: 26
+  macd_signal: 9
+  divergence_lookback: 80
+  pivot_window: 3
+
+execution:
+  order_reprice_bps: 2
+  order_reprice_max_retries: 5
+  stop_loss_buffer_bps: 8
+  take_profit_buffer_bps: 8
+
+backtest:
+  month_windows:
+    - 3
+    - 6
+    - 12
+    - 15
+  initial_balance: 10000
+  maker_fee_rate: 0.0002
+
+runtime:
+  log_level: INFO
