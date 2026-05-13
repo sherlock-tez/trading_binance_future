@@ -74,6 +74,387 @@ The original strategy produced negative PnL on BTCUSDC across every backtest win
 - `algorithms.md`
 - `changes.md`
 
+## 2026-05-11 - BTCUSDC Optimization Loop v5 (RR 1:2, Strict Aggregate Promotion)
+
+### Summary
+Ran a focused BTCUSDC optimization loop under fixed `1:2` risk:reward behavior and promoted a new profile that strictly improves aggregate return, aggregate win rate, and aggregate trade count versus the current active profile.
+
+### Affected Files
+- `config.yaml`
+- `algorithms.md`
+- `README.md`
+- `changes.md`
+
+### Reason
+Continue iterative BTCUSDC improvement while preserving required rules:
+- no new config keys,
+- fixed risk:reward `1:2`,
+- long only when `RSI < 50`, short only when `RSI > 50`.
+
+### Backtest Result
+- Command/method:
+	- `PYTHONWARNINGS=ignore PYTHONPATH=. "/Users/phanngt/Phan BOT/trading_binance_future/.venv/bin/python" /tmp/run_rr12_micro.py`
+	- `PYTHONWARNINGS=ignore PYTHONPATH=. "/Users/phanngt/Phan BOT/trading_binance_future/.venv/bin/python" - <<'PY' ... BacktestRunner(load_settings->replace(symbols=["BTCUSDC"], backtest_month_windows=[1,3,6,12,15])) ... PY`
+- Dataset/time range:
+	- Binance Futures public klines (testnet profile), symbol: `BTCUSDC`, windows: `1m`, `3m`, `6m`, `12m`, `15m`.
+- Promoted config values:
+	- `trading.sup_res_timeframes`: `6h, 12h, 1d`
+	- `strategy.rsi_period`: `20`
+	- `strategy.divergence_lookback`: `60`
+	- `strategy.pivot_window`: `3`
+	- `execution.stop_loss_buffer_bps`: `10`
+	- `execution.take_profit_buffer_bps`: `20`
+- Key metrics (previous current -> promoted loop v5):
+	- Aggregate:
+		- `avg_return_pct`: `-48.91` -> `-45.86` (`+3.05`)
+		- `avg_win_rate_pct`: `32.61` -> `36.81` (`+4.20`)
+		- `total_trades`: `189` -> `285` (`+96`)
+		- `avg_max_drawdown_pct`: `76.63` -> `71.86` (`-4.77`)
+		- `min_window_win_rate_pct`: `0.00` -> `28.87` (`+28.87`)
+	- Promoted profile by window:
+		- `1m`: return `9.02`, win rate `50.00`, trades `4`, max drawdown `6.45`
+		- `3m`: return `35.07`, win rate `40.00`, trades `15`, max drawdown `63.12`
+		- `6m`: return `-96.65`, win rate `31.58`, trades `38`, max drawdown `98.31`
+		- `12m`: return `-99.03`, win rate `28.87`, trades `97`, max drawdown `99.52`
+		- `15m`: return `-77.73`, win rate `33.59`, trades `131`, max drawdown `91.91`
+- Comparison with previous version:
+	- Strict aggregate promotion criteria passed (return, win rate, trades all increased).
+	- The per-window `>=60%` win-rate target is still not met (`win60_count=0` in this run).
+- Limitations:
+	- Despite aggregate improvement, returns remain negative across aggregate and several windows.
+	- Long-running broad random sweeps were unstable/time-consuming in this environment, so this promotion used a focused micro-sweep around high-probability parameter neighborhoods.
+
+### Documentation Updated
+- `algorithms.md`
+- `README.md`
+- `changes.md`
+
+## 2026-05-11 - Enforce Fixed 1:2 Risk-Reward Ratio
+
+### Summary
+Implemented fixed risk:reward behavior of `1:2` in trade-plan generation. Stop-loss remains anchored to support/resistance with the configured stop-loss buffer, and take-profit is now derived from entry price and risk distance (`TP = entry +/- 2R`).
+
+### Affected Files
+- `src/strategy/signal_engine.py`
+- `tests/test_signal_engine.py`
+- `algorithms.md`
+- `architecture.md`
+- `README.md`
+- `changes.md`
+
+### Reason
+Apply requested strategy behavior where each trade targets reward twice the defined risk.
+
+### Backtest Result
+- Command/method:
+	- `PYTHONWARNINGS=ignore PYTHONPATH=. "/Users/phanngt/Phan BOT/trading_binance_future/.venv/bin/python" - <<'PY' ... BacktestRunner(load_settings->replace(symbols=["BTCUSDC"], backtest_month_windows=[1,3,6,12,15])) ... PY` (run before and after implementation)
+	- `PYTHONPATH=. "/Users/phanngt/Phan BOT/trading_binance_future/.venv/bin/python" -m pytest -q tests/test_signal_engine.py tests/test_trade_cycle.py`
+- Dataset/time range:
+	- Binance Futures public klines (testnet profile), symbol: `BTCUSDC`, windows: `1m`, `3m`, `6m`, `12m`, `15m`.
+- Key metrics:
+	- Before change (same config, pre-implementation):
+		- `avg_return_pct`: `130.41`
+		- `avg_win_rate_pct`: `49.15`
+		- `total_trades`: `394`
+		- `avg_max_drawdown_pct`: `52.00`
+	- After fixed `1:2` RR implementation:
+		- `avg_return_pct`: `-48.91`
+		- `avg_win_rate_pct`: `32.61`
+		- `total_trades`: `189`
+		- `avg_max_drawdown_pct`: `76.63`
+	- Delta (after - before):
+		- `avg_return_pct`: `-179.32`
+		- `avg_win_rate_pct`: `-16.54`
+		- `total_trades`: `-205`
+		- `avg_max_drawdown_pct`: `+24.63`
+	- Post-change by window:
+		- `1m`: return `9.34`, win rate `50.00`, trades `4`, max drawdown `6.47`
+		- `3m`: return `48.99`, win rate `42.86`, trades `14`, max drawdown `59.47`
+		- `6m`: return `-94.98`, win rate `37.84`, trades `37`, max drawdown `97.47`
+		- `12m`: return `-127.44`, win rate `0.00`, trades `1`, max drawdown `127.44`
+		- `15m`: return `-80.45`, win rate `32.33`, trades `133`, max drawdown `92.30`
+- Comparison with previous version:
+	- Fixed `1:2` RR worsened aggregate return, win rate, and trade count, and increased average drawdown.
+	- Behavior change is active and validated by tests, but current parameter set is no longer well-tuned under the new RR rule.
+- Limitations:
+	- The current settings were optimized for prior TP logic; enforcing fixed 1:2 RR changes trade geometry and likely requires a fresh optimization loop.
+	- Backtest remains simulation-based and does not model exchange queue priority or partial fills.
+
+### Documentation Updated
+- `algorithms.md`
+- `architecture.md`
+- `README.md`
+- `changes.md`
+
+## 2026-05-11 - BTCUSDC Optimization Loop v4 (Search Run, No Promotion)
+
+### Summary
+Ran additional Loop v4 search cycles to find a configuration that strictly improves all three aggregate targets (PnL, win rate, trade count) versus the current Loop v3 profile. No candidate met all three conditions simultaneously, so Loop v3 config remains active.
+
+### Affected Files
+- `changes.md`
+
+### Reason
+Continue optimization/backtest reruns while preventing regression in aggregate win rate.
+
+### Backtest Result
+- Command/method:
+	- `PYTHONWARNINGS=ignore PYTHONPATH=. "/Users/phanngt/Phan BOT/trading_binance_future/.venv/bin/python" - <<'PY' ... targeted loop4 search ... PY`
+	- `PYTHONWARNINGS=ignore PYTHONPATH=. "/Users/phanngt/Phan BOT/trading_binance_future/.venv/bin/python" - <<'PY' ... current vs candidate_sl9_tp3/sl9_tp4/sl9_tp2 compare ... PY`
+	- `PYTHONWARNINGS=ignore PYTHONPATH=. "/Users/phanngt/Phan BOT/trading_binance_future/.venv/bin/python" - <<'PY' ... broader random loop4 sweep (32 candidates) ... PY`
+	- `PYTHONWARNINGS=ignore PYTHONPATH=. "/Users/phanngt/Phan BOT/trading_binance_future/.venv/bin/python" - <<'PY' ... final six-profile shortlist compare ... PY`
+- Dataset/time range:
+	- Binance Futures public klines (testnet profile), symbol: `BTCUSDC`, windows: `1m`, `3m`, `6m`, `12m`, `15m`.
+- Baseline (current Loop v3 in this run):
+	- `avg_return`: `130.41`
+	- `avg_win_rate`: `49.15`
+	- `total_trades`: `394`
+- Best nearby candidates (vs current):
+	- `sl9/tp3`: `avg_return +21.62`, `avg_win_rate -0.25`, `total_trades +7`
+	- `sl9/tp2`: `avg_return +31.04`, `avg_win_rate -0.76`, `total_trades +2`
+	- `sl9/tp4`: `avg_return +8.17`, `avg_win_rate -1.13`, `total_trades +25`
+	- Broad random sweep top (`rsi=21`, `lookback=70`, `pivot=4`, `sl=8`, `tp=4`): `avg_return +1160.08`, `avg_win_rate -5.61`, `total_trades +11` (fails strict win-rate target).
+- Comparison with previous version:
+	- No strict candidate found with all-three aggregate improvements at once.
+	- Current Loop v3 retained to preserve higher aggregate win rate.
+	- Follow-up broad/random and shortlist reruns also produced no strict winner (`strict_count=0`).
+- Limitations:
+	- Moving-window backtests can shift aggregate values over time as new candles appear.
+	- Simulator assumptions remain (no queue-priority/partial-fill realism).
+
+### Documentation Updated
+- `changes.md`
+
+## 2026-05-11 - BTCUSDC Optimization Loop v3 (Aggregate Improvement vs Loop v2)
+
+### Summary
+Continued BTCUSDC optimization loops and selected a new config update that improves aggregate PnL, aggregate win rate, and aggregate trade count versus the prior `BTCUSDC Optimization Loop v2` baseline across required windows `1m/3m/6m/12m/15m`.
+
+### Affected Files
+- `config.yaml`
+- `algorithms.md`
+- `README.md`
+- `changes.md`
+
+### Reason
+Follow iterative tuning request while keeping schema unchanged and updating only existing `config.yaml` values.
+
+### Backtest Result
+- Command/method:
+	- `PYTHONWARNINGS=ignore PYTHONPATH=. "/Users/phanngt/Phan BOT/trading_binance_future/.venv/bin/python" - <<'PY' ... candidate sweep around Loop v2 ... PY`
+	- `PYTHONWARNINGS=ignore PYTHONPATH=. "/Users/phanngt/Phan BOT/trading_binance_future/.venv/bin/python" - <<'PY' ... old_loop_v2 vs new_loop_v3 direct compare ... PY`
+- Dataset/time range:
+	- Binance Futures public klines (testnet profile), symbol: `BTCUSDC`, windows: `1m`, `3m`, `6m`, `12m`, `15m`.
+- Selected config values:
+	- `trading.sup_res_timeframes`: `6h, 12h, 1d`
+	- `strategy.rsi_period`: `18`
+	- `strategy.divergence_lookback`: `50`
+	- `strategy.pivot_window`: `3`
+	- `execution.stop_loss_buffer_bps`: `12`
+	- `execution.take_profit_buffer_bps`: `3`
+- Key metrics (`Loop v2` -> `Loop v3`):
+	- 1m:
+		- `total_return_pct`: `12.23` -> `-3.59` (`-15.82`)
+		- `win_rate_pct`: `42.86` -> `50.00` (`+7.14`)
+		- `trade_count`: `7` -> `4` (`-3`)
+	- 3m:
+		- `total_return_pct`: `41.16` -> `17.55` (`-23.61`)
+		- `win_rate_pct`: `54.17` -> `57.69` (`+3.52`)
+		- `trade_count`: `24` -> `26` (`+2`)
+	- 6m:
+		- `total_return_pct`: `-0.14` -> `489.69` (`+489.83`)
+		- `win_rate_pct`: `56.25` -> `53.85` (`-2.40`)
+		- `trade_count`: `48` -> `52` (`+4`)
+	- 12m:
+		- `total_return_pct`: `-110.43` -> `369.33` (`+479.76`)
+		- `win_rate_pct`: `40.34` -> `45.59` (`+5.25`)
+		- `trade_count`: `119` -> `136` (`+17`)
+	- 15m:
+		- `total_return_pct`: `495.86` -> `55.02` (`-440.84`)
+		- `win_rate_pct`: `42.35` -> `39.55` (`-2.80`)
+		- `trade_count`: `196` -> `177` (`-19`)
+	- Aggregate (mean over windows + total trades):
+		- `avg_return`: `87.74` -> `185.60` (`+97.86`)
+		- `avg_win_rate`: `47.19` -> `49.34` (`+2.15`)
+		- `total_trades`: `394` -> `395` (`+1`)
+- Comparison with previous version:
+	- Aggregate targets improved (`PnL`, `win_rate`, `trade_count`).
+	- Window-by-window behavior is mixed: large gains in `6m/12m`, weaker `1m/3m/15m` returns.
+	- Win rate improved in `1m/3m/12m` but declined in `6m/15m`.
+- Limitations:
+	- Distribution of returns remains highly non-uniform across windows.
+	- Results are simulation-based and still exclude exchange queue priority/partial-fill realism.
+	- Candidate selection optimized for aggregate objective and may not be ideal for per-window stability.
+
+### Documentation Updated
+- `algorithms.md`
+- `README.md`
+- `changes.md`
+
+## 2026-05-11 - BTCUSDC Optimization Loop v2 (Balanced Winrate/PnL/Trades)
+
+### Summary
+Ran additional BTCUSDC optimization loops across 1m/3m/6m/12m/15m and selected a balanced profile that improves aggregate win rate, aggregate PnL, and aggregate trade count versus the previous `current_performance` baseline.
+
+### Affected Files
+- `config.yaml`
+- `algorithms.md`
+- `architecture.md`
+- `README.md`
+- `changes.md`
+
+### Reason
+Continue iterative algorithm tuning as requested, while keeping config schema unchanged and updating only existing values.
+
+### Backtest Result
+- Command/method:
+	- `PYTHONPATH=. "/Users/phanngt/Phan BOT/trading_binance_future/.venv/bin/python" - <<'PY' ... benchmarked candidate sets with BacktestRunner ... PY`
+	- `PYTHONPATH=. "/Users/phanngt/Phan BOT/trading_binance_future/.venv/bin/python" - <<'PY' ... rerun BTCUSDC windows [1,3,6,12,15] ... PY`
+- Dataset/time range:
+	- Binance Futures public klines (testnet profile), symbol: `BTCUSDC`, windows: `1m`, `3m`, `6m`, `12m`, `15m`.
+- Selected config values:
+	- `trading.sup_res_timeframes`: `6h, 12h, 1d`
+	- `strategy.rsi_period`: `18`
+	- `strategy.divergence_lookback`: `50`
+	- `strategy.pivot_window`: `4`
+	- `execution.stop_loss_buffer_bps`: `12`
+	- `execution.take_profit_buffer_bps`: `4`
+- Key metrics (previous `current_performance` baseline -> selected profile):
+	- 1m:
+		- `total_return_pct`: `-35.11` -> `12.23` (`+47.34`)
+		- `win_rate_pct`: `14.29` -> `42.86` (`+28.57`)
+		- `trade_count`: `7` -> `7` (`+0`)
+	- 3m:
+		- `total_return_pct`: `-24.83` -> `41.16` (`+65.99`)
+		- `win_rate_pct`: `40.00` -> `54.17` (`+14.17`)
+		- `trade_count`: `30` -> `24` (`-6`)
+	- 6m:
+		- `total_return_pct`: `-14.24` -> `-0.14` (`+14.10`)
+		- `win_rate_pct`: `43.24` -> `56.25` (`+13.01`)
+		- `trade_count`: `74` -> `48` (`-26`)
+	- 12m:
+		- `total_return_pct`: `-173.81` -> `-110.43` (`+63.38`)
+		- `win_rate_pct`: `66.67` -> `40.34` (`-26.33`)
+		- `trade_count`: `3` -> `119` (`+116`)
+	- 15m:
+		- `total_return_pct`: `-82.54` -> `495.86` (`+578.40`)
+		- `win_rate_pct`: `39.55` -> `42.35` (`+2.80`)
+		- `trade_count`: `177` -> `196` (`+19`)
+	- Aggregate (mean over windows + total trades):
+		- `avg_return`: `-66.11` -> `87.74` (`+153.85`)
+		- `avg_win_rate`: `40.75` -> `47.19` (`+6.44`)
+		- `total_trades`: `291` -> `394` (`+103`)
+- Comparison with previous version:
+	- Improved aggregate PnL, aggregate win rate, and aggregate trade count.
+	- Return improved in all 5 required windows.
+	- Trade count increased overall but decreased in 3m and 6m windows.
+	- Win rate improved in 4/5 windows; 12m win rate decreased while return and trade count improved.
+- Limitations:
+	- High variability across windows remains (especially long-window sensitivity).
+	- 12m drawdown and win-rate profile are still weak relative to shorter windows.
+	- Results remain simulation-based and do not model exchange queue priority/partial fills.
+
+### Documentation Updated
+- `algorithms.md`
+- `architecture.md`
+- `README.md`
+- `changes.md`
+
+## 2026-05-11 - Backtest Local Kline Cache Persistence
+
+### Summary
+Implemented local on-disk kline caching for backtest data loading so downloaded Binance candles are saved and reused across backtest reruns.
+
+### Affected Files
+- `src/runtime/backtest_runner.py`
+- `README.md`
+- `.gitignore`
+- `changes.md`
+
+### Reason
+Reduce repeated network fetches and speed up iterative backtest cycles by reusing previously downloaded candle data.
+
+### Backtest Result
+- Command/method:
+	- `PYTHONPATH=. "/Users/phanngt/Phan BOT/trading_binance_future/.venv/bin/python" - <<'PY' ... runner._prepare_data(1) twice ... PY`
+	- `ls -1 .cache/binance_klines | head`
+- Dataset/time range:
+	- Binance Futures public klines for `BTCUSDC` testnet profile, including `1h`, `6h`, `12h`, `1d`.
+- Key metrics:
+	- Cache smoke check completed: `cache_ok`.
+	- Local cache files confirmed: `testnet_BTCUSDC_1h.csv`, `testnet_BTCUSDC_6h.csv`, `testnet_BTCUSDC_12h.csv`, `testnet_BTCUSDC_1d.csv`.
+- Comparison with previous version:
+	- Previous behavior fetched candles from Binance on every backtest run.
+	- New behavior reuses local cache files when requested history is already covered; remote fetch is only used to fill missing history.
+- Limitations:
+	- Cache refresh is append/fill oriented and prioritizes reusing local history over always fetching newest candles.
+	- Cache is stored as CSV and may grow over time.
+
+### Documentation Updated
+- `README.md`
+- `changes.md`
+
+## 2026-05-11 - BTCUSDC Config Optimization (1m/3m/6m/12m/15m)
+
+### Summary
+Updated existing strategy and execution values in `config.yaml` to the best-ranked BTCUSDC candidate from iterative backtest sweeps, then re-ran baseline-vs-new comparisons for 1m, 3m, 6m, 12m, and 15m windows.
+
+### Affected Files
+- `config.yaml`
+- `algorithms.md`
+- `architecture.md`
+- `README.md`
+- `changes.md`
+
+### Reason
+Targeted better BTCUSDC performance using existing config keys only (no new config fields), with emphasis on improving return and win rate across required windows.
+
+### Backtest Result
+- Command/method:
+	- `PYTHONPATH=. "/Users/phanngt/Phan BOT/trading_binance_future/.venv/bin/python" scripts/tmp_optimize_btcusdc.py`
+	- `PYTHONPATH=. "/Users/phanngt/Phan BOT/trading_binance_future/.venv/bin/python" scripts/tmp_compare_btcusdc.py`
+- Dataset/time range:
+	- Binance Futures public candles (mainnet endpoint), symbol: `BTCUSDC`.
+	- Windows: `1m`, `3m`, `6m`, `12m`, `15m`.
+- Key config changes:
+	- `trading.sup_res_timeframes`: `6h, 12h, 1d` (removed `3h`, `1w`)
+	- `strategy.rsi_period`: `16`
+	- `strategy.divergence_lookback`: `100`
+	- `strategy.pivot_window`: `2`
+	- `execution.stop_loss_buffer_bps`: `8`
+	- `execution.take_profit_buffer_bps`: `4`
+- Comparison with previous version (baseline -> new):
+	- 1m:
+		- `total_return_pct`: `-25.03` -> `0.00` (`+25.03`)
+		- `win_rate_pct`: `0.00` -> `0.00` (`+0.00`)
+		- `trade_count`: `4` -> `0` (`-4`)
+	- 3m:
+		- `total_return_pct`: `-42.20` -> `23.18` (`+65.38`)
+		- `win_rate_pct`: `40.32` -> `55.56` (`+15.24`)
+		- `trade_count`: `62` -> `27` (`-35`)
+	- 6m:
+		- `total_return_pct`: `-48.68` -> `400.15` (`+448.83`)
+		- `win_rate_pct`: `42.73` -> `57.41` (`+14.68`)
+		- `trade_count`: `110` -> `54` (`-56`)
+	- 12m:
+		- `total_return_pct`: `-80.32` -> `329.61` (`+409.93`)
+		- `win_rate_pct`: `39.78` -> `48.23` (`+8.45`)
+		- `trade_count`: `269` -> `141` (`-128`)
+	- 15m:
+		- `total_return_pct`: `-91.11` -> `177.07` (`+268.18`)
+		- `win_rate_pct`: `38.12` -> `46.94` (`+8.82`)
+		- `trade_count`: `320` -> `196` (`-124`)
+- Limitations:
+	- Trade frequency decreased in all windows despite higher return and win rate in most windows.
+	- Results are simulation-based and still inherit simulator assumptions (no exchange queue/partial-fill realism).
+
+### Documentation Updated
+- `algorithms.md`
+- `architecture.md`
+- `README.md`
+- `changes.md`
+
+
 ## 2026-05-10 - Real TESTNET Order Call Integration Test
 
 ### Summary
