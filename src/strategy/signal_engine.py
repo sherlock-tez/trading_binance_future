@@ -38,9 +38,16 @@ class SignalEngine:
         entry_price: float,
         support: float,
         resistance: float,
-    ) -> TradePlan:
+    ) -> Optional[TradePlan]:
         sl = support * (1 - self.params.stop_loss_buffer_bps / 10000)
-        tp = resistance * (1 - self.params.take_profit_buffer_bps / 10000)
+        risk_distance = entry_price - sl
+        if risk_distance <= 0:
+            return None
+
+        tp = entry_price + (2.0 * risk_distance)
+        if tp <= entry_price:
+            return None
+
         return TradePlan(
             symbol=symbol,
             side="BUY",
@@ -49,7 +56,12 @@ class SignalEngine:
             stop_loss=sl,
             take_profit=tp,
             signal_time=signal_time,
-            metadata={"direction": "long"},
+            metadata={
+                "direction": "long",
+                "risk_reward_ratio": 2.0,
+                "risk_distance": risk_distance,
+                "reward_distance": tp - entry_price,
+            },
         )
 
     def _build_short_plan(
@@ -59,9 +71,16 @@ class SignalEngine:
         entry_price: float,
         support: float,
         resistance: float,
-    ) -> TradePlan:
+    ) -> Optional[TradePlan]:
         sl = resistance * (1 + self.params.stop_loss_buffer_bps / 10000)
-        tp = support * (1 + self.params.take_profit_buffer_bps / 10000)
+        risk_distance = sl - entry_price
+        if risk_distance <= 0:
+            return None
+
+        tp = entry_price - (2.0 * risk_distance)
+        if tp >= entry_price:
+            return None
+
         return TradePlan(
             symbol=symbol,
             side="SELL",
@@ -70,7 +89,12 @@ class SignalEngine:
             stop_loss=sl,
             take_profit=tp,
             signal_time=signal_time,
-            metadata={"direction": "short"},
+            metadata={
+                "direction": "short",
+                "risk_reward_ratio": 2.0,
+                "risk_distance": risk_distance,
+                "reward_distance": entry_price - tp,
+            },
         )
 
     def generate_signal(
@@ -170,7 +194,7 @@ class SignalEngine:
                 support=support,
                 resistance=resistance,
             )
-            decision = "long"
+            decision = "long" if plan is not None else "invalid_risk_reward"
         elif short_ready and support is not None and resistance is not None:
             plan = self._build_short_plan(
                 symbol=symbol,
@@ -179,7 +203,7 @@ class SignalEngine:
                 support=support,
                 resistance=resistance,
             )
-            decision = "short"
+            decision = "short" if plan is not None else "invalid_risk_reward"
 
         diagnostics = SignalDiagnostics(
             symbol=symbol,

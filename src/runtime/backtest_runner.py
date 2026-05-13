@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Dict, List, Set, Tuple
 
 import pandas as pd
@@ -29,6 +30,8 @@ class BacktestWindowResult:
 class BacktestRunner:
     def __init__(self, settings: Settings):
         self.settings = settings
+        self.cache_dir = Path(__file__).resolve().parents[2] / ".cache" / "binance_klines"
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.client = BinanceFuturesClient(
             api_key=settings.binance_futures_api_key,
             api_secret=settings.binance_futures_api_secret,
@@ -56,25 +59,70 @@ class BacktestRunner:
     def _now_ms() -> int:
         return int(time.time() * 1000)
 
-    def _download_klines_range(
+    def _cache_file(self, symbol: str, timeframe: str) -> Path:
+        env = "testnet" if self.settings.binance_testnet else "mainnet"
+        tf = normalize_timeframe(timeframe)
+        return self.cache_dir / f"{env}_{symbol.upper()}_{tf}.csv"
+
+    @staticmethod
+    def _standardize_frame(frame: pd.DataFrame) -> pd.DataFrame:
+        if frame.empty:
+            return pd.DataFrame(
+                columns=["open_time", "open", "high", "low", "close", "volume", "close_time"]
+            )
+
+        required = ["open_time", "open", "high", "low", "close", "volume", "close_time"]
+        out = frame.copy()
+        for column in required:
+            if column not in out.columns:
+                out[column] = 0.0 if column not in {"open_time", "close_time"} else 0
+
+        out = out.loc[:, required].copy()
+        out.loc[:, "open_time"] = pd.to_numeric(out["open_time"], errors="coerce")
+        out.loc[:, "close_time"] = pd.to_numeric(out["close_time"], errors="coerce")
+        for column in ["open", "high", "low", "close", "volume"]:
+            out.loc[:, column] = pd.to_numeric(out[column], errors="coerce")
+
+        out = out.dropna(subset=["open_time", "close_time", "open", "high", "low", "close", "volume"])
+        out.loc[:, "open_time"] = out["open_time"].astype(int)
+        out.loc[:, "close_time"] = out["close_time"].astype(int)
+        out = out.drop_duplicates(subset=["open_time"]).sort_values("open_time").reset_index(drop=True)
+        return out
+
+    def _load_cached_klines(self, symbol: str, timeframe: str) -> pd.DataFrame:
+        cache_file = self._cache_file(symbol, timeframe)
+        if not cache_file.exists():
+            return self._standardize_frame(pd.DataFrame())
+
+        try:
+            frame = pd.read_csv(cache_file)
+        except Exception as exc:
+            logger.warning("Failed to read cache file %s: %s", cache_file, exc)
+            return self._standardize_frame(pd.DataFrame())
+
+        return self._standardize_frame(frame)
+
+    def _save_cached_klines(self, symbol: str, timeframe: str, frame: pd.DataFrame) -> None:
+        normalized = self._standardize_frame(frame)
+        if normalized.empty:
+            return
+        cache_file = self._cache_file(symbol, timeframe)
+        normalized.to_csv(cache_file, index=False)
+
+    def _fetch_remote_klines_range(
         self,
         symbol: str,
         timeframe: str,
         start_time: int,
         end_time: int,
     ) -> pd.DataFrame:
-        tf = normalize_timeframe(timeframe)
-        if needs_resample(tf):
-            base = self._download_klines_range(symbol, "1h", start_time, end_time)
-            return resample_ohlcv(base, tf)
-
         all_rows: List[List[object]] = []
         cursor = start_time
 
         while True:
             chunk = self.client.get_klines(
                 symbol,
-                tf,
+                timeframe,
                 start_time=cursor,
                 end_time=end_time,
                 limit=1000,
@@ -87,10 +135,71 @@ class BacktestRunner:
                 break
             cursor = last_open + 1
 
-        frame = klines_to_frame(all_rows)
-        if not frame.empty:
-            frame = frame.drop_duplicates(subset=["open_time"]).sort_values("open_time").reset_index(drop=True)
-        return frame
+        return self._standardize_frame(klines_to_frame(all_rows))
+
+    def _download_klines_range(
+        self,
+        symbol: str,
+        timeframe: str,
+        start_time: int,
+        end_time: int,
+    ) -> pd.DataFrame:
+        tf = normalize_timeframe(timeframe)
+        if needs_resample(tf):
+            base = self._download_klines_range(symbol, "1h", start_time, end_time)
+            return resample_ohlcv(base, tf)
+
+        cached = self._load_cached_klines(symbol, tf)
+        if not cached.empty:
+            cached_start = int(cached["open_time"].iloc[0])
+            if cached_start <= start_time:
+                # Reuse local cache to avoid refetching on repeated backtest runs.
+                subset = cached[
+                    (cached["open_time"] >= start_time)
+                    & (cached["open_time"] <= end_time)
+                ].reset_index(drop=True)
+                if not subset.empty:
+                    logger.info(
+                        "Loaded %s %s rows=%s from local cache",
+                        symbol,
+                        tf,
+                        len(subset),
+                    )
+                    return subset
+
+            # Cache exists but does not go far enough back; fetch only missing older history.
+            if start_time < cached_start:
+                older = self._fetch_remote_klines_range(symbol, tf, start_time, min(end_time, cached_start - 1))
+                if cached.empty:
+                    merged = older
+                elif older.empty:
+                    merged = cached
+                else:
+                    merged = pd.concat([cached, older], ignore_index=True)
+                merged = self._standardize_frame(merged)
+                self._save_cached_klines(symbol, tf, merged)
+                subset = merged[
+                    (merged["open_time"] >= start_time)
+                    & (merged["open_time"] <= end_time)
+                ].reset_index(drop=True)
+                logger.info(
+                    "Extended cache for %s %s with rows=%s",
+                    symbol,
+                    tf,
+                    len(older),
+                )
+                return subset
+
+        fetched = self._fetch_remote_klines_range(symbol, tf, start_time, end_time)
+        if not fetched.empty:
+            if cached.empty:
+                merged = fetched
+            else:
+                merged = pd.concat([cached, fetched], ignore_index=True)
+            merged = self._standardize_frame(merged)
+            self._save_cached_klines(symbol, tf, merged)
+        logger.info("Fetched remote klines for %s %s rows=%s", symbol, tf, len(fetched))
+        return fetched
 
     def _prepare_data(self, months: int) -> Dict[str, Dict[str, pd.DataFrame]]:
         start_ms = self._months_ago_ms(months)

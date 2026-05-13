@@ -38,10 +38,11 @@ A trade is valid only when all required conditions agree on the same direction.
 
 ## Support / Resistance
 
-- Build levels from timeframes: 3h, 6h, 12h, 1d, 1w.
+- Build levels from configured higher timeframes.
+- Current tuned default: 6h, 12h, 1d.
 - Each timeframe contributes pivot highs (resistance) and pivot lows (support).
 - Levels are merged by proximity to remove duplicates.
-- Binance Futures does not provide a native 3h kline endpoint, so 3h candles are resampled from 1h data.
+- Optional 3h mode is supported by resampling from 1h, because Binance Futures has no native 3h kline endpoint.
 
 ## Entry and Direction
 
@@ -63,12 +64,24 @@ For 1h trade setup:
 
 - Long:
   - SL slightly below nearest support
-  - TP slightly below nearest resistance
+  - TP = entry + 2 * (entry - SL)
 - Short:
   - SL slightly above nearest resistance
-  - TP slightly above nearest support
+  - TP = entry - 2 * (SL - entry)
 
-Buffers are controlled by basis-point config values.
+This enforces a fixed risk:reward ratio of 1:2 from the entry price.
+
+Buffers are controlled by basis-point config values for stop-loss anchoring.
+
+### Current Tuned Defaults
+
+- RSI period: 20
+- MACD: 12 / 26 / 9
+- Divergence lookback: 60
+- Pivot window: 3
+- Stop-loss buffer: 10 bps
+- Take-profit buffer config value: 20 bps (kept as a 2x counterpart for consistency)
+- Risk:Reward: 1:2 (TP derived from SL distance)
 
 ## Position Sizing
 
@@ -86,7 +99,7 @@ Buffers are controlled by basis-point config values.
 
 - Backtest reuses production strategy functions for signal generation.
 - Simulated execution models maker fees and post-only behavior.
-- Required month windows: 3, 6, 12, 15.
+- Required month windows: 1, 3, 6, 12, 15.
 - Backtest and live now share the same trade-cycle function path for:
   - signal evaluation
   - duplicate-signal guard

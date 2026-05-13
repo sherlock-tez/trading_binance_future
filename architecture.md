@@ -27,14 +27,14 @@ A shared strategy core is used by both live trading and backtest simulation.
 - Multi-timeframe cache used by support/resistance module.
 - Timeframe adaptation:
   - Unsupported intervals are resampled from supported base intervals.
-  - 3h candles are generated from 1h candles.
+  - Optional 3h candles are generated from 1h candles when 3h is configured.
 
 ### Strategy Layer
 
 - `indicators.py`: RSI and MACD calculations.
 - `divergence.py`: pivot detection and divergence conditions.
 - `support_resistance.py`: level extraction and clustering.
-- `signal_engine.py`: strict confluence, SL/TP generation, trade plan creation.
+- `signal_engine.py`: strict confluence, stop-loss generation from support/resistance with buffer, take-profit derivation at fixed 1:2 risk:reward, trade plan creation.
 
 ### Execution Layer
 
@@ -59,7 +59,7 @@ A shared strategy core is used by both live trading and backtest simulation.
   - 1h decision loop across symbols
   - Calls shared runtime trade-cycle function
 - Backtest runner:
-  - Loads historical windows (3m, 6m, 12m, 15m)
+  - Loads historical windows (1m, 3m, 6m, 12m, 15m)
   - Calls the same shared runtime trade-cycle function as live runner
 
 ### Shared Trade Cycle

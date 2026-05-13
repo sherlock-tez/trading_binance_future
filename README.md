@@ -34,6 +34,9 @@ cp .env.example .env
 python scripts/backtest.py
 ```
 
+	- Historical klines are cached locally under `.cache/binance_klines/`.
+	- Re-running backtest reuses local cache files for covered ranges instead of refetching from Binance.
+
 5. Run live mode.
 
 ```bash
@@ -50,14 +53,26 @@ python scripts/live.py
 - Direction filter:
 	- Long only when RSI < 50 and bullish divergence setup confirms.
 	- Short only when RSI > 50 and bearish divergence setup confirms.
-- Support/resistance source timeframes: 3h, 6h, 12h, 1d, 1w.
-	- Binance Futures does not expose native 3h candles, so 3h is resampled from 1h.
+- Support/resistance source timeframes are configurable.
+	- Current default profile uses 6h, 12h, 1d.
+	- Optional 3h is supported via 1h resampling because Binance Futures does not expose native 3h candles.
+
+### Current Tuned Defaults
+
+- RSI period: 20
+- MACD: 12 / 26 / 9
+- Divergence lookback: 60
+- Pivot window: 3
+- Stop-loss buffer: 10 bps
+- Take-profit buffer config value: 20 bps (kept aligned with 1:2 ratio intent)
+- Risk:Reward: 1:2 (TP derived from entry and SL distance)
 
 ## Backtest Windows
 
-- Required windows: 3, 6, 12, 15 months.
+- Required windows: 1, 3, 6, 12, 15 months.
 - Configure with `backtest.month_windows` in `config.yaml`.
 - Backtest uses the same signal engine and trade-plan function calls as live mode.
+- Local kline cache is environment-aware (`testnet`/`mainnet`) and persisted between runs.
 
 ## Safety
 
