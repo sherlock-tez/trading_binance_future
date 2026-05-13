@@ -45,6 +45,21 @@ class Settings:
 
     log_level: str
 
+    # Optional strategy enhancements (defaults preserve legacy behavior).
+    atr_period: int = 14
+    use_atr_stops: bool = False
+    atr_sl_mult: float = 1.5
+    atr_tp_mult: float = 3.0
+    use_trend_filter: bool = False
+    trend_ema_period: int = 200
+    min_rr_ratio: float = 0.0
+    max_sl_distance_pct: float = 0.0
+    rsi_long_max: float = 50.0
+    rsi_short_min: float = 50.0
+    require_macd_divergence: bool = True
+    strategy_version: str = "v1"
+    backtest_history_dir: str = "backtest_history"
+
 
 class ConfigError(ValueError):
     pass
@@ -104,10 +119,24 @@ def _section(cfg: dict[str, Any], key: str) -> dict[str, Any]:
     return value
 
 
-def load_settings() -> Settings:
+def _resolve_config_path(root: Path, symbol: str | None) -> Path:
+    """Pick `{symbol}_config.yaml` when a symbol is given, falling back to `config.yaml`.
+
+    Symbol matching is case-insensitive. If the per-symbol file is missing, raise so
+    callers don't silently fall through to a global default that has the wrong symbol.
+    """
+    if symbol is None:
+        return root / "config.yaml"
+    candidate = root / f"{symbol.strip().lower()}_config.yaml"
+    if not candidate.exists():
+        raise ConfigError(f"Missing per-symbol config file: {candidate.name}")
+    return candidate
+
+
+def load_settings(symbol: str | None = None) -> Settings:
     load_dotenv()
     root = Path(__file__).resolve().parents[1]
-    cfg = _read_yaml_config(root / "config.yaml")
+    cfg = _read_yaml_config(_resolve_config_path(root, symbol))
 
     binance_cfg = _section(cfg, "binance")
     trading_cfg = _section(cfg, "trading")
@@ -162,6 +191,19 @@ def load_settings() -> Settings:
         initial_balance=float(backtest_cfg.get("initial_balance", 10000)),
         maker_fee_rate=float(backtest_cfg.get("maker_fee_rate", 0.0002)),
         log_level=str(runtime_cfg.get("log_level", "INFO")),
+        atr_period=int(strategy_cfg.get("atr_period", 14)),
+        use_atr_stops=_parse_bool(strategy_cfg.get("use_atr_stops"), default=False),
+        atr_sl_mult=float(strategy_cfg.get("atr_sl_mult", 1.5)),
+        atr_tp_mult=float(strategy_cfg.get("atr_tp_mult", 3.0)),
+        use_trend_filter=_parse_bool(strategy_cfg.get("use_trend_filter"), default=False),
+        trend_ema_period=int(strategy_cfg.get("trend_ema_period", 200)),
+        min_rr_ratio=float(strategy_cfg.get("min_rr_ratio", 0.0)),
+        max_sl_distance_pct=float(strategy_cfg.get("max_sl_distance_pct", 0.0)),
+        rsi_long_max=float(strategy_cfg.get("rsi_long_max", 50.0)),
+        rsi_short_min=float(strategy_cfg.get("rsi_short_min", 50.0)),
+        require_macd_divergence=_parse_bool(strategy_cfg.get("require_macd_divergence"), default=True),
+        strategy_version=str(strategy_cfg.get("strategy_version", "v1")).strip(),
+        backtest_history_dir=str(backtest_cfg.get("history_dir", "backtest_history")).strip(),
     )
 
     if settings.leverage <= 0:

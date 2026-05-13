@@ -8,8 +8,9 @@ from src.data.binance_api import BinanceFuturesClient
 from src.data.binance_feed import BinanceMarketDataService, CandleEvent
 from src.execution.binance_futures import BinanceFuturesExecutor
 from src.notify.telegram import TelegramNotifier
+from src.runtime.backtest_runner import _strategy_params_from_settings
 from src.runtime.trade_cycle import run_trade_cycle
-from src.strategy.signal_engine import SignalEngine, StrategyParams
+from src.strategy.signal_engine import SignalEngine
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -26,18 +27,7 @@ class LiveTradingRunner:
         self.data_service = BinanceMarketDataService(self.client)
         self.executor = BinanceFuturesExecutor(self.client, settings)
         self.notifier = TelegramNotifier(settings.telegram_bot_token, settings.telegram_chat_id)
-        self.engine = SignalEngine(
-            StrategyParams(
-                rsi_period=settings.rsi_period,
-                macd_fast=settings.macd_fast,
-                macd_slow=settings.macd_slow,
-                macd_signal=settings.macd_signal,
-                divergence_lookback=settings.divergence_lookback,
-                pivot_window=settings.pivot_window,
-                stop_loss_buffer_bps=settings.stop_loss_buffer_bps,
-                take_profit_buffer_bps=settings.take_profit_buffer_bps,
-            )
-        )
+        self.engine = SignalEngine(_strategy_params_from_settings(settings))
         self._processed_signals: Set[Tuple[str, int]] = set()
 
     async def _on_closed_candle(self, event: CandleEvent) -> None:

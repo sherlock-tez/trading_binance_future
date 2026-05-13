@@ -27,6 +27,8 @@ class ClosedTrade:
     opened_at: int
     closed_at: int
     entry_price: float
+    stop_loss: float
+    take_profit: float
     exit_price: float
     quantity: float
     pnl: float
@@ -159,6 +161,8 @@ class SimulatedExecutionAdapter:
                 opened_at=pos.opened_at,
                 closed_at=timestamp,
                 entry_price=pos.entry_price,
+                stop_loss=pos.stop_loss,
+                take_profit=pos.take_profit,
                 exit_price=exit_price,
                 quantity=pos.quantity,
                 pnl=net_pnl,
@@ -167,6 +171,28 @@ class SimulatedExecutionAdapter:
             )
         )
         self.position = None
+
+    def trade_history(self) -> List[Dict[str, float | int | str]]:
+        """Return per-trade history as a list of plain dicts (CSV/JSON friendly)."""
+        rows: List[Dict[str, float | int | str]] = []
+        for t in self.closed_trades:
+            rows.append(
+                {
+                    "symbol": t.symbol,
+                    "side": t.side,
+                    "opened_at_ms": int(t.opened_at),
+                    "closed_at_ms": int(t.closed_at),
+                    "entry_price": float(t.entry_price),
+                    "stop_loss": float(t.stop_loss),
+                    "take_profit": float(t.take_profit),
+                    "exit_price": float(t.exit_price),
+                    "quantity": float(t.quantity),
+                    "pnl": float(t.pnl),
+                    "pnl_pct": float(t.pnl_pct),
+                    "close_reason": t.close_reason,
+                }
+            )
+        return rows
 
     def metrics(self) -> Dict[str, float | int]:
         trade_count = len(self.closed_trades)

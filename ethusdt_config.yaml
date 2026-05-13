@@ -3,7 +3,7 @@ binance:
 
 trading:
   symbols:
-    - BTCUSDC
+    - ETHUSDT
   signal_timeframe: 1h
   sup_res_timeframes:
     - 3h

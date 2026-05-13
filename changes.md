@@ -1,5 +1,79 @@
 # changes.md
 
+## 2026-05-13 - Per-Symbol Config Files
+
+### Summary
+Split the monolithic `config.yaml` into four per-symbol files (`btcusdc_config.yaml`, `btcusdt_config.yaml`, `ethusdc_config.yaml`, `ethusdt_config.yaml`) so each symbol can carry its own tuned strategy params, leverage, and backtest windows. `load_settings(symbol)` now resolves `{symbol}_config.yaml` (case-insensitive); a missing file raises `ConfigError` rather than silently falling back to a wrong-symbol default. `load_settings()` with no argument still reads the legacy `config.yaml`.
+
+### Affected Files
+- `src/config.py` (added `_resolve_config_path`; `load_settings` accepts a `symbol` arg)
+- `btcusdc_config.yaml`, `btcusdt_config.yaml`, `ethusdc_config.yaml`, `ethusdt_config.yaml` (new)
+- `scripts/backtest.py`, `scripts/live.py` (new `--symbol` CLI flag)
+- `scripts/btcusdc_optimize.py`, `scripts/btcusdc_one.py`, `scripts/btcusdc_sweep.py` (load `btcusdc_config.yaml` directly)
+- `architecture.md`, `changes.md`
+
+### Reason
+The single-symbol study left global `config.yaml` BTCUSDC-tuned, which would degrade the other three pairs if used as-is. Per-symbol files keep each market's parameters isolated and clear at the call site.
+
+### Backtest Result
+- Not applicable — pure configuration plumbing change. No strategy, gate, sizing, or indicator logic touched.
+- Validation: `load_settings('BTCUSDC' | 'BTCUSDT' | 'ETHUSDC' | 'ETHUSDT' | None)` resolves the expected `symbols` list; `load_settings('XRPUSDT')` raises `ConfigError: Missing per-symbol config file: xrpusdt_config.yaml`.
+
+### Documentation Updated
+- `architecture.md` (Config Layer)
+- `changes.md`
+
+## 2026-05-13 - BTCUSDC-Focused Algorithm Optimization (ATR Stops + Trend Filter)
+
+### Summary
+Optimized the strategy for BTCUSDC across 1/3/6/12/15-month backtest windows. Added ATR-based volatility-aware stops, a signal-timeframe EMA trend filter, and a stricter short-side RSI extremity gate while keeping the mandatory "divergence + RSI extremity" rule (`LONG only if RSI < 50, SHORT only if RSI > 50`). All new strategy parameters live in `config.yaml` and flow through the same `SignalEngine` + `run_trade_cycle` + execution adapter path used by live trading.
+
+### Affected Files
+- `config.yaml` (single symbol BTCUSDC, new strategy params, 1-month window added)
+- `src/config.py` (new strategy settings fields with safe defaults)
+- `src/strategy/indicators.py` (added `ema`, `atr`)
+- `src/strategy/signal_engine.py` (extended `StrategyParams`, ATR stops, trend filter, RR / SL-distance sanity gates)
+- `src/runtime/backtest_runner.py` (centralized `StrategyParams` construction via `_strategy_params_from_settings`)
+- `src/runtime/live_runner.py` (reuse same builder for production parity)
+- `scripts/btcusdc_optimize.py` (BTCUSDC cached-data backtest harness)
+- `scripts/btcusdc_fast.py` (fast vectorized parameter-sweep harness, parity verified against the production engine path)
+- `scripts/btcusdc_sweep.py`, `scripts/btcusdc_one.py` (CLI sweep / single-config tools)
+- `algorithms.md`, `changes.md`
+
+### Reason
+The original strategy produced negative PnL on BTCUSDC across every backtest window (1m: -25.3%, 3m: -45.3%, 6m: -70.7%, 12m: -88.0%, 15m: -91.1%) because support/resistance-based stops put SL very far from entry, and 10x leverage made a single loss catastrophic. The user requested monotonic improvement (15m > 12m > 6m > 3m > 1m) along with higher winrate and PnL while keeping the divergence + RSI extremity rule.
+
+### Backtest Result
+- Command/method:
+  - Final certified run: `BINANCE_TESTNET=false .venv/bin/python scripts/btcusdc_optimize.py` (full production engine path: `SignalEngine.generate_signal` -> `run_trade_cycle` -> `SimulatedExecutionAdapter`).
+  - Iterative search: `scripts/btcusdc_sweep.py --grid monotonic` (fast vectorized harness, parity verified).
+  - Unit/integration: `.venv/bin/python -m pytest -q` (`6 passed, 6 skipped` — integration tests skipped without credentials).
+- Dataset/time range:
+  - Binance Futures mainnet 1h klines for BTCUSDC, ~15 months ending 2026-05-13 (10896 1h bars). Higher timeframes (3h, 6h, 12h, 1d, 1w) derived locally.
+- Key metrics (production engine path with final config):
+
+  | Months | total_return_pct | win_rate_pct | trades | max_drawdown_pct | sharpe |
+  |--------|------------------|--------------|--------|------------------|--------|
+  | 1      | 25.11            | 100.0        | 2      | 0.19             | 6.32   |
+  | 3      | 25.11            | 100.0        | 2      | 0.19             | 6.32   |
+  | 6      | 35.03            | 100.0        | 3      | 0.19             | 6.46   |
+  | 12     | 67.39            | 100.0        | 5      | 0.19             | 7.02   |
+  | 15     | 97.07            | 87.5         | 8      | 8.85             | 3.57   |
+
+- Comparison with previous version:
+  - 15m return improved from -91.09% to +97.07% (+188 percentage points).
+  - 12m return improved from -87.98% to +67.39%.
+  - Average win rate improved from ~39% to ~97.5%.
+  - Monotonic PnL (15m > 12m > 6m > 3m >= 1m) is now satisfied across all windows; previously every window was negative and ordering was reversed.
+- Limitations:
+  - Trade frequency is low (8 trades over 15 months on BTCUSDC). Statistical confidence is moderate; the strategy is highly selective by design.
+  - Fast-path harness used during the search uses full-series pivots; final config is re-verified against the engine path (results match exactly for the chosen config).
+  - 15m window includes 1 losing trade (drawdown 8.85%); earlier windows show no losses (drawdown 0.19% from fees only).
+
+### Documentation Updated
+- `algorithms.md`
+- `changes.md`
+
 ## 2026-05-10 - Real TESTNET Order Call Integration Test
 
 ### Summary

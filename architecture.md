@@ -17,8 +17,11 @@ A shared strategy core is used by both live trading and backtest simulation.
 ### Config Layer
 
 - Loads secrets from `.env` (`BINANCE_FUTURES_API_KEY`, `BINANCE_FUTURES_API_SECRET`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`).
-- Loads non-secret runtime and strategy parameters from `config.yaml`.
-- Validates symbols, leverage, maker mode, windows.
+- Loads non-secret runtime and strategy parameters from YAML in the project root.
+- Per-symbol files: `btcusdc_config.yaml`, `btcusdt_config.yaml`, `ethusdc_config.yaml`, `ethusdt_config.yaml`. Each carries its own `symbols`, strategy params, and backtest settings so symbols can be tuned independently.
+- `load_settings(symbol)` resolves `{symbol}_config.yaml` (case-insensitive). Missing per-symbol files raise `ConfigError` instead of silently falling back. `load_settings()` with no symbol reads the legacy `config.yaml`.
+- Entry-point scripts (`scripts/backtest.py`, `scripts/live.py`) accept `--symbol`. Symbol-specific harnesses (`scripts/btcusdc_*.py`) load `btcusdc_config.yaml` directly.
+- Validates leverage, maker mode, windows, and that `symbols` is non-empty.
 
 ### Data Layer
 

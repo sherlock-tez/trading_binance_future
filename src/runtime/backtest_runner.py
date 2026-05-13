@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import csv
 import json
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Dict, List, Set, Tuple
 
 import pandas as pd
@@ -16,7 +18,94 @@ from src.strategy.signal_engine import SignalEngine, StrategyParams
 from src.utils.logging import get_logger
 from src.utils.timeframe import needs_resample, normalize_timeframe, resample_ohlcv
 
+
+TRADE_HISTORY_FIELDS = [
+    "symbol",
+    "side",
+    "opened_at_ms",
+    "opened_at_utc",
+    "closed_at_ms",
+    "closed_at_utc",
+    "entry_price",
+    "stop_loss",
+    "take_profit",
+    "exit_price",
+    "quantity",
+    "pnl",
+    "pnl_pct",
+    "close_reason",
+]
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+
+def write_trade_history(
+    history: List[Dict[str, float | int | str]],
+    *,
+    history_dir: str,
+    strategy_version: str,
+    months: int,
+) -> Path:
+    """Write per-trade history to {history_dir}/loop_{version}/{months}m.csv.
+
+    `history_dir` is resolved relative to the project root (where config.yaml lives) so
+    files always land in the same place regardless of where the script is invoked from.
+    Returns the path written. Overwrites any prior file for the same version+window so
+    each backtest run reflects the latest configuration.
+    """
+    base = Path(history_dir)
+    if not base.is_absolute():
+        base = PROJECT_ROOT / base
+    out_dir = base / f"loop_{strategy_version}"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path = out_dir / f"{months}m.csv"
+
+    # Enrich with UTC ISO timestamps for readability.
+    enriched: List[Dict[str, float | int | str]] = []
+    for row in history:
+        opened_ms = int(row["opened_at_ms"])
+        closed_ms = int(row["closed_at_ms"])
+        enriched.append(
+            {
+                **row,
+                "opened_at_utc": pd.Timestamp(opened_ms, unit="ms", tz="UTC").isoformat(),
+                "closed_at_utc": pd.Timestamp(closed_ms, unit="ms", tz="UTC").isoformat(),
+            }
+        )
+
+    with path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=TRADE_HISTORY_FIELDS)
+        writer.writeheader()
+        for row in enriched:
+            writer.writerow({k: row.get(k, "") for k in TRADE_HISTORY_FIELDS})
+    return path
+
 logger = get_logger(__name__)
+
+
+def _strategy_params_from_settings(settings: Settings) -> StrategyParams:
+    return StrategyParams(
+        rsi_period=settings.rsi_period,
+        macd_fast=settings.macd_fast,
+        macd_slow=settings.macd_slow,
+        macd_signal=settings.macd_signal,
+        divergence_lookback=settings.divergence_lookback,
+        pivot_window=settings.pivot_window,
+        stop_loss_buffer_bps=settings.stop_loss_buffer_bps,
+        take_profit_buffer_bps=settings.take_profit_buffer_bps,
+        atr_period=settings.atr_period,
+        use_atr_stops=settings.use_atr_stops,
+        atr_sl_mult=settings.atr_sl_mult,
+        atr_tp_mult=settings.atr_tp_mult,
+        use_trend_filter=settings.use_trend_filter,
+        trend_ema_period=settings.trend_ema_period,
+        min_rr_ratio=settings.min_rr_ratio,
+        max_sl_distance_pct=settings.max_sl_distance_pct,
+        rsi_long_max=settings.rsi_long_max,
+        rsi_short_min=settings.rsi_short_min,
+        require_macd_divergence=settings.require_macd_divergence,
+    )
 
 
 @dataclass(frozen=True)
@@ -34,18 +123,7 @@ class BacktestRunner:
             api_secret=settings.binance_futures_api_secret,
             testnet=settings.binance_testnet,
         )
-        self.engine = SignalEngine(
-            StrategyParams(
-                rsi_period=settings.rsi_period,
-                macd_fast=settings.macd_fast,
-                macd_slow=settings.macd_slow,
-                macd_signal=settings.macd_signal,
-                divergence_lookback=settings.divergence_lookback,
-                pivot_window=settings.pivot_window,
-                stop_loss_buffer_bps=settings.stop_loss_buffer_bps,
-                take_profit_buffer_bps=settings.take_profit_buffer_bps,
-            )
-        )
+        self.engine = SignalEngine(_strategy_params_from_settings(settings))
 
     def _months_ago_ms(self, months: int) -> int:
         now = pd.Timestamp.utcnow().tz_localize(None)
@@ -193,6 +271,14 @@ class BacktestRunner:
             simulator.force_close_all(final_time, last_prices)
 
         metrics = simulator.metrics()
+        history = simulator.trade_history()
+        history_path = write_trade_history(
+            history,
+            history_dir=self.settings.backtest_history_dir,
+            strategy_version=self.settings.strategy_version,
+            months=months,
+        )
+        logger.info("Wrote %s trades to %s", len(history), history_path)
         return BacktestWindowResult(months=months, symbol_count=len(self.settings.symbols), metrics=metrics)
 
     def run_windows(self, month_windows: List[int]) -> List[BacktestWindowResult]:
