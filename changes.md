@@ -1,5 +1,63 @@
 # changes.md
 
+## Loop_20260513_1 - Loop Naming Convention + `strategy_version` → `loop_id`
+
+### Summary
+Introduced a single Loop identifier shared by `changes.md` entry titles and `backtest_history/` subfolders. Format is `Loop_{YYYYMMDD}_{iter}` (e.g. `Loop_20260513_1`). Renamed the config field `strategy.strategy_version` to `strategy.loop_id`, updated all 5 YAML configs, and changed the backtest-history folder format from `loop_{version}/` to `{loop_id}/` (the value already starts with `Loop_`, so no prefix is added). Legacy `backtest_history/loop_v1/` is preserved as a reference snapshot of the previous scheme.
+
+### Affected Files
+- `AGENTS.md` (new "Loop Naming Convention" section; updated Trade-History Persistence and Change Documentation Format sections)
+- `src/config.py` (`Settings.loop_id`; YAML key `strategy.loop_id`)
+- `src/runtime/backtest_runner.py` (`write_trade_history` takes `loop_id`; writes to `backtest_history/{loop_id}/`)
+- `scripts/btcusdc_optimize.py` (pass `loop_id=` to `write_trade_history`)
+- `config.yaml`, `btcusdc_config.yaml`, `btcusdt_config.yaml`, `ethusdc_config.yaml`, `ethusdt_config.yaml` (renamed field, set initial value `Loop_20260513_1`)
+- `changes.md`
+
+### Reason
+Aligns three concepts under one identifier (change title in docs, config field, trade-history folder) so each Loop is easy to locate and compare. Date+iter encoding also makes the chronological order obvious from the filesystem alone.
+
+### Backtest Result
+- Command/method: `python scripts/backtest.py --symbol BTCUSDC`
+- Dataset/time range: BTCUSDC 1h, windows 1m/3m/6m/12m/15m from now (mainnet klines)
+- Loop folder: `backtest_history/Loop_20260513_1/`
+- Key metrics:
+  - 1m: 25.11% return, 100% WR, 2 trades
+  - 3m: 25.11% return, 100% WR, 2 trades
+  - 6m: 35.03% return, 100% WR, 3 trades
+  - 12m: 67.39% return, 100% WR, 5 trades
+  - 15m: 97.07% return, 87.5% WR, 8 trades, 8.85% MDD, Sharpe 3.57
+- Comparison with previous Loop: identical numbers to the prior `loop_v1` run; this Loop is a process/plumbing change, not an algorithm change.
+- Limitations: same as previous Loop (mainnet kline REST during the run; no orders placed).
+
+### Documentation Updated
+- `AGENTS.md`
+- `changes.md`
+
+## 2026-05-13 - Force BacktestRunner to Mainnet Klines
+
+### Summary
+`BacktestRunner` previously honored `binance.testnet` when fetching historical klines, which meant backtests ran against Binance Futures *testnet* kline history (sparse, synthetic, bot-driven) whenever the config was set to testnet for live order safety. Hardcoded `testnet=False` in the kline client so backtests always use real mainnet price history. Live order placement still respects `binance.testnet` everywhere else.
+
+### Affected Files
+- `src/runtime/backtest_runner.py` (BacktestRunner.__init__ kline client)
+- `changes.md`
+
+### Reason
+The user's `btcusdc_config.yaml` has `testnet: true` for safe live order placement. Without this fix, `scripts/backtest.py --symbol BTCUSDC` silently ran against testnet kline data and produced meaningless results. `scripts/btcusdc_optimize.py` had already hardcoded mainnet for the same reason; this brings `BacktestRunner` in line.
+
+### Backtest Result
+- Command: `python scripts/backtest.py --symbol BTCUSDC`
+- Dataset: BTCUSDC 1h, windows 1m/3m/6m/12m/15m from now
+- Key metrics (matches `scripts/btcusdc_optimize.py` reference output):
+  - 6m: 35.03% return, 100% win rate, 3 trades, 0.19% MDD, Sharpe 6.46
+  - 12m: 67.39% return, 100% win rate, 5 trades, 0.19% MDD, Sharpe 7.02
+  - 15m: 97.07% return, 87.5% win rate, 8 trades, 8.85% MDD, Sharpe 3.57
+- Comparison with previous (testnet-data) run: numbers were degraded/meaningless; now restored to expected values.
+- Limitations: still uses live mainnet REST during the run; no orders are placed (`SimulatedExecutionAdapter`).
+
+### Documentation Updated
+- `changes.md`
+
 ## 2026-05-13 - Per-Symbol Config Files
 
 ### Summary

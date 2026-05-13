@@ -40,8 +40,10 @@ strategy:
   # Reward/risk + max-SL-distance gates (currently inactive; preserved for future tuning).
   min_rr_ratio: 0.0
   max_sl_distance_pct: 0.0
-  # Loop version label. Bump on every algorithm change so trade-history files are not overwritten.
-  strategy_version: v1
+  # Loop identifier. Format: Loop_{YYYYMMDD}_{iter}. Bump on every algorithm/config
+  # change (see AGENTS.md "Loop Naming Convention") so previous trade-history files
+  # are preserved for comparison.
+  loop_id: Loop_20260513_1
 
 execution:
   order_reprice_bps: 2

@@ -238,7 +238,7 @@ def run_window(
     path = write_trade_history(
         history,
         history_dir=settings.backtest_history_dir,
-        strategy_version=settings.strategy_version,
+        loop_id=settings.loop_id,
         months=months,
     )
     print(f"[history] wrote {len(history)} trades for months={months} -> {path}")

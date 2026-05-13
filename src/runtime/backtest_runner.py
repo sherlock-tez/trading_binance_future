@@ -44,20 +44,21 @@ def write_trade_history(
     history: List[Dict[str, float | int | str]],
     *,
     history_dir: str,
-    strategy_version: str,
+    loop_id: str,
     months: int,
 ) -> Path:
-    """Write per-trade history to {history_dir}/loop_{version}/{months}m.csv.
+    """Write per-trade history to {history_dir}/{loop_id}/{months}m.csv.
 
     `history_dir` is resolved relative to the project root (where config.yaml lives) so
     files always land in the same place regardless of where the script is invoked from.
-    Returns the path written. Overwrites any prior file for the same version+window so
-    each backtest run reflects the latest configuration.
+    `loop_id` must follow the `Loop_{YYYYMMDD}_{iter}` convention from AGENTS.md.
+    Returns the path written. Overwrites any prior file for the same loop+window so each
+    backtest rerun under the same Loop reflects the latest configuration.
     """
     base = Path(history_dir)
     if not base.is_absolute():
         base = PROJECT_ROOT / base
-    out_dir = base / f"loop_{strategy_version}"
+    out_dir = base / loop_id
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / f"{months}m.csv"
 
@@ -118,10 +119,13 @@ class BacktestWindowResult:
 class BacktestRunner:
     def __init__(self, settings: Settings):
         self.settings = settings
+        # Historical klines must come from mainnet — testnet kline history is
+        # sparse/synthetic and produces meaningless backtest results. The
+        # binance.testnet flag still controls live order placement elsewhere.
         self.client = BinanceFuturesClient(
             api_key=settings.binance_futures_api_key,
             api_secret=settings.binance_futures_api_secret,
-            testnet=settings.binance_testnet,
+            testnet=False,
         )
         self.engine = SignalEngine(_strategy_params_from_settings(settings))
 
@@ -275,7 +279,7 @@ class BacktestRunner:
         history_path = write_trade_history(
             history,
             history_dir=self.settings.backtest_history_dir,
-            strategy_version=self.settings.strategy_version,
+            loop_id=self.settings.loop_id,
             months=months,
         )
         logger.info("Wrote %s trades to %s", len(history), history_path)

@@ -57,7 +57,7 @@ class Settings:
     rsi_long_max: float = 50.0
     rsi_short_min: float = 50.0
     require_macd_divergence: bool = True
-    strategy_version: str = "v1"
+    loop_id: str = "Loop_20260513_1"
     backtest_history_dir: str = "backtest_history"
 
 
@@ -202,7 +202,7 @@ def load_settings(symbol: str | None = None) -> Settings:
         rsi_long_max=float(strategy_cfg.get("rsi_long_max", 50.0)),
         rsi_short_min=float(strategy_cfg.get("rsi_short_min", 50.0)),
         require_macd_divergence=_parse_bool(strategy_cfg.get("require_macd_divergence"), default=True),
-        strategy_version=str(strategy_cfg.get("strategy_version", "v1")).strip(),
+        loop_id=str(strategy_cfg.get("loop_id", "Loop_20260513_1")).strip(),
         backtest_history_dir=str(backtest_cfg.get("history_dir", "backtest_history")).strip(),
     )
 
