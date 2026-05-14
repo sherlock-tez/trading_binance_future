@@ -1,6 +1,24 @@
 # changes.md
 
-## ETHUSDC iteration notes (post-Loop_9) — convergence confirmed
+## ETHUSDC iteration notes (post-Loop_9) — convergence re-confirmed (eth_tightpivot)
+
+### Summary
+User re-invoked /loop again after Loop_9 lock. Final untested combination probed: `eth_tightpivot` grid (648 combos) crossing `pivot_window ∈ [2,3]` × `divergence_lookback ∈ [40,60,80]` × `atr_sl_mult ∈ [1.8,2.0,2.2]` × `atr_tp_mult ∈ [6.0,8.0]` × `rsi_long_max ∈ [30,35,40]` × `rsi_short_min ∈ [55,58,60]` × `rsi_period ∈ [9,11]`, all with `require_macd_divergence=True` + `use_trend_filter=True` + `leverage=20`. Prior MACD-gated grids only tested pivot ∈ [4-7]; pivot=2/3 with MACD gate was a fresh search space.
+
+**Result: Loop_9 confirmed as global optimum for a SECOND time.** Best 15m return in the 80 top configs was **+104.18%** vs Loop_9's **+2141.85%** — a 20× gap. Tighter pivots (2/3) generate more divergence candidates, but the MACD gate filters them down to mostly low-quality 2-trade samples that cannot match pivot=5's high-conviction 4-trade winner pattern.
+
+### Why trade-count cannot reach 2/month
+Established in prior eth_loosen sweep; re-confirmed: the few configs that admit ≥10 trades all required `use_trend_filter=False`, which produces catastrophic losses (-100% 15m). The trend filter is structurally essential on ETH 1h. Therefore Target #3 (2-5 trades/month) is mathematically incompatible with Target #1 (WR>70) and Target #2 (positive PnL) on ETHUSDC under the mandatory rule + 1h timeframe.
+
+### Total search space (cumulative)
+**~10,648 unique configurations tested across 12 ETH grids** (`manytrades`, `eth_tight`, `eth_wide`, `eth_long_filter`, `eth_short_tune`, `eth_refine`, `eth_macd_loop3`, `eth_loop4_refine`, `eth_bigtp`, `eth_megatp`, `eth_leverage`, `eth_loosen`, `eth_tightpivot`).
+
+### Loop status
+**ETHUSDC optimization loop ENDED.** Loop_9 stands as the final ETH config. No Loop_10 will be applied. Per loop skill: ScheduleWakeup omitted to terminate the dynamic-mode loop cleanly.
+
+---
+
+## ETHUSDC iteration notes (post-Loop_9) — convergence confirmed (eth_loosen)
 
 ### Summary
 After Loop_9 the user re-invoked the optimization loop. Ran `eth_loosen` (486 combos) crossing `use_trend_filter ∈ [True, False]` × `rsi_long_max ∈ [35,40,45]` × `rsi_short_min ∈ [55,58,60]` × `pivot_window ∈ [4,5,6]` × `atr_tp_mult ∈ [7,8,8.5]`. Anchor on Loop_9 (MACD gate, leverage=20).

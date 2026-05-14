@@ -93,7 +93,7 @@ def apply_overrides(settings: Settings, overrides: Dict[str, Any]) -> Settings:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--grid", type=str, default="basic", choices=["basic", "wide", "fine", "monotonic", "refine", "bigreward", "strictrsi", "neighbor2", "tprange", "pivots", "macd_gate", "aggressive", "trendloose", "atrshift", "atr_push", "eqratio", "fastatr", "indicators", "moretrades", "moretrades_fine", "moretrades_scan", "bigrr", "loop10_refine", "manytrades", "rsi_period_probe", "macd_probe", "loop11_wide", "eth_tight", "eth_wide", "eth_long_filter", "eth_short_tune", "eth_refine", "eth_macd_loop3", "eth_loop4_refine", "eth_bigtp", "eth_megatp", "eth_leverage", "eth_loosen"])
+    parser.add_argument("--grid", type=str, default="basic", choices=["basic", "wide", "fine", "monotonic", "refine", "bigreward", "strictrsi", "neighbor2", "tprange", "pivots", "macd_gate", "aggressive", "trendloose", "atrshift", "atr_push", "eqratio", "fastatr", "indicators", "moretrades", "moretrades_fine", "moretrades_scan", "bigrr", "loop10_refine", "manytrades", "rsi_period_probe", "macd_probe", "loop11_wide", "eth_tight", "eth_wide", "eth_long_filter", "eth_short_tune", "eth_refine", "eth_macd_loop3", "eth_loop4_refine", "eth_bigtp", "eth_megatp", "eth_leverage", "eth_loosen", "eth_tightpivot"])
     parser.add_argument("--top", type=int, default=15)
     args = parser.parse_args()
 
