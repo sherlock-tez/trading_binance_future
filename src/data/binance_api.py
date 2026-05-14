@@ -139,3 +139,28 @@ class BinanceFuturesClient:
     def place_batch_orders(self, batch_orders: List[Dict[str, Any]]) -> Dict[str, Any]:
         payload = {"batchOrders": str(batch_orders).replace("'", '"')}
         return self._request("POST", "/fapi/v1/batchOrders", params=payload, signed=True)
+
+    def place_algo_order(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Place a conditional algo order (STOP_MARKET / TAKE_PROFIT_MARKET / etc.).
+
+        As of Binance USDS-M Futures 2025-12-09, conditional orders MUST use
+        `/fapi/v1/algoOrder` — the legacy `/fapi/v1/order` endpoint now returns
+        -4120 for these order types. Required params: `algoType=CONDITIONAL`,
+        `symbol`, `side`, `type`, `triggerPrice` (replaces legacy `stopPrice`).
+        Returns include `algoId` (not `orderId`).
+        """
+        return self._request("POST", "/fapi/v1/algoOrder", params=params, signed=True)
+
+    def cancel_algo_order(self, algo_id: int) -> Dict[str, Any]:
+        return self._request(
+            "DELETE",
+            "/fapi/v1/algoOrder",
+            params={"algoId": algo_id},
+            signed=True,
+        )
+
+    def get_open_algo_orders(self, symbol: Optional[str] = None) -> List[Dict[str, Any]]:
+        params: Dict[str, Any] = {}
+        if symbol:
+            params["symbol"] = symbol
+        return self._request("GET", "/fapi/v1/openAlgoOrders", params=params, signed=True)

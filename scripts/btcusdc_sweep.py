@@ -93,7 +93,7 @@ def apply_overrides(settings: Settings, overrides: Dict[str, Any]) -> Settings:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--grid", type=str, default="basic", choices=["basic", "wide", "fine", "monotonic", "refine", "bigreward", "strictrsi", "neighbor2", "tprange", "pivots", "macd_gate", "aggressive", "trendloose", "atrshift", "atr_push", "eqratio", "fastatr", "indicators", "moretrades", "moretrades_fine", "moretrades_scan", "bigrr", "loop10_refine", "manytrades", "rsi_period_probe", "macd_probe", "loop11_wide", "eth_tight", "eth_wide", "eth_long_filter", "eth_short_tune", "eth_refine", "eth_macd_loop3", "eth_loop4_refine", "eth_bigtp", "eth_megatp", "eth_leverage", "eth_loosen", "eth_tightpivot", "eth_trend_window"])
+    parser.add_argument("--grid", type=str, default="basic", choices=["basic", "wide", "fine", "monotonic", "refine", "bigreward", "strictrsi", "neighbor2", "tprange", "pivots", "macd_gate", "aggressive", "trendloose", "atrshift", "atr_push", "eqratio", "fastatr", "indicators", "moretrades", "moretrades_fine", "moretrades_scan", "bigrr", "loop10_refine", "manytrades", "rsi_period_probe", "macd_probe", "loop11_wide", "eth_tight", "eth_wide", "eth_long_filter", "eth_short_tune", "eth_refine", "eth_macd_loop3", "eth_loop4_refine", "eth_bigtp", "eth_megatp", "eth_leverage", "eth_loosen", "eth_tightpivot", "eth_trend_window", "eth_finetune", "eth_macd_params", "eth_srstops", "eth_unlock"])
     parser.add_argument("--top", type=int, default=15)
     args = parser.parse_args()
 
@@ -481,6 +481,110 @@ def main():
             "rsi_short_min": [55.0, 60.0],
             "atr_period": [6, 10, 14],
             "require_macd_divergence": [False],
+        }
+    elif args.grid == "eth_finetune":
+        # Loop_10 attempt #14: fine-resolution sweep AROUND the eth_trend_window winner
+        # (trend_ema=150, atr_period=10, div_lb=60, +3018% PnL @ WR=100%). That config
+        # FAILED strict monotonicity (15m == 12m tie — no trade in the oldest 3 months).
+        # Goal: nudge params to place AT LEAST 1 trade in the 12-15m window AND 1 in
+        # the 0-1m window, unlocking strict monotonicity + all_positive while preserving
+        # the +3018% PnL profile. Probe trend_ema [130-170], atr_period [8-12],
+        # divergence_lookback [50-70], pivot_window [4-6].
+        grid = {
+            "use_atr_stops": [True],
+            "atr_sl_mult": [2.0],
+            "atr_tp_mult": [7.0, 8.0],
+            "use_trend_filter": [True],
+            "trend_ema_period": [130, 140, 150, 160, 170],
+            "leverage": [20],
+            "position_equity_ratio": [1.0],
+            "pivot_window": [4, 5, 6],
+            "divergence_lookback": [50, 60, 70],
+            "rsi_long_max": [30.0, 35.0],
+            "rsi_short_min": [58.0],
+            "atr_period": [8, 10, 12],
+            "rsi_period": [11],
+            "require_macd_divergence": [True],
+        }
+    elif args.grid == "eth_unlock":
+        # Loop_10 attempt #17: BREAKTHROUGH probe. The macd_gate=False + SR mode
+        # bucket in eth_srstops is the FIRST config across 15 grids producing
+        # 1m trades (1m=4, 3m=5, 6m=13, 12m=22, 15m=23) — strictly monotonic
+        # in trade count! But WR=65% (below 70%). Hypothesis: tighten RSI
+        # extremity gate aggressively to recover WR while keeping the trade
+        # distribution. Test rsi_long_max ∈ [20, 22, 25, 28] (vs Loop_9's 30)
+        # and rsi_short_min ∈ [60, 62, 65, 68] (vs Loop_9's 58) — both with
+        # SR mode (use_atr_stops=False) + macd_gate=False.
+        grid = {
+            "use_atr_stops": [False],
+            "atr_sl_mult": [2.0],   # unused
+            "atr_tp_mult": [8.0],   # unused
+            "use_trend_filter": [True],
+            "trend_ema_period": [150, 200],
+            "leverage": [20],
+            "position_equity_ratio": [1.0],
+            "pivot_window": [5],
+            "divergence_lookback": [60, 80],
+            "rsi_long_max": [20.0, 22.0, 25.0, 28.0],
+            "rsi_short_min": [60.0, 62.0, 65.0, 68.0],
+            "atr_period": [14],
+            "rsi_period": [11],
+            "require_macd_divergence": [False],
+            "min_rr_ratio": [0.0],
+            "max_sl_distance_pct": [0.0],
+        }
+    elif args.grid == "eth_srstops":
+        # Loop_10 attempt #16: probe use_atr_stops=False — TRULY never tested in any
+        # of the 14 prior ETH grids (always pinned at True). With use_atr_stops=False
+        # the bot uses support/resistance levels (3h/6h/12h/1d/1w timeframes) instead
+        # of ATR multiples for SL/TP placement. Completely different stop mechanics —
+        # may place SL/TP at structurally meaningful levels and shift the trade set.
+        # Also activates min_rr_ratio and max_sl_distance_pct (currently 0=inactive).
+        grid = {
+            "use_atr_stops": [False],
+            "atr_sl_mult": [2.0],   # unused when use_atr_stops=False
+            "atr_tp_mult": [8.0],   # unused when use_atr_stops=False
+            "use_trend_filter": [True],
+            "trend_ema_period": [150, 200],
+            "leverage": [20],
+            "position_equity_ratio": [1.0],
+            "pivot_window": [4, 5],
+            "divergence_lookback": [60, 80],
+            "rsi_long_max": [30.0, 35.0],
+            "rsi_short_min": [55.0, 58.0],
+            "atr_period": [14],
+            "rsi_period": [11],
+            "require_macd_divergence": [True, False],
+            # Existing-but-unused gating keys — activate now.
+            "min_rr_ratio": [0.0, 2.0, 3.0],
+            "max_sl_distance_pct": [0.0, 0.05, 0.10],
+        }
+    elif args.grid == "eth_macd_params":
+        # Loop_10 attempt #15: the ONE lever never touched across 13 prior ETH grids
+        # — MACD parameters (fast/slow/signal). All grids pinned at 12/26/9. Faster
+        # MACD may catch shorter-term divergences (more trades), slower may filter
+        # to higher-conviction signals. Crossed with the eth_finetune sweet spot
+        # (trend_ema=150, atr_period=8-10, div_lb=50-60) and includes a probe with
+        # MACD-divergence requirement OFF so we can find configs with 5-10 trades
+        # (needed to satisfy strict monotonicity across all 5 windows).
+        grid = {
+            "use_atr_stops": [True],
+            "atr_sl_mult": [2.0],
+            "atr_tp_mult": [7.0, 8.0],
+            "use_trend_filter": [True],
+            "trend_ema_period": [150, 200],
+            "leverage": [20],
+            "position_equity_ratio": [1.0],
+            "pivot_window": [5],
+            "divergence_lookback": [60, 80],
+            "rsi_long_max": [30.0],
+            "rsi_short_min": [58.0],
+            "atr_period": [10, 14],
+            "rsi_period": [11],
+            "require_macd_divergence": [True, False],
+            "macd_fast": [8, 10, 12, 15],
+            "macd_slow": [21, 26],
+            "macd_signal": [7, 9],
         }
     elif args.grid == "eth_trend_window":
         # Loop_10 attempt: probe trend_ema_period — the LAST single-symbol lever

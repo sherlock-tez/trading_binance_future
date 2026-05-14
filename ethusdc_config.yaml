@@ -17,7 +17,7 @@ trading:
   # User explicit directive: "Increase PnL" target #2 wins over DD aversion here.
   leverage: 20
   max_open_positions: 1
-  position_equity_ratio: 1.0
+  position_equity_ratio: 0.95
   maker_only: true
 
 strategy:

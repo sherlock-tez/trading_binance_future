@@ -52,6 +52,12 @@ def _build_executor() -> tuple[BinanceFuturesExecutor, str]:
         load_settings(),
         binance_testnet=True,
         max_open_positions=999,
+        # Pin to 0.1 (10% of equity) so a $10k testnet account can comfortably
+        # cover entry margin + SL/TP bracket reservations and the GTX order
+        # actually lands on the book. Production configs run at 0.95-1.0; the
+        # integration test's purpose is to prove the order round-trip, not to
+        # mirror production sizing.
+        position_equity_ratio=0.1,
     )
     symbol = settings.symbols[0]
 
@@ -74,6 +80,15 @@ def _cleanup_symbol_orders_and_positions(client: BinanceFuturesClient, symbol: s
     except Exception:
         pass
 
+    # Algo orders (SL/TP) live on a separate endpoint and need their own cancel path.
+    try:
+        for algo in client.get_open_algo_orders(symbol):
+            algo_id = algo.get("algoId")
+            if algo_id is not None:
+                client.cancel_algo_order(int(algo_id))
+    except Exception:
+        pass
+
     try:
         for position in client.get_position_risk():
             if position.get("symbol") != symbol:
@@ -82,20 +97,17 @@ def _cleanup_symbol_orders_and_positions(client: BinanceFuturesClient, symbol: s
             if abs(amount) <= 0:
                 continue
 
-            if amount > 0:
-                side = "SELL"
-                position_side = "LONG"
-            else:
-                side = "BUY"
-                position_side = "SHORT"
-
+            # One-way mode: no positionSide on the close. reduceOnly=True
+            # guarantees the MARKET order can only close the existing
+            # position, never accidentally flip it.
+            side = "SELL" if amount > 0 else "BUY"
             client.place_order(
                 {
                     "symbol": symbol,
                     "side": side,
-                    "positionSide": position_side,
                     "type": "MARKET",
                     "quantity": f"{abs(amount):.12f}",
+                    "reduceOnly": "true",
                 }
             )
     except Exception:
