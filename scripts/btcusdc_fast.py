@@ -34,7 +34,8 @@ from src.strategy.support_resistance import (
 )
 
 
-SYMBOL = "BTCUSDC"
+import os as _os
+SYMBOL = _os.environ.get("SWEEP_SYMBOL", "BTCUSDC")
 
 
 def _pivot_low_indices_full(arr: np.ndarray, window: int) -> np.ndarray:

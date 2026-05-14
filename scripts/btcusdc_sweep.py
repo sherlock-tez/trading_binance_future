@@ -25,7 +25,7 @@ import btcusdc_fast as bf  # type: ignore
 
 def score(window_results) -> Tuple[float, bool, Dict[str, Any]]:
     """Score a parameter combination against user targets:
-       1. min WR across all windows >= 80% (HARD)
+       1. min WR across all windows > 70% (HARD) — relaxed from 80% in Loop_11 round.
        2. strict monotonic PnL: 15m > 12m > 6m > 3m > 1m (HARD)
        3. all positive returns (HARD)
        4. min trades/month >= 2.0 across all windows (HARD)
@@ -44,7 +44,7 @@ def score(window_results) -> Tuple[float, bool, Dict[str, Any]]:
     strict_monotonic = all(rets[i] < rets[i + 1] for i in range(len(rets) - 1))
     all_positive = all(r > 0 for r in rets)
     min_wr = min(wrs) if wrs else 0.0
-    wr_floor_ok = min_wr >= 80.0
+    wr_floor_ok = min_wr > 70.0
     min_tpm = min(trades_per_month) if trades_per_month else 0.0
     tpm_floor_ok = min_tpm >= 2.0
     avg_ret = sum(rets) / len(rets)
@@ -93,13 +93,15 @@ def apply_overrides(settings: Settings, overrides: Dict[str, Any]) -> Settings:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--grid", type=str, default="basic", choices=["basic", "wide", "fine", "monotonic", "refine", "bigreward", "strictrsi", "neighbor2", "tprange", "pivots", "macd_gate", "aggressive", "trendloose", "atrshift", "atr_push", "eqratio", "fastatr", "indicators", "moretrades", "moretrades_fine", "moretrades_scan", "bigrr", "loop10_refine", "manytrades"])
+    parser.add_argument("--grid", type=str, default="basic", choices=["basic", "wide", "fine", "monotonic", "refine", "bigreward", "strictrsi", "neighbor2", "tprange", "pivots", "macd_gate", "aggressive", "trendloose", "atrshift", "atr_push", "eqratio", "fastatr", "indicators", "moretrades", "moretrades_fine", "moretrades_scan", "bigrr", "loop10_refine", "manytrades", "rsi_period_probe", "macd_probe", "loop11_wide", "eth_tight", "eth_wide", "eth_long_filter", "eth_short_tune", "eth_refine", "eth_macd_loop3", "eth_loop4_refine", "eth_bigtp", "eth_megatp", "eth_leverage", "eth_loosen"])
     parser.add_argument("--top", type=int, default=15)
     args = parser.parse_args()
 
     frames = bo.load_or_refresh_cache(refresh=False)
-    base_settings = load_settings("BTCUSDC")
-    base_settings = replace(base_settings, symbols=["BTCUSDC"])
+    # Symbol parametric via SWEEP_SYMBOL env var (default BTCUSDC).
+    sweep_symbol = os.environ.get("SWEEP_SYMBOL", "BTCUSDC")
+    base_settings = load_settings(sweep_symbol)
+    base_settings = replace(base_settings, symbols=[sweep_symbol])
 
     months_list = [1, 3, 6, 12, 15]
 
@@ -478,6 +480,274 @@ def main():
             "rsi_long_max": [50.0],
             "rsi_short_min": [55.0, 60.0],
             "atr_period": [6, 10, 14],
+            "require_macd_divergence": [False],
+        }
+    elif args.grid == "eth_loosen":
+        # Loop_10 attempt: try to unlock more trades while keeping WR>70. Vary
+        # use_trend_filter (off may admit 2-3x more signals), and slightly loosen
+        # RSI gates. Anchor on Loop_9 winners otherwise.
+        grid = {
+            "use_atr_stops": [True],
+            "atr_sl_mult": [2.0],
+            "atr_tp_mult": [7.0, 8.0, 8.5],
+            "use_trend_filter": [True, False],
+            "trend_ema_period": [200],
+            "leverage": [20],
+            "position_equity_ratio": [1.0],
+            "pivot_window": [4, 5, 6],
+            "divergence_lookback": [60, 80, 100],
+            "rsi_long_max": [35.0, 40.0, 45.0],
+            "rsi_short_min": [55.0, 58.0, 60.0],
+            "atr_period": [14],
+            "rsi_period": [11],
+            "require_macd_divergence": [True],
+        }
+    elif args.grid == "eth_leverage":
+        # Loop_8 probe: vary leverage (untouched) to see if higher leverage scales PnL
+        # acceptably given Loop_7's 14% max DD. Risk: leverage scales DD proportionally.
+        grid = {
+            "use_atr_stops": [True],
+            "atr_sl_mult": [2.0],
+            "atr_tp_mult": [8.0],
+            "use_trend_filter": [True],
+            "trend_ema_period": [200],
+            "leverage": [10, 12, 15, 18, 20],
+            "position_equity_ratio": [1.0],
+            "pivot_window": [5],
+            "divergence_lookback": [80],
+            "rsi_long_max": [30.0],
+            "rsi_short_min": [58.0],
+            "atr_period": [14],
+            "rsi_period": [11],
+            "require_macd_divergence": [True],
+        }
+    elif args.grid == "eth_megatp":
+        # Loop_7 attempt: TP beyond 7.0. Check if 8, 9, 10 still improve PnL.
+        # Diminishing returns expected — at some point TP cap exceeds typical ETH move size.
+        grid = {
+            "use_atr_stops": [True],
+            "atr_sl_mult": [1.8, 2.0, 2.2],
+            "atr_tp_mult": [7.0, 8.0, 9.0, 10.0, 12.0],
+            "use_trend_filter": [True],
+            "trend_ema_period": [200],
+            "leverage": [10],
+            "position_equity_ratio": [1.0],
+            "pivot_window": [5],
+            "divergence_lookback": [80],
+            "rsi_long_max": [30.0],
+            "rsi_short_min": [58.0],
+            "atr_period": [14],
+            "rsi_period": [11],
+            "require_macd_divergence": [True],
+        }
+    elif args.grid == "eth_bigtp":
+        # Loop_6 attempt: push TP beyond 4.0 (5, 6, 7) anchored on Loop_5 winners.
+        # User explicitly invited extending reward as long as PnL improves.
+        grid = {
+            "use_atr_stops": [True],
+            "atr_sl_mult": [1.5, 1.8, 2.0, 2.2],
+            "atr_tp_mult": [4.0, 5.0, 6.0, 7.0],
+            "use_trend_filter": [True],
+            "trend_ema_period": [200],
+            "leverage": [10],
+            "position_equity_ratio": [1.0],
+            "pivot_window": [5],
+            "divergence_lookback": [60, 80, 100],
+            "rsi_long_max": [30.0, 35.0],
+            "rsi_short_min": [58.0, 60.0],
+            "atr_period": [14],
+            "rsi_period": [9, 11],
+            "require_macd_divergence": [True],
+        }
+    elif args.grid == "eth_loop4_refine":
+        # Loop_5 attempt: refine around Loop_4 (pivot=5, MACD gate on, rsi_long=35, rsi_short=60).
+        # Goal: keep WR>70 while maximizing 15m PnL — pivot=6 alt showed +191% but WR=71%.
+        grid = {
+            "use_atr_stops": [True],
+            "atr_sl_mult": [2.0, 2.2, 2.5, 2.8, 3.0],
+            "atr_tp_mult": [3.0, 3.5, 4.0],
+            "use_trend_filter": [True],
+            "trend_ema_period": [200],
+            "leverage": [10],
+            "position_equity_ratio": [1.0],
+            "pivot_window": [5, 6],
+            "divergence_lookback": [60, 80, 100],
+            "rsi_long_max": [30.0, 35.0, 40.0],
+            "rsi_short_min": [58.0, 60.0, 62.0],
+            "atr_period": [14],
+            "rsi_period": [7, 9, 11],
+            "require_macd_divergence": [True],
+        }
+    elif args.grid == "eth_macd_loop3":
+        # Loop_4 attempt: Loop_3 anchor + require_macd_divergence ON. Tests whether
+        # the additional MACD-divergence confirmation lifts WR & PnL or kills trades.
+        grid = {
+            "use_atr_stops": [True],
+            "atr_sl_mult": [2.0, 2.5, 3.0],
+            "atr_tp_mult": [2.5, 3.0, 4.0],
+            "use_trend_filter": [True],
+            "trend_ema_period": [200],
+            "leverage": [10],
+            "position_equity_ratio": [1.0],
+            "pivot_window": [5, 6, 7],
+            "divergence_lookback": [60, 80, 120],
+            "rsi_long_max": [35.0, 40.0],
+            "rsi_short_min": [60.0, 62.0, 65.0],
+            "atr_period": [14],
+            "rsi_period": [9, 12],
+            "require_macd_divergence": [True],
+        }
+    elif args.grid == "eth_refine":
+        # Loop_3 attempt: Loop_2 has 2 consecutive recent LONG losses (4/18, 4/19).
+        # Try wider pivot_window (5,6,7) + rsi_period variants + atr_period to dampen
+        # consecutive signal noise. Anchor on Loop_2 winners.
+        grid = {
+            "use_atr_stops": [True],
+            "atr_sl_mult": [2.5],
+            "atr_tp_mult": [2.5, 3.0],
+            "use_trend_filter": [True],
+            "trend_ema_period": [200],
+            "leverage": [10],
+            "position_equity_ratio": [1.0],
+            "pivot_window": [4, 5, 6, 7],
+            "divergence_lookback": [40, 60, 80],
+            "rsi_long_max": [35.0, 40.0, 45.0],
+            "rsi_short_min": [62.0, 65.0, 68.0],
+            "atr_period": [10, 14, 21],
+            "rsi_period": [9, 12, 18, 21],
+            "require_macd_divergence": [False],
+        }
+    elif args.grid == "eth_short_tune":
+        # Loop_3 attempt: keep LONG tight (rsi_long_max=40 from Loop_2 winner) but
+        # explore SHORT filter and pivot density. Shorts always profitable (WR=50%
+        # but only 0-2 fire); adding more would lift overall PnL.
+        grid = {
+            "use_atr_stops": [True],
+            "atr_sl_mult": [2.0, 2.5],
+            "atr_tp_mult": [2.5, 3.0],
+            "use_trend_filter": [True],
+            "trend_ema_period": [200],
+            "leverage": [10],
+            "position_equity_ratio": [1.0],
+            "pivot_window": [3, 4],
+            "divergence_lookback": [40, 60, 80],
+            "rsi_long_max": [40.0],
+            "rsi_short_min": [50.0, 52.0, 55.0, 58.0, 60.0, 62.0, 65.0, 70.0],
+            "atr_period": [14],
+            "require_macd_divergence": [False],
+        }
+    elif args.grid == "eth_long_filter":
+        # ETHUSDC discovery: LONGS bleed in 12m window (11 trades, WR=36%, PnL=-502).
+        # SHORTS work great (WR=50%, always profitable but only 2 fires). Tighten LONG side
+        # via lower rsi_long_max so longs only fire when RSI is deeply oversold.
+        grid = {
+            "use_atr_stops": [True],
+            "atr_sl_mult": [2.0, 2.5, 3.0],
+            "atr_tp_mult": [2.5, 3.0, 4.0],
+            "use_trend_filter": [True],
+            "trend_ema_period": [200],
+            "leverage": [10],
+            "position_equity_ratio": [1.0],
+            "pivot_window": [4, 5],
+            "divergence_lookback": [80, 120],
+            "rsi_long_max": [25.0, 30.0, 35.0, 40.0, 45.0],
+            "rsi_short_min": [55.0, 60.0, 65.0, 70.0, 75.0],
+            "atr_period": [14],
+            "require_macd_divergence": [False],
+        }
+    elif args.grid == "eth_wide":
+        # ETHUSDC focused probe — anchor on eth_tight winners + require_macd_divergence variations
+        # since eth_tight #10 showed positive 15m with MACD gate enabled.
+        grid = {
+            "use_atr_stops": [True],
+            "atr_sl_mult": [1.8, 2.0, 2.5],
+            "atr_tp_mult": [3.0, 4.0],
+            "use_trend_filter": [True],
+            "trend_ema_period": [200],
+            "leverage": [10],
+            "position_equity_ratio": [1.0],
+            "pivot_window": [3, 4, 5, 6],
+            "divergence_lookback": [40, 80, 120],
+            "rsi_long_max": [50.0],
+            "rsi_short_min": [55.0, 60.0, 65.0, 70.0],
+            "atr_period": [14],
+            "require_macd_divergence": [True, False],
+        }
+    elif args.grid == "eth_tight":
+        # ETHUSDC needs MUCH tighter filters than BTCUSDC (baseline WR was 10-17%).
+        # Tighten: higher rsi_short_min, lower rsi_long_max (still <=50 mandatory),
+        # wider pivot_window, longer divergence_lookback, require_macd_divergence option.
+        grid = {
+            "use_atr_stops": [True],
+            "atr_sl_mult": [1.5, 2.0, 2.5],
+            "atr_tp_mult": [3.0, 4.0],
+            "use_trend_filter": [True],
+            "trend_ema_period": [200],
+            "leverage": [10],
+            "position_equity_ratio": [1.0],
+            "pivot_window": [4, 5, 6],
+            "divergence_lookback": [80, 120, 160],
+            "rsi_long_max": [35.0, 40.0, 45.0, 50.0],
+            "rsi_short_min": [60.0, 65.0, 70.0, 75.0],
+            "atr_period": [14],
+            "require_macd_divergence": [False, True],
+        }
+    elif args.grid == "loop11_wide":
+        # Loop_11 final wide probe: combine untouched dimensions to break the structural
+        # monotonic+WR>70+tpm>=2 conflict. Vary pivot_window=2 (more pivots), wider trend_ema,
+        # bigger TP ratios as user permits.
+        grid = {
+            "use_atr_stops": [True],
+            "atr_sl_mult": [1.2, 1.5, 1.8],
+            "atr_tp_mult": [4.0, 5.0, 6.0],
+            "use_trend_filter": [True],
+            "trend_ema_period": [50, 100, 150, 200],
+            "leverage": [10],
+            "position_equity_ratio": [1.0],
+            "pivot_window": [2, 3, 4],
+            "divergence_lookback": [60, 80],
+            "rsi_long_max": [50.0],
+            "rsi_short_min": [55.0, 60.0],
+            "atr_period": [10, 14, 18],
+            "require_macd_divergence": [False],
+        }
+    elif args.grid == "rsi_period_probe":
+        # Loop_11 attempt: vary rsi_period (untouched in prior grids).
+        # Anchor most params at Loop_10 winners; vary rsi_period + a few others.
+        grid = {
+            "use_atr_stops": [True],
+            "atr_sl_mult": [1.5, 1.8, 2.0],
+            "atr_tp_mult": [3.0, 4.0, 5.0],
+            "use_trend_filter": [True],
+            "trend_ema_period": [200],
+            "leverage": [10],
+            "position_equity_ratio": [1.0],
+            "pivot_window": [3, 4, 5],
+            "divergence_lookback": [60, 80, 120],
+            "rsi_long_max": [50.0],
+            "rsi_short_min": [55.0, 60.0],
+            "atr_period": [14],
+            "rsi_period": [6, 9, 12, 18, 21],
+            "require_macd_divergence": [False],
+        }
+    elif args.grid == "macd_probe":
+        # Loop_11 alt: vary MACD periods (also untouched). Could shift signal frequency.
+        grid = {
+            "use_atr_stops": [True],
+            "atr_sl_mult": [1.8],
+            "atr_tp_mult": [3.0, 4.0],
+            "use_trend_filter": [True],
+            "trend_ema_period": [200],
+            "leverage": [10],
+            "position_equity_ratio": [1.0],
+            "pivot_window": [4],
+            "divergence_lookback": [80],
+            "rsi_long_max": [50.0],
+            "rsi_short_min": [55.0, 60.0],
+            "atr_period": [14],
+            "macd_fast": [8, 12, 16],
+            "macd_slow": [21, 26, 34],
+            "macd_signal": [7, 9, 12],
             "require_macd_divergence": [False],
         }
     elif args.grid == "moretrades_fine":

@@ -42,7 +42,9 @@ from src.utils.timeframe import needs_resample, normalize_timeframe, resample_oh
 
 
 CACHE_DIR = Path(__file__).resolve().parent.parent / "data_cache"
-SYMBOL = "BTCUSDC"
+# Symbol can be overridden via env var SWEEP_SYMBOL — lets us reuse the same harness
+# for ETHUSDC etc. Cache files become {SYMBOL}_1h.csv so swapping doesn't clobber.
+SYMBOL = os.environ.get("SWEEP_SYMBOL", "BTCUSDC")
 CACHE_MONTHS = 15  # max window we ever request
 
 # Resample order required: 3h needs 1h; 6h/12h/1d/1w can all derive from 1h.
@@ -293,8 +295,8 @@ def main():
     frames = load_or_refresh_cache(refresh=args.refresh)
 
     settings = load_settings(SYMBOL)
-    # Force single symbol BTCUSDC for this study
-    settings = replace(settings, symbols=["BTCUSDC"])
+    # Force single-symbol study (BTCUSDC or ETHUSDC depending on SWEEP_SYMBOL env var).
+    settings = replace(settings, symbols=[SYMBOL])
     print(f"[settings] strategy: rsi={settings.rsi_period} macd={settings.macd_fast}/{settings.macd_slow}/{settings.macd_signal} "
           f"div_lookback={settings.divergence_lookback} pivot={settings.pivot_window} "
           f"sl_bps={settings.stop_loss_buffer_bps} tp_bps={settings.take_profit_buffer_bps} "
