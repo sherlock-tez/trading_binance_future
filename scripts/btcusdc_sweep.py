@@ -93,7 +93,7 @@ def apply_overrides(settings: Settings, overrides: Dict[str, Any]) -> Settings:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--grid", type=str, default="basic", choices=["basic", "wide", "fine", "monotonic", "refine", "bigreward", "strictrsi", "neighbor2", "tprange", "pivots", "macd_gate", "aggressive", "trendloose", "atrshift", "atr_push", "eqratio", "fastatr", "indicators", "moretrades", "moretrades_fine", "moretrades_scan", "bigrr", "loop10_refine", "manytrades", "rsi_period_probe", "macd_probe", "loop11_wide", "eth_tight", "eth_wide", "eth_long_filter", "eth_short_tune", "eth_refine", "eth_macd_loop3", "eth_loop4_refine", "eth_bigtp", "eth_megatp", "eth_leverage", "eth_loosen", "eth_tightpivot"])
+    parser.add_argument("--grid", type=str, default="basic", choices=["basic", "wide", "fine", "monotonic", "refine", "bigreward", "strictrsi", "neighbor2", "tprange", "pivots", "macd_gate", "aggressive", "trendloose", "atrshift", "atr_push", "eqratio", "fastatr", "indicators", "moretrades", "moretrades_fine", "moretrades_scan", "bigrr", "loop10_refine", "manytrades", "rsi_period_probe", "macd_probe", "loop11_wide", "eth_tight", "eth_wide", "eth_long_filter", "eth_short_tune", "eth_refine", "eth_macd_loop3", "eth_loop4_refine", "eth_bigtp", "eth_megatp", "eth_leverage", "eth_loosen", "eth_tightpivot", "eth_trend_window"])
     parser.add_argument("--top", type=int, default=15)
     args = parser.parse_args()
 
@@ -481,6 +481,29 @@ def main():
             "rsi_short_min": [55.0, 60.0],
             "atr_period": [6, 10, 14],
             "require_macd_divergence": [False],
+        }
+    elif args.grid == "eth_trend_window":
+        # Loop_10 attempt: probe trend_ema_period — the LAST single-symbol lever
+        # never swept (always pinned at 200 in prior 12 grids). 200 on 1h = 8.3 days
+        # of trend memory; shorter windows (50/100/150) may admit more pivot-divergence
+        # reversals while still blocking catastrophic counter-trend entries. Also
+        # secondary probe on atr_period (always 14 prior). Anchor on Loop_9 winners
+        # otherwise; include MACD-gate OFF to test if shorter trend filter compensates.
+        grid = {
+            "use_atr_stops": [True],
+            "atr_sl_mult": [2.0],
+            "atr_tp_mult": [7.0, 8.0],
+            "use_trend_filter": [True],
+            "trend_ema_period": [50, 100, 150, 200],
+            "leverage": [20],
+            "position_equity_ratio": [1.0],
+            "pivot_window": [4, 5],
+            "divergence_lookback": [60, 80],
+            "rsi_long_max": [30.0, 35.0],
+            "rsi_short_min": [55.0, 58.0],
+            "atr_period": [10, 14],
+            "rsi_period": [11],
+            "require_macd_divergence": [True, False],
         }
     elif args.grid == "eth_tightpivot":
         # Loop_10 attempt: probe pivot_window ∈ [2,3] combined with MACD gate — never

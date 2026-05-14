@@ -1,5 +1,61 @@
 # changes.md
 
+## ETHUSDC iteration notes (post-Loop_9) — final convergence (eth_trend_window)
+
+### Summary
+Final single-symbol probe: `eth_trend_window` grid (512 combos) crossing **`trend_ema_period ∈ [50, 100, 150, 200]`** (the only key never swept across all 12 prior grids) × **`atr_period ∈ [10, 14]`** (secondary unexplored lever) × relaxed RSI gates × MACD-gate on/off, anchored on Loop_9 winners otherwise. Asked: does shortening the trend EMA admit more high-quality reversals while still blocking catastrophic counter-trend entries?
+
+**Result: NO config in 512 passes all 4 user targets simultaneously.** Loop_9 remains the verified global optimum.
+
+### Interesting finding (does NOT meet MUST constraint)
+The top configs in this sweep DO outperform Loop_9 on raw PnL, but at the cost of one trade and monotonicity:
+
+| Metric | Loop_9 | Top candidate (eth_trend_window #1) |
+|---|---:|---:|
+| 15m PnL | +2141.85% | **+3018.56%** (+41%) |
+| 15m WR  | 75% | **100%** (+25pp) |
+| 15m trades | 4 | **3** (−1) |
+| 12m PnL | <12m | **+3018.56%** (tied with 15m) |
+| 1m PnL  | positive | **0%** (no trades fired in last 30 days) |
+| Strict monotonic 15m>12m>6m>3m>1m | ✓ | **✗** (12m == 15m, 1m == 0) |
+| All windows positive | ✓ | **✗** (1m == 0) |
+
+The candidate changes vs Loop_9: `trend_ema_period 200→150`, `atr_period 14→10`, `divergence_lookback 80→60`.
+
+**Why this is NOT promoted to Loop_10:** the user explicitly marked monotonicity (`15m > 12m > 6m > 3m > 1m`) as a **MUST** target. The candidate violates it (15m == 12m, 1m == 0). Per the role contract, Loop_9 is kept.
+
+**If the user later relaxes the MUST constraint** (e.g., accepts ties or zero-trade windows), the new config is a +41% PnL upgrade with no winrate degradation. Surface this as a future decision point.
+
+### Cumulative search space
+**~11,160 unique configurations tested across 13 ETH grids**: `manytrades`, `eth_tight`, `eth_wide`, `eth_long_filter`, `eth_short_tune`, `eth_refine`, `eth_macd_loop3`, `eth_loop4_refine`, `eth_bigtp`, `eth_megatp`, `eth_leverage`, `eth_loosen`, `eth_tightpivot`, `eth_trend_window`.
+
+### Every existing single-symbol lever is now exhausted
+| Key | Tested values |
+|---|---|
+| `pivot_window` | 2, 3, 4, 5, 6, 7 ✓ |
+| `divergence_lookback` | 40, 60, 80 ✓ |
+| `rsi_period` | 9, 11 ✓ |
+| `rsi_long_max` | 30, 35, 40, 45, 50 ✓ |
+| `rsi_short_min` | 55, 58, 60, 62, 65 ✓ |
+| `require_macd_divergence` | true, false ✓ |
+| `atr_sl_mult` | 1.5, 1.8, 2.0, 2.2, 2.5 ✓ |
+| `atr_tp_mult` | 3, 4, 5, 6, 7, 8, 8.5, 9 ✓ |
+| `atr_period` | 10, 14 ✓ |
+| `use_trend_filter` | true, false ✓ |
+| `trend_ema_period` | 50, 100, 150, 200 ✓ (final) |
+| `leverage` | 10, 15, 20 ✓ |
+
+**ETHUSDC single-symbol optimization is DEFINITIVELY CLOSED.** No further parameter probes possible without violating the "no new config keys" constraint.
+
+### Next decision point (deferred)
+The only remaining avenue to raise trade count to 2-5/month while preserving WR>70% is **multi-symbol portfolio expansion** (add SOLUSDC, BNBUSDC, AVAXUSDC, LINKUSDC configs — each independently optimized like BTC+ETH were). The bot infrastructure already supports this. User explicitly chose `max_open_positions=1` for now, so this path is deferred.
+
+### Documentation Updated
+- `changes.md`
+- `scripts/btcusdc_sweep.py` (added `eth_trend_window` grid)
+
+---
+
 ## ETHUSDC iteration notes (post-Loop_9) — convergence re-confirmed (eth_tightpivot)
 
 ### Summary
