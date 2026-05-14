@@ -117,6 +117,12 @@ class BacktestWindowResult:
 
 
 class BacktestRunner:
+    # Number of months of additional history to download BEFORE the requested
+    # window starts. Ensures slow indicators (200-EMA, divergence lookback, ATR)
+    # are fully warmed at every timestamp inside the window — matching live
+    # production where the bot has been running continuously.
+    WARMUP_MONTHS = 12
+
     def __init__(self, settings: Settings):
         self.settings = settings
         # Historical klines must come from mainnet — testnet kline history is
@@ -175,7 +181,10 @@ class BacktestRunner:
         return frame
 
     def _prepare_data(self, months: int) -> Dict[str, Dict[str, pd.DataFrame]]:
-        start_ms = self._months_ago_ms(months)
+        # Download an additional WARMUP_MONTHS of pre-window history so indicators
+        # are fully primed before the first in-window timestamp. Trade-cycle calls
+        # in _run_window are gated to fire only at t >= window_start_ms.
+        start_ms = self._months_ago_ms(months + self.WARMUP_MONTHS)
         end_ms = self._now_ms()
 
         data: Dict[str, Dict[str, pd.DataFrame]] = {}
@@ -212,6 +221,7 @@ class BacktestRunner:
 
     def _run_window(self, months: int) -> BacktestWindowResult:
         data = self._prepare_data(months)
+        window_start_ms = self._months_ago_ms(months)
         simulator = SimulatedExecutionAdapter(self.settings)
         processed_signals: Set[Tuple[str, int]] = set()
 
@@ -238,20 +248,28 @@ class BacktestRunner:
                         close=float(row["close"]),
                     )
 
+            # Warmup region: let indicators build history but do not generate
+            # new entry signals or open positions until we cross window_start_ms.
+            if t < window_start_ms:
+                continue
+
             for symbol in self.settings.symbols:
                 row = signal_rows_by_symbol[symbol].get(t)
                 if not row:
                     continue
 
                 signal_frame = data[symbol][self.settings.signal_timeframe]
-                signal_slice = signal_frame[signal_frame["open_time"] <= t].tail(600)
+                # Pass the FULL pre-window history (no tail truncation) so the 200-EMA
+                # and other slow indicators have full decay precision — matches live
+                # production where the bot accumulates indicator state continuously.
+                signal_slice = signal_frame[signal_frame["open_time"] <= t]
                 if len(signal_slice) < 100:
                     continue
 
                 higher_slices = {}
                 for timeframe in self.settings.sup_res_timeframes:
                     frame = data[symbol][timeframe]
-                    higher_slices[timeframe] = frame[frame["open_time"] <= t].tail(600)
+                    higher_slices[timeframe] = frame[frame["open_time"] <= t]
 
                 outcome = run_trade_cycle(
                     symbol=symbol,
