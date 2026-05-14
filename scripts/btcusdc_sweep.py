@@ -482,6 +482,26 @@ def main():
             "atr_period": [6, 10, 14],
             "require_macd_divergence": [False],
         }
+    elif args.grid == "eth_tightpivot":
+        # Loop_10 attempt: probe pivot_window ∈ [2,3] combined with MACD gate — never
+        # tested together. Tighter pivots = more divergence candidates; MACD gate filters
+        # them down. May unlock different signal set than Loop_9's pivot=5.
+        grid = {
+            "use_atr_stops": [True],
+            "atr_sl_mult": [1.8, 2.0, 2.2],
+            "atr_tp_mult": [6.0, 8.0],
+            "use_trend_filter": [True],
+            "trend_ema_period": [200],
+            "leverage": [20],
+            "position_equity_ratio": [1.0],
+            "pivot_window": [2, 3],
+            "divergence_lookback": [40, 60, 80],
+            "rsi_long_max": [30.0, 35.0, 40.0],
+            "rsi_short_min": [55.0, 58.0, 60.0],
+            "atr_period": [14],
+            "rsi_period": [9, 11],
+            "require_macd_divergence": [True],
+        }
     elif args.grid == "eth_loosen":
         # Loop_10 attempt: try to unlock more trades while keeping WR>70. Vary
         # use_trend_filter (off may admit 2-3x more signals), and slightly loosen
