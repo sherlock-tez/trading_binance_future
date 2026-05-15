@@ -15,7 +15,7 @@ trading:
   # backtest shows this improves PnL versus the 0.95 sizing without changing signals.
   leverage: 20
   max_open_positions: 1
-  position_equity_ratio: 1.0
+  position_equity_ratio: 0.95
   maker_only: true
 
 strategy:
