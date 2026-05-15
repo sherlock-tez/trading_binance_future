@@ -31,6 +31,7 @@ A shared strategy core is used by both live trading and backtest simulation.
 - Timeframe adaptation:
   - Unsupported intervals are resampled from supported base intervals.
   - 3h candles are generated from 1h candles.
+  - When a resampled timeframe needs more base candles than Binance allows in one kline request, the data service paginates REST calls and then resamples the combined base series.
 
 ### Strategy Layer
 
@@ -54,13 +55,15 @@ A shared strategy core is used by both live trading and backtest simulation.
 
 ### Notification Layer
 
-- Telegram outbound messages for signal and order events.
+- Telegram outbound messages for signal, order, startup, and shutdown events.
+- Live startup/shutdown notifications include the current account wallet balance, available balance, unrealized PnL, derived equity, configured leverage, position equity ratio, max open positions, symbols, and testnet/mainnet mode.
 
 ### Runtime Layer
 
 - Live runner:
   - 1h decision loop across symbols
   - Calls shared runtime trade-cycle function
+  - Sends a read-only account/config snapshot to Telegram when the runner starts and when it stops.
 - Backtest runner:
   - Loads historical windows (3m, 6m, 12m, 15m)
   - Calls the same shared runtime trade-cycle function as live runner

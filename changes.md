@@ -1,5 +1,61 @@
 # changes.md
 
+## Loop_20260515_2 - Live Resampled Warmup Pagination
+
+### Summary
+Fixed live startup warmup for resampled timeframes such as `3h`. The data service now paginates base kline requests when the resampled timeframe needs more base candles than Binance allows in one request, then resamples the combined base series and returns the requested tail window.
+
+### Affected Files
+- `src/data/binance_feed.py`
+- `tests/test_binance_feed.py`
+- `architecture.md`
+- `changes.md`
+
+### Reason
+Running `python scripts/live.py --symbol BTCUSDC` failed during warmup because `3h` support/resistance candles are generated from `1h` candles, and `limit=600` required `1800` base candles. Binance rejected that as an invalid `/fapi/v1/klines` `limit`.
+
+### Backtest Result
+- Command/method: Not run; this is a live data warmup pagination fix and does not change signal rules, indicator calculations, risk/reward, order placement, or backtest logic.
+- Dataset/time range: N/A.
+- Loop folder: N/A.
+- Key metrics: N/A.
+- Comparison with previous Loop: Strategy behavior is unchanged; live startup can now warm resampled timeframes without exceeding Binance's kline request limit.
+- Limitations: Pagination still depends on Binance REST availability during startup and refresh.
+
+### Documentation Updated
+- `architecture.md`
+- `changes.md`
+
+---
+
+## Loop_20260515_1 - Live Lifecycle Account Notifications
+
+### Summary
+Added Telegram lifecycle notifications for live bot startup and shutdown. Each notification includes the configured symbol set, mode, signal timeframe, leverage config, position equity ratio, max open positions, wallet balance, available balance, unrealized PnL, derived equity, and per-asset USDC/USDT details.
+
+### Affected Files
+- `src/runtime/live_runner.py`
+- `tests/test_live_runner_lifecycle.py`
+- `architecture.md`
+- `changes.md`
+
+### Reason
+The operator needs immediate visibility into account state and leverage configuration when a live process starts and when it stops, especially when running separate BTCUSDC and ETHUSDC live processes.
+
+### Backtest Result
+- Command/method: Not run; this is an operational notification/runtime observability change and does not alter signal generation, risk/reward calculations, order placement rules, or backtest execution logic.
+- Dataset/time range: N/A.
+- Loop folder: N/A.
+- Key metrics: N/A.
+- Comparison with previous Loop: Strategy and execution behavior are unchanged; only Telegram lifecycle reporting was added.
+- Limitations: Balance/equity snapshots depend on Binance signed balance responses being available at startup/shutdown. If the balance read fails, the bot sends a lifecycle message with the snapshot error instead of blocking startup/shutdown.
+
+### Documentation Updated
+- `architecture.md`
+- `changes.md`
+
+---
+
 ## Loop_20260514_14 - Pivot-Key Duplicate Filter
 
 ### Summary

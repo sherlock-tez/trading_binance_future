@@ -1,5 +1,5 @@
 binance:
-  testnet: true
+  testnet: false
 
 trading:
   symbols:
