@@ -12,6 +12,23 @@ This bot opens BTCUSDC 1h positions on strict confluence:
 
 A trade is valid only when all required conditions agree on the same direction.
 
+### Current ETHUSDC Tuned Profile
+
+`Loop_20260514_14` keeps the mandatory RSI divergence plus extremity gate and uses
+the high-conviction ATR/MACD mode:
+
+- `rsi_period=11`, `rsi_long_max=30`, `rsi_short_min=58`
+- `require_macd_divergence=true`
+- `pivot_window=5`, `divergence_lookback=60`
+- `use_trend_filter=true`, `trend_ema_period=150`
+- `use_atr_stops=true`, `atr_period=10`, `atr_sl_mult=2.0`, `atr_tp_mult=8.0`
+- `leverage=20`, `position_equity_ratio=1.0`
+
+This profile favors win rate, PnL, and drawdown quality over signal frequency. The
+latest canonical ETHUSDC backtest improved 15-month return and win rate versus
+`Loop_20260514_9`, but it still produces no trade in the latest 1-month window and
+no additional high-conviction trade in the oldest 12-to-15-month segment.
+
 ## Indicators
 
 ### RSI Divergence
@@ -110,6 +127,7 @@ The user-required rule "LONG only if RSI < 50, SHORT only if RSI > 50" is always
   - Iterate timeline by 1h candles.
   - Update open position with each bar for SL/TP check.
   - Position-limit rejection is enforced by execution adapters with the same rejection reason.
+- Duplicate-signal filtering keys accepted entries by the RSI divergence pivot timestamp plus direction. This prevents repeated re-entry from the same stale divergence setup on later candles while still allowing a new trade when a new pivot forms.
 
 A separate fast vectorized harness (`scripts/btcusdc_fast.py`) is used for parameter search. It is mathematically equivalent to the engine path (parity verified against `scripts/btcusdc_optimize.py`) and only serves the iterative tuning loop; production logic still flows through `SignalEngine` + `run_trade_cycle` + `SimulatedExecutionAdapter`.
 

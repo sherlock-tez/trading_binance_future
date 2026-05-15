@@ -86,6 +86,7 @@ class SignalEngine:
         entry_price: float,
         sl: float,
         tp: float,
+        metadata: Optional[Dict[str, float | int | str | bool]] = None,
     ) -> TradePlan:
         return TradePlan(
             symbol=symbol,
@@ -95,7 +96,7 @@ class SignalEngine:
             stop_loss=sl,
             take_profit=tp,
             signal_time=signal_time,
-            metadata={"direction": "long"},
+            metadata={"direction": "long", **(metadata or {})},
         )
 
     def _build_short_plan(
@@ -105,6 +106,7 @@ class SignalEngine:
         entry_price: float,
         sl: float,
         tp: float,
+        metadata: Optional[Dict[str, float | int | str | bool]] = None,
     ) -> TradePlan:
         return TradePlan(
             symbol=symbol,
@@ -114,8 +116,23 @@ class SignalEngine:
             stop_loss=sl,
             take_profit=tp,
             signal_time=signal_time,
-            metadata={"direction": "short"},
+            metadata={"direction": "short", **(metadata or {})},
         )
+
+    @staticmethod
+    def _divergence_pivot_time(
+        signal_frame_1h: pd.DataFrame,
+        divergence: Dict[str, float | bool | int],
+        lookback: int,
+    ) -> Optional[int]:
+        pivot_second = divergence.get("pivot_second")
+        if pivot_second is None:
+            return None
+        tail_start = max(0, len(signal_frame_1h) - lookback)
+        abs_idx = tail_start + int(pivot_second)
+        if abs_idx < 0 or abs_idx >= len(signal_frame_1h):
+            return None
+        return int(signal_frame_1h["close_time"].iloc[abs_idx])
 
     def generate_signal(
         self,
@@ -191,12 +208,34 @@ class SignalEngine:
         if long_ready:
             sl, tp = self._resolve_long_levels(last_price, support, resistance, atr_val)
             if sl is not None and tp is not None and self._levels_valid_long(last_price, sl, tp):
-                plan = self._build_long_plan(symbol=symbol, signal_time=signal_time, entry_price=last_price, sl=sl, tp=tp)
+                metadata: Dict[str, float | int | str | bool] = {}
+                pivot_time = self._divergence_pivot_time(signal_frame_1h, rsi_bull, p.divergence_lookback)
+                if pivot_time is not None:
+                    metadata["signal_pivot_time"] = pivot_time
+                plan = self._build_long_plan(
+                    symbol=symbol,
+                    signal_time=signal_time,
+                    entry_price=last_price,
+                    sl=sl,
+                    tp=tp,
+                    metadata=metadata,
+                )
                 decision = "long"
         elif short_ready:
             sl, tp = self._resolve_short_levels(last_price, support, resistance, atr_val)
             if sl is not None and tp is not None and self._levels_valid_short(last_price, sl, tp):
-                plan = self._build_short_plan(symbol=symbol, signal_time=signal_time, entry_price=last_price, sl=sl, tp=tp)
+                metadata = {}
+                pivot_time = self._divergence_pivot_time(signal_frame_1h, rsi_bear, p.divergence_lookback)
+                if pivot_time is not None:
+                    metadata["signal_pivot_time"] = pivot_time
+                plan = self._build_short_plan(
+                    symbol=symbol,
+                    signal_time=signal_time,
+                    entry_price=last_price,
+                    sl=sl,
+                    tp=tp,
+                    metadata=metadata,
+                )
                 decision = "short"
 
         diagnostics = SignalDiagnostics(

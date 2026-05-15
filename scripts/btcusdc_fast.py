@@ -274,9 +274,12 @@ def fast_run_window(
         short_ready = short_div_ok and short_rsi_ok and short_sr_ok and trend_down
 
         plan: Optional[TradePlan] = None
+        signal_pivot_time: Optional[int] = None
         if long_ready:
             sl, tp = _resolve_long(settings, last_price, support, resistance, atr_val)
             if sl is not None and tp is not None and _valid_long(settings, last_price, sl, tp):
+                if len(sel_l) >= 1:
+                    signal_pivot_time = int(close_time[int(sel_l[-1])])
                 plan = TradePlan(
                     symbol=SYMBOL, side="BUY", position_side="LONG",
                     entry_price=last_price, stop_loss=sl, take_profit=tp,
@@ -285,6 +288,8 @@ def fast_run_window(
         elif short_ready:
             sl, tp = _resolve_short(settings, last_price, support, resistance, atr_val)
             if sl is not None and tp is not None and _valid_short(settings, last_price, sl, tp):
+                if len(sel_h) >= 1:
+                    signal_pivot_time = int(close_time[int(sel_h[-1])])
                 plan = TradePlan(
                     symbol=SYMBOL, side="SELL", position_side="SHORT",
                     entry_price=last_price, stop_loss=sl, take_profit=tp,
@@ -293,7 +298,9 @@ def fast_run_window(
 
         if plan is None:
             continue
-        key = (SYMBOL, ct)
+        if signal_pivot_time is not None:
+            plan.metadata["signal_pivot_time"] = signal_pivot_time
+        key = (f"{SYMBOL}:{plan.metadata.get('direction', '')}", int(plan.metadata.get("signal_pivot_time", ct)))
         if key in processed:
             continue
         processed.add(key)

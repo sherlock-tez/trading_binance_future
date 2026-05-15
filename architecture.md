@@ -72,6 +72,7 @@ A shared strategy core is used by both live trading and backtest simulation.
   - duplicate signal filtering
   - execution adapter call
 - Both live and backtest runners call this exact function.
+- Duplicate signal filtering uses the signal direction plus the underlying RSI divergence pivot timestamp when available, falling back to candle signal time for older plans/tests. This keeps live and backtest behavior aligned and avoids repeated execution attempts from one unchanged divergence setup.
 - Adapter swap happens only at execution layer:
   - live: `BinanceFuturesExecutor`
   - backtest: `SimulatedExecutionAdapter`

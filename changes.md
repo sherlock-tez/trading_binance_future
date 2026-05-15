@@ -1,5 +1,214 @@
 # changes.md
 
+## Loop_20260514_14 - Pivot-Key Duplicate Filter
+
+### Summary
+Changed duplicate signal filtering from candle-close time to the underlying RSI divergence pivot timestamp plus direction. This keeps the mandatory regular divergence + RSI extremity gate unchanged, but prevents repeated execution attempts from one unchanged divergence setup on later candles. Final ETHUSDC parameters remain the Loop_10 high-conviction set.
+
+### Affected Files
+- `src/strategy/signal_engine.py`
+- `src/runtime/trade_cycle.py`
+- `scripts/btcusdc_fast.py`
+- `tests/test_trade_cycle.py`
+- `ethusdc_config.yaml`
+- `algorithms.md`
+- `architecture.md`
+- `changes.md`
+- `backtest_history/Loop_20260514_14/1m.csv`
+- `backtest_history/Loop_20260514_14/3m.csv`
+- `backtest_history/Loop_20260514_14/6m.csv`
+- `backtest_history/Loop_20260514_14/12m.csv`
+- `backtest_history/Loop_20260514_14/15m.csv`
+
+### Reason
+Looser trade-count experiments showed repeated entries and rejected attempts from stale divergence setups. Pivot-key filtering is a production-path behavior improvement that keeps live and backtest orchestration aligned while reducing duplicate signal churn.
+
+### Backtest Result
+- Command/method: `.venv/bin/python scripts/backtest.py --symbol ETHUSDC`
+- Dataset/time range: Binance Futures ETHUSDC mainnet klines, 1h signal timeframe, windows 1m/3m/6m/12m/15m as of 2026-05-14; canonical `BacktestRunner` with 12-month warmup and production `SignalEngine + run_trade_cycle + SimulatedExecutionAdapter`.
+- Loop folder: `backtest_history/Loop_20260514_14/`
+- Key metrics:
+  - 1m: `0.00%`, 0 trades, 0.00% WR, 0.000 Sharpe, 0.00% max DD
+  - 3m: `+164.13%`, 1 trade, 100.00% WR, 0.000 Sharpe, 0.40% max DD
+  - 6m: `+711.57%`, 2 trades, 100.00% WR, 12.202 Sharpe, 0.40% max DD
+  - 12m: `+3018.56%`, 3 trades, 100.00% WR, 7.632 Sharpe, 0.40% max DD
+  - 15m: `+3018.56%`, 3 trades, 100.00% WR, 7.632 Sharpe, 0.40% max DD
+- Comparison with previous Loop:
+  - PnL/WR/trade count remain equal to Loop_20260514_10.
+  - Maker fill ratio improves to `1.0` in 3m/6m/12m/15m, with `0` maker rejects, because stale duplicate divergence attempts are skipped before execution.
+  - Still fails the new top-priority frequency target and strict `15m > 12m` because no qualifying latest-1m or oldest 12-to-15m high-conviction setup exists under the kept rule.
+- Additional search:
+  - `SWEEP_SYMBOL=ETHUSDC .venv/bin/python scripts/btcusdc_sweep.py --grid eth_unlock --top 12`: best listed config had 8 trades over 15m, 62.5% WR, `+59.83%` 15m return, negative 1m return, and below-target trade rate after duplicate filtering.
+  - `SWEEP_SYMBOL=ETHUSDC .venv/bin/python scripts/btcusdc_sweep.py --grid eth_srstops --top 12`: best listed config had 4 trades over 15m, 100% WR outside the empty 1m window, and only `+129.79%` 15m return.
+  - `SWEEP_SYMBOL=ETHUSDC .venv/bin/python scripts/btcusdc_sweep.py --grid loop11_wide --top 12`: configs that hit at least 2 trades/month had 15m WR near 23-27% and negative 15m PnL.
+- Limitations:
+  - Does not solve the trade-frequency target; it improves duplicate handling and execution-attempt quality.
+  - Simulation still excludes funding, liquidation, ADL, and outage/slippage effects beyond the existing maker-only model.
+
+### Documentation Updated
+- `algorithms.md`
+- `architecture.md`
+- `changes.md`
+
+---
+
+## Loop_20260514_13 - Rejected 30m Signal Timeframe Probe
+
+### Summary
+Tested the existing `signal_timeframe` key at `30m` to increase signal opportunities without adding config keys or relaxing the mandatory divergence + RSI extremity rule.
+
+### Affected Files
+- `ethusdc_config.yaml`
+- `backtest_history/Loop_20260514_13/1m.csv`
+- `backtest_history/Loop_20260514_13/3m.csv`
+- `backtest_history/Loop_20260514_13/6m.csv`
+- `backtest_history/Loop_20260514_13/12m.csv`
+- `backtest_history/Loop_20260514_13/15m.csv`
+- `changes.md`
+
+### Reason
+The user made trade count the highest priority. A shorter signal timeframe was tested as an existing-config lever to increase opportunities while preserving production logic.
+
+### Backtest Result
+- Command/method: `.venv/bin/python scripts/backtest.py --symbol ETHUSDC`
+- Dataset/time range: Binance Futures ETHUSDC mainnet klines, 30m signal timeframe, windows 1m/3m/6m/12m/15m as of 2026-05-14.
+- Loop folder: `backtest_history/Loop_20260514_13/`
+- Key metrics:
+  - 1m: `0.00%`, 0 trades, 0.00% WR
+  - 3m: `0.00%`, 0 trades, 0.00% WR
+  - 6m: `0.00%`, 0 trades, 0.00% WR
+  - 12m: `-34.29%`, 2 trades, 0.00% WR
+  - 15m: `-51.29%`, 3 trades, 0.00% WR
+- Comparison with previous Loop: worsened PnL, WR, and frequency distribution; rejected.
+- Limitations: only the Loop_10 high-conviction parameters were tested on 30m before rejecting because the result was clearly dominated.
+
+### Documentation Updated
+- `changes.md`
+
+---
+
+## Loop_20260514_12 - Rejected Hidden Divergence Probe
+
+### Summary
+Tested hidden divergence as an algorithmic expansion while preserving the required divergence + RSI extremity gate. Hidden divergence increased signal count but produced unacceptable losses.
+
+### Affected Files
+- `src/strategy/divergence.py`
+- `scripts/btcusdc_fast.py`
+- `ethusdc_config.yaml`
+- `backtest_history/Loop_20260514_12/1m.csv`
+- `backtest_history/Loop_20260514_12/3m.csv`
+- `backtest_history/Loop_20260514_12/6m.csv`
+- `backtest_history/Loop_20260514_12/12m.csv`
+- `backtest_history/Loop_20260514_12/15m.csv`
+- `changes.md`
+
+### Reason
+Hidden divergence was tested because it can align with trend continuation and produced the desired trade frequency in the latest window.
+
+### Backtest Result
+- Command/method: `.venv/bin/python scripts/backtest.py --symbol ETHUSDC`
+- Dataset/time range: Binance Futures ETHUSDC mainnet klines, 1h signal timeframe, windows 1m/3m/6m/12m/15m as of 2026-05-14.
+- Loop folder: `backtest_history/Loop_20260514_12/`
+- Key metrics:
+  - 1m: `-59.28%`, 3 trades, 0.00% WR
+  - 3m: `-98.05%`, 10 trades, 10.00% WR
+  - 6m: `-99.25%`, 20 trades, 20.00% WR
+  - 12m: `-99.87%`, 31 trades, 19.35% WR
+  - 15m: `-99.98%`, 37 trades, 21.62% WR
+- Comparison with previous Loop: trade count improved, but WR and PnL collapsed; rejected.
+- Additional validation: strict RSI/short-side sweeps still produced poor WR and negative long-window PnL.
+- Limitations: hidden divergence was reverted; no hidden-divergence code remains in the final strategy.
+
+### Documentation Updated
+- `changes.md`
+
+---
+
+## Loop_20260514_11 - Rejected Broad Pivot-Pair Divergence Probe
+
+### Summary
+Tested broader regular divergence detection by allowing the latest pivot to compare against any earlier pivot in the lookback instead of only the immediately previous pivot.
+
+### Affected Files
+- `src/strategy/divergence.py`
+- `scripts/btcusdc_fast.py`
+- `ethusdc_config.yaml`
+- `backtest_history/Loop_20260514_11/1m.csv`
+- `backtest_history/Loop_20260514_11/3m.csv`
+- `backtest_history/Loop_20260514_11/6m.csv`
+- `backtest_history/Loop_20260514_11/12m.csv`
+- `backtest_history/Loop_20260514_11/15m.csv`
+- `changes.md`
+
+### Reason
+The previous immediate-pivot-only rule was suspected to undercount valid divergence setups. The broader comparison was tested to increase trade count while keeping regular divergence and RSI extremity intact.
+
+### Backtest Result
+- Command/method: `.venv/bin/python scripts/backtest.py --symbol ETHUSDC`
+- Dataset/time range: Binance Futures ETHUSDC mainnet klines, 1h signal timeframe, windows 1m/3m/6m/12m/15m as of 2026-05-14.
+- Loop folder: `backtest_history/Loop_20260514_11/`
+- Key metrics:
+  - 1m: `0.00%`, 0 trades, 0.00% WR
+  - 3m: `+164.13%`, 1 trade, 100.00% WR
+  - 6m: `+326.22%`, 3 trades, 66.67% WR
+  - 12m: `+1537.78%`, 4 trades, 75.00% WR
+  - 15m: `+1537.78%`, 4 trades, 75.00% WR
+- Comparison with previous Loop: added one trade but reduced PnL and WR versus Loop_10; rejected.
+- Limitations: broader pivot-pair code was reverted; no broad-pair divergence remains in the final strategy.
+
+### Documentation Updated
+- `changes.md`
+
+---
+
+## Loop_20260514_10 - ETHUSDC High-Conviction PnL Upgrade
+
+### Summary
+Promoted the best high-conviction ETHUSDC candidate: full capital deployment (`position_equity_ratio=1.0`), shorter divergence window (`80 -> 60`), faster ATR (`14 -> 10`), and faster trend EMA (`200 -> 150`). The mandatory rule remains intact: RSI divergence is still required, LONG signals require RSI below 50, and SHORT signals require RSI above 50. MACD divergence remains an additional confirmation gate.
+
+### Affected Files
+- `ethusdc_config.yaml`
+- `algorithms.md`
+- `changes.md`
+- `backtest_history/Loop_20260514_10/1m.csv`
+- `backtest_history/Loop_20260514_10/3m.csv`
+- `backtest_history/Loop_20260514_10/6m.csv`
+- `backtest_history/Loop_20260514_10/12m.csv`
+- `backtest_history/Loop_20260514_10/15m.csv`
+
+### Reason
+The previous active ETHUSDC config (`Loop_20260514_9`) no longer met the requested win-rate threshold on the latest canonical run and produced a 12m/15m tie. The Loop_10 candidate improves 15m PnL, win rate, Sharpe, and drawdown while preserving production signal logic and all existing config keys.
+
+### Backtest Result
+- Command/method: `.venv/bin/python scripts/backtest.py --symbol ETHUSDC`
+- Dataset/time range: Binance Futures ETHUSDC mainnet klines, 1h signal timeframe, windows 1m/3m/6m/12m/15m as of 2026-05-14; canonical `BacktestRunner` with 12-month warmup and production `SignalEngine + run_trade_cycle + SimulatedExecutionAdapter`.
+- Loop folder: `backtest_history/Loop_20260514_10/`
+- Key metrics:
+  - 1m: `0.00%`, 0 trades, 0.00% WR, 0.000 Sharpe, 0.00% max DD
+  - 3m: `+164.13%`, 1 trade, 100.00% WR, 0.000 Sharpe, 0.40% max DD
+  - 6m: `+711.57%`, 2 trades, 100.00% WR, 12.202 Sharpe, 0.40% max DD
+  - 12m: `+3018.56%`, 3 trades, 100.00% WR, 7.632 Sharpe, 0.40% max DD
+  - 15m: `+3018.56%`, 3 trades, 100.00% WR, 7.632 Sharpe, 0.40% max DD
+- Comparison with previous Loop:
+  - `Loop_20260514_9` canonical rerun: 15m `+1959.93%`, 4 trades, 75.00% WR, 2.781 Sharpe, 26.56% max DD.
+  - `Loop_20260514_10`: 15m improves by `+1058.63pp`, WR improves by `+25.00pp`, max DD improves by `-26.16pp`, but trade count drops from 4 to 3.
+  - Strict performance order is still not fully satisfied because `15m == 12m` and `1m == 0%`.
+  - Trade frequency is still below the requested 2-10 trades/month in 3m/6m/12m/15m windows.
+- Additional search:
+  - `SWEEP_SYMBOL=ETHUSDC .venv/bin/python scripts/btcusdc_sweep.py --grid eth_unlock --top 10`: best frequency candidate had 11 trades over 15m, but only 72.73% 15m WR, negative 1m return (`-2.99%`), and `+103.74%` 15m return.
+  - `SWEEP_SYMBOL=ETHUSDC .venv/bin/python scripts/btcusdc_sweep.py --grid eth_srstops --top 8`: only configs meeting the 2 trades/month floor had poor WR (`~54%` 15m) and negative 15m PnL (`-36.74%` best listed).
+- Limitations:
+  - Simulation excludes funding, liquidation, ADL, slippage beyond maker-only fill/reject behavior, and exchange outage effects.
+  - Fast sweeps are used only for search and do not persist per-trade history; the promoted Loop_10 result was verified with the canonical production-path backtest and persisted full trade history.
+  - Under the mandatory divergence + RSI extremity gate, current ETHUSDC 1h data still shows a structural trade-off: higher frequency materially reduces win rate and PnL, while high-conviction configs leave the latest 1m window empty.
+
+### Documentation Updated
+- `algorithms.md`
+- `changes.md`
+
+---
+
 ## ETHUSDC iteration notes (post-Loop_9) — eth_unlock: pareto frontier identified
 
 ### Summary

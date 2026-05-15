@@ -42,7 +42,12 @@ def run_trade_cycle(
             skipped_duplicate=False,
         )
 
-    signal_key = (symbol, diagnostics.signal_time)
+    signal_key_name = symbol
+    signal_key_time = diagnostics.signal_time
+    if "signal_pivot_time" in plan.metadata:
+        signal_key_name = f"{symbol}:{plan.metadata.get('direction', '')}"
+        signal_key_time = int(plan.metadata["signal_pivot_time"])
+    signal_key = (signal_key_name, signal_key_time)
     if processed_signals is not None and signal_key in processed_signals:
         return TradeCycleOutcome(
             symbol=symbol,
