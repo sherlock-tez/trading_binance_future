@@ -1,5 +1,700 @@
 # changes.md
 
+## Loop_20260518_30 - BNBUSDC iter 9 (stricter RSI extremity 40/60->35/65)
+
+### Summary
+`bnbusdc_config.yaml`: hold champion Loop_20260518_21 exactly; tighten rsi_long_max/short_min 40/60→35/65 (only most-extreme reversals). No new config keys; mandatory rule preserved (stricter).
+
+### Affected Files
+- `bnbusdc_config.yaml`
+- `changes.md`
+
+### Reason
+BNB WR is entry-edge-limited at ~77–79%. Most-extreme oversold/overbought reversals have structurally higher bounce WR — an edge lever, untested in isolation for BNB.
+
+### Backtest Result
+- Command/method: `python scripts/backtest.py --symbol BNBUSDC`, mainnet klines, [1,3,6,12,15]m + 12m warmup.
+- Loop folder: `backtest_history/Loop_20260518_30/` (pending next loop run).
+- Key metrics / comparison: vs champion Loop_20260518_21 — pending.
+
+### Documentation Updated
+- `changes.md`
+
+---
+
+## Loop_20260518_29 - DOGEUSDC iter 9 (drop MACD-div req, keep strict RSI)
+
+### Summary
+`dogeusdc_config.yaml`: hold champion Loop_20260518_11 exactly; require_macd_divergence true→false (keeps strict RSI 40/60). No new config keys; mandatory rule preserved.
+
+### Affected Files
+- `dogeusdc_config.yaml`
+- `changes.md`
+
+### Reason
+The mix "RSI-divergence only + strict extremity 40/60" was never tested (prior macd_req=false runs used loose RSI 50/50). Genuinely new selective-but-higher-volume filter for DOGE's weak edge.
+
+### Backtest Result
+- Command/method: `python scripts/backtest.py --symbol DOGEUSDC`, mainnet klines, [1,3,6,12,15]m + 12m warmup.
+- Loop folder: `backtest_history/Loop_20260518_29/` (pending next loop run).
+- Key metrics / comparison: vs champion Loop_20260518_11 — pending.
+
+### Documentation Updated
+- `changes.md`
+
+---
+
+## Loop_20260518_28 - SOLUSDC iter 9 (isolated MACD-divergence confluence)
+
+### Summary
+`solusdc_config.yaml`: hold champion Loop_20260518_7 exactly; require_macd_divergence false→true ONLY. No new config keys; mandatory rule preserved.
+
+### Affected Files
+- `solusdc_config.yaml`
+- `changes.md`
+
+### Reason
+The only edge lever never tested in isolation for SOL. iter-1 changed MACD-req together with pivot/RSI/trend (failed). Isolating MACD confluence on the pristine _7 base may filter losing entries and lift WR *and* expectancy together — the single thing that could break SOL's mapped WR↔PnL Pareto wall (WR>80 ⟺ negative PnL otherwise).
+
+### Backtest Result
+- Command/method: `python scripts/backtest.py --symbol SOLUSDC`, mainnet klines, [1,3,6,12,15]m + 12m warmup.
+- Loop folder: `backtest_history/Loop_20260518_28/` (pending next loop run).
+- Key metrics / comparison: vs champion Loop_20260518_7 (15m +659.6%, WR 73.86%, monotonic) — pending.
+
+### Documentation Updated
+- `changes.md`
+
+---
+
+## SOL/DOGE/BNB Optimization Campaign — CONVERGED (iters 1–8, Loop_20260518_1..27)
+
+**Final champions (now the active `{symbol}_config.yaml`):**
+
+| Symbol | Champion | 1m | 3m | 6m | 12m | 15m | 15m WR | Monotonic |
+|--------|----------|---:|---:|---:|----:|----:|-------:|-----------|
+| SOLUSDC | `Loop_20260518_7` | +12.6% | +29.3% | +85.0% | +312.7% | **+659.6%** | 73.9% | ✅ perfect |
+| DOGEUSDC | `Loop_20260518_11` | −0.3% | +63.7% | +2.2% | −48.4% | −43.6% | 66.7% | ✗ |
+| BNBUSDC | `Loop_20260518_21` | +0.6% | +4.6% | −1.1% | +47.1% | +44.6% | 77.5% | ✗ (small 6m dip) |
+
+**Conclusions (data-driven, 27 configs):**
+- Win-rate plateaus at ~74–79% in every symbol's profitable region. Forcing WR>80% via stop geometry was conclusively proven to drive PnL negative (SOL frontier: TP1.5→WR74/+660%, TP1.3→WR76/+411%, TP1.0→WR82/−32%). The user's target #1 (WR>80%) is **mutually exclusive with positive PnL** for this divergence + RSI-extremity strategy in the allowed config space.
+- The user's reward-extension hint (#4) is empirically counterproductive: the divergence edge is a short-reach mean-reversion bounce; extending TP to 3× collapsed SOL to −80%. The winning direction is *tighter* TP.
+- SOLUSDC `_7` fully satisfies targets #2 (PnL), #3 (trades ~10/mo), and the consistency MUST (perfect 15m>12m>6m>3m>1m). It is an excellent deliverable; only WR (74%) misses, and that is infeasible-with-profit.
+- DOGEUSDC is structurally unsuitable — every lever (entries, geometry, atr_period, pivot/lookback, rsi_period, macd_fast) leaves it net-negative on 12m/15m. Recommend **not trading DOGEUSDC** with this strategy.
+- BNBUSDC `_21` is solidly profitable on the long windows with WR ~77–79% (closest to target) but not strictly monotonic.
+
+Mandatory rule (RSI-divergence + extremity LONG<50/SHORT>50) preserved and programmatically verified in every one of the 27 iterations. No new config keys added. All iteration histories preserved in `backtest_history/Loop_20260518_1..27/`.
+
+**Update — iter 9 (Loop_20260518_28/29/30) rigorously re-confirmed convergence:** the three previously-untested *isolated* edge levers all failed — SOL +MACD-confluence (15m PnL +660%→+14%, WR not improved long-term), DOGE −MACD-req+strict-RSI (15m −68%), BNB RSI 35/65 (WR collapsed to 0–59%, 15m −26%). 30 configs total. Champions unchanged (SOL `_7`, DOGE `_11`, BNB `_21`) and restored as the active configs. **Conclusion stands and is now exhaustive:** within the allowed config space + mandatory rule, WR>80% with positive PnL is infeasible. Further progress requires relaxing a constraint (allow new config keys / modify the mandatory rule / accept WR≤~78% with strong PnL) — a user decision, not a tuning problem.
+
+---
+
+## Loop_20260518_27 - BNBUSDC tuning iter 8 (divergence_lookback edge lever)
+
+### Summary
+`bnbusdc_config.yaml`: hold champion Loop_20260518_21 exactly; change only divergence_lookback 60→80. No new config keys; mandatory rule preserved.
+
+### Affected Files
+- `bnbusdc_config.yaml`
+- `changes.md`
+
+### Reason
+iter-7 _24 showed BNB WR is entry-edge-limited (tighter TP didn't lift WR). divergence_lookback reshapes which pivot pairs qualify — a genuine edge lever, last untested for BNB.
+
+### Backtest Result
+- Command/method: `python scripts/backtest.py --symbol BNBUSDC`, mainnet klines, [1,3,6,12,15]m + 12m warmup.
+- Loop folder: `backtest_history/Loop_20260518_27/` (pending next loop run).
+- Key metrics / comparison: vs champion Loop_20260518_21 — pending.
+
+### Documentation Updated
+- `changes.md`
+
+---
+
+## Loop_20260518_26 - DOGEUSDC tuning iter 8 (macd_fast 12->8 edge lever)
+
+### Summary
+`dogeusdc_config.yaml`: hold champion Loop_20260518_11 exactly; change only macd_fast 12→8 (faster MACD reshapes the required-MACD-divergence gate). No new config keys; mandatory rule preserved.
+
+### Affected Files
+- `dogeusdc_config.yaml`
+- `changes.md`
+
+### Reason
+DOGE net-negative on all prior levers; MACD periods are the last untouched signal lever and DOGE gates on MACD divergence.
+
+### Backtest Result
+- Command/method: `python scripts/backtest.py --symbol DOGEUSDC`, mainnet klines, [1,3,6,12,15]m + 12m warmup.
+- Loop folder: `backtest_history/Loop_20260518_26/` (pending next loop run).
+- Key metrics / comparison: vs champion Loop_20260518_11 — pending.
+
+### Documentation Updated
+- `changes.md`
+
+---
+
+## Loop_20260518_25 - SOLUSDC tuning iter 8 (divergence_lookback edge lever)
+
+### Summary
+`solusdc_config.yaml`: hold champion Loop_20260518_7 exactly; change only divergence_lookback 50→80. No new config keys; mandatory rule preserved.
+
+### Affected Files
+- `solusdc_config.yaml`
+- `changes.md`
+
+### Reason
+SOL geometry frontier is fully mapped (WR>80 ⟺ negative PnL). divergence_lookback is the one untested lever that changes the entry edge itself (different pivot pairings) rather than sliding the iso-expectancy frontier — the only remaining route to lift WR and PnL together.
+
+### Backtest Result
+- Command/method: `python scripts/backtest.py --symbol SOLUSDC`, mainnet klines, [1,3,6,12,15]m + 12m warmup.
+- Loop folder: `backtest_history/Loop_20260518_25/` (pending next loop run).
+- Key metrics / comparison: vs champion Loop_20260518_7 (15m +659.6%, WR 73.86%, monotonic) — pending.
+
+### Documentation Updated
+- `changes.md`
+
+---
+
+## Loop_20260518_24 - BNBUSDC tuning iter 7 (TP 1.2->1.0, push WR>80)
+
+### Summary
+`bnbusdc_config.yaml`: hold champion Loop_20260518_21 exactly; tighten atr_tp_mult 1.2→1.0. No new config keys; mandatory rule preserved.
+
+### Affected Files
+- `bnbusdc_config.yaml`
+- `changes.md`
+
+### Reason
+_21 reached 12m WR 79.4% / 15m 77.5% while still +44–47%. A small further TP tighten may cross the 80% WR target while BNB still has a PnL buffer.
+
+### Backtest Result
+- Command/method: `python scripts/backtest.py --symbol BNBUSDC`, mainnet klines, [1,3,6,12,15]m + 12m warmup.
+- Loop folder: `backtest_history/Loop_20260518_24/` (pending next loop run).
+- Key metrics / comparison: vs champion Loop_20260518_21 — pending.
+
+### Documentation Updated
+- `changes.md`
+
+---
+
+## Loop_20260518_23 - DOGEUSDC tuning iter 7 (rsi_period 14->9)
+
+### Summary
+`dogeusdc_config.yaml`: hold champion Loop_20260518_11 entries; change only rsi_period 14→9 (faster, more reactive divergence series). No new config keys; mandatory rule preserved.
+
+### Affected Files
+- `dogeusdc_config.yaml`
+- `changes.md`
+
+### Reason
+DOGE stays net-negative; atr_period and pivot/lookback levers failed. rsi_period is the last unswept lever that reshapes the divergence signal itself.
+
+### Backtest Result
+- Command/method: `python scripts/backtest.py --symbol DOGEUSDC`, mainnet klines, [1,3,6,12,15]m + 12m warmup.
+- Loop folder: `backtest_history/Loop_20260518_23/` (pending next loop run).
+- Key metrics / comparison: vs champion Loop_20260518_11 — pending.
+
+### Documentation Updated
+- `changes.md`
+
+---
+
+## Loop_20260518_22 - SOLUSDC tuning iter 7 (TP 1.5->1.3, nudge WR)
+
+### Summary
+`solusdc_config.yaml`: hold champion Loop_20260518_7 entries + SL exactly; nudge atr_tp_mult 1.5→1.3. No new config keys; mandatory rule preserved.
+
+### Affected Files
+- `solusdc_config.yaml`
+- `changes.md`
+
+### Reason
+Reward-extension (_19) was catastrophic (WR ~45%, 15m −80%), proving the divergence edge is short-reach. The opposite — a slightly tighter TP — should lift WR toward 80% while keeping SOL's strong monotonic PnL (expectancy stays strongly positive at TP 1.3 / SL 3.0).
+
+### Backtest Result
+- Command/method: `python scripts/backtest.py --symbol SOLUSDC`, mainnet klines, [1,3,6,12,15]m + 12m warmup.
+- Loop folder: `backtest_history/Loop_20260518_22/` (pending next loop run).
+- Key metrics / comparison: vs champion Loop_20260518_7 (15m +659.6%, WR 73.86%, monotonic) — pending.
+
+### Documentation Updated
+- `changes.md`
+
+---
+
+## Loop_20260518_21 - BNBUSDC tuning iter 6 (tighten TP toward WR>80)
+
+### Summary
+`bnbusdc_config.yaml`: hold new BNB champion Loop_20260518_18 (strict entries + atr_period 10, 15m +47.8%, WR ~74%) exactly; tighten atr_tp_mult 1.5→1.2 to lift WR toward the >80% target while the config still has a PnL buffer. No new config keys; mandatory rule preserved.
+
+### Affected Files
+- `bnbusdc_config.yaml`
+- `changes.md`
+
+### Reason
+BNB _18 is the first BNB config with solid positive PnL; it can afford a small WR-for-payoff trade to approach the WR target.
+
+### Backtest Result
+- Command/method: `python scripts/backtest.py --symbol BNBUSDC`, mainnet klines, [1,3,6,12,15]m + 12m warmup.
+- Loop folder: `backtest_history/Loop_20260518_21/` (pending next loop run).
+- Key metrics / comparison: vs champion Loop_20260518_18 — pending.
+
+### Documentation Updated
+- `changes.md`
+
+---
+
+## Loop_20260518_20 - DOGEUSDC tuning iter 6 (higher-conviction divergences)
+
+### Summary
+`dogeusdc_config.yaml`: hold DOGE champion Loop_20260518_11 entries; raise pivot_window 5→7 and divergence_lookback 60→80 (rarer, stronger swing pivots). No new config keys; mandatory rule preserved.
+
+### Affected Files
+- `dogeusdc_config.yaml`
+- `changes.md`
+
+### Reason
+DOGE remains net-negative on long windows; atr_period (iter 5) didn't help. Demanding higher-conviction divergence pivots is the remaining untested entry-quality lever.
+
+### Backtest Result
+- Command/method: `python scripts/backtest.py --symbol DOGEUSDC`, mainnet klines, [1,3,6,12,15]m + 12m warmup.
+- Loop folder: `backtest_history/Loop_20260518_20/` (pending next loop run).
+- Key metrics / comparison: vs champion Loop_20260518_11 — pending.
+
+### Documentation Updated
+- `changes.md`
+
+---
+
+## Loop_20260518_19 - SOLUSDC tuning iter 6 (reward-extension test, user hint #4)
+
+### Summary
+`solusdc_config.yaml`: hold champion Loop_20260518_7 entries + SL exactly; extend atr_tp_mult 1.5→3.0 (R:R 0.5→1.0) per the user's explicit hint to extend reward as long as PnL improves. No new config keys; mandatory rule preserved.
+
+### Affected Files
+- `solusdc_config.yaml`
+- `changes.md`
+
+### Reason
+Iters 4–5 proved geometry/atr_period cannot give WR>80% AND positive PnL together for SOL. The user explicitly asked to test extending reward (3/4/5×) for more PnL; this isolates that lever against the champion (expect lower WR, checking total PnL).
+
+### Backtest Result
+- Command/method: `python scripts/backtest.py --symbol SOLUSDC`, mainnet klines, [1,3,6,12,15]m + 12m warmup.
+- Loop folder: `backtest_history/Loop_20260518_19/` (pending next loop run).
+- Key metrics / comparison: vs champion Loop_20260518_7 (15m +659.6%, WR 73.86%, monotonic) — pending.
+
+### Documentation Updated
+- `changes.md`
+
+---
+
+## Loop_20260518_18 - BNBUSDC tuning iter 5 (atr_period edge test)
+
+### Summary
+`bnbusdc_config.yaml`: hold BNB champion Loop_20260518_12 exactly; change only atr_period 14→10. No new config keys; mandatory rule preserved.
+
+### Affected Files
+- `bnbusdc_config.yaml`
+- `changes.md`
+
+### Reason
+Iter 4 confirmed geometry only slides the WR↔PnL frontier. atr_period is the one untested edge lever — a faster volatility-adaptive stop may raise WR and PnL together. Single-variable test vs the champion.
+
+### Backtest Result
+- Command/method: `python scripts/backtest.py --symbol BNBUSDC`, mainnet klines, windows [1,3,6,12,15]m + 12m warmup.
+- Loop folder: `backtest_history/Loop_20260518_18/` (pending next loop run).
+- Key metrics / comparison: vs champion Loop_20260518_12 — pending.
+
+### Documentation Updated
+- `changes.md`
+
+---
+
+## Loop_20260518_17 - DOGEUSDC tuning iter 5 (atr_period edge test)
+
+### Summary
+`dogeusdc_config.yaml`: hold DOGE champion Loop_20260518_11 exactly; change only atr_period 14→10. No new config keys; mandatory rule preserved.
+
+### Affected Files
+- `dogeusdc_config.yaml`
+- `changes.md`
+
+### Reason
+Same single-variable edge test as Loop_20260518_18, applied to DOGE's best strict-entry config.
+
+### Backtest Result
+- Command/method: `python scripts/backtest.py --symbol DOGEUSDC`, mainnet klines, windows [1,3,6,12,15]m + 12m warmup.
+- Loop folder: `backtest_history/Loop_20260518_17/` (pending next loop run).
+- Key metrics / comparison: vs champion Loop_20260518_11 — pending.
+
+### Documentation Updated
+- `changes.md`
+
+---
+
+## Loop_20260518_16 - SOLUSDC tuning iter 5 (atr_period edge test)
+
+### Summary
+`solusdc_config.yaml`: hold SOL champion Loop_20260518_7 EXACTLY; change only atr_period 14→10. No new config keys; mandatory rule preserved.
+
+### Affected Files
+- `solusdc_config.yaml`
+- `changes.md`
+
+### Reason
+Iter 4 (_13) proved geometry alone cannot give WR>80% and positive PnL simultaneously (WR 82% ⇒ 15m −32%). atr_period is the only untested lever that changes the entry/stop edge itself rather than sliding the iso-expectancy frontier; a faster ATR adapts the stop to the current volatility regime. Held all of champion _7's params so the effect is isolated.
+
+### Backtest Result
+- Command/method: `python scripts/backtest.py --symbol SOLUSDC`, mainnet klines, windows [1,3,6,12,15]m + 12m warmup.
+- Loop folder: `backtest_history/Loop_20260518_16/` (pending next loop run).
+- Key metrics / comparison: vs champion Loop_20260518_7 (15m +659.6%, WR 73.86%, monotonic) — pending.
+
+### Documentation Updated
+- `changes.md`
+
+---
+
+## Loop_20260518_15 - BNBUSDC tuning iter 4 (max-WR geometry on strict entries)
+
+### Summary
+`bnbusdc_config.yaml`: hold the iter-3 strict-quality entry set (require_macd_divergence true, pivot_window 5, divergence_lookback 60, rsi 40/60, trend off, leverage 5) that made BNB the new champion (Loop_20260518_12, mostly positive, WR ~75%); shift geometry atr_sl_mult 3.0→4.0 and atr_tp_mult 1.5→1.0 to push WR toward the >80% target. No new config keys; mandatory rule preserved.
+
+### Affected Files
+- `bnbusdc_config.yaml`
+- `changes.md`
+
+### Reason
+Loop_20260518_12 reached WR ~72–76% but not the 80% hard target and not yet monotonic. With entries fixed, tighter-TP/wider-SL geometry is the lever to raise WR.
+
+### Backtest Result
+- Command/method: `python scripts/backtest.py --symbol BNBUSDC`, mainnet klines, windows [1,3,6,12,15]m + 12m warmup.
+- Loop folder: `backtest_history/Loop_20260518_15/` (pending next loop run).
+- Key metrics / comparison: vs champion Loop_20260518_12 — pending.
+
+### Documentation Updated
+- `changes.md`
+
+---
+
+## Loop_20260518_14 - DOGEUSDC tuning iter 4 (max-WR geometry on strict entries)
+
+### Summary
+`dogeusdc_config.yaml`: hold iter-3 strict entries (Loop_20260518_11: macd-div required, pivot 5, lookback 60, rsi 40/60); shift geometry to atr_sl_mult 4.0 / atr_tp_mult 1.0. No new config keys; mandatory rule preserved.
+
+### Affected Files
+- `dogeusdc_config.yaml`
+- `changes.md`
+
+### Reason
+Loop_20260518_11 held WR ~65–67% on long windows — just below the R:R-0.5 breakeven, so it bled. Max-WR geometry aims to lift WR above breakeven (and toward 80%).
+
+### Backtest Result
+- Command/method: `python scripts/backtest.py --symbol DOGEUSDC`, mainnet klines, windows [1,3,6,12,15]m + 12m warmup.
+- Loop folder: `backtest_history/Loop_20260518_14/` (pending next loop run).
+- Key metrics / comparison: vs Loop_20260518_11 — pending.
+
+### Documentation Updated
+- `changes.md`
+
+---
+
+## Loop_20260518_13 - SOLUSDC tuning iter 4 (max-WR geometry; entries LOCKED)
+
+### Summary
+`solusdc_config.yaml`: hold champion Loop_20260518_7 entries EXACTLY (rsi_period 14, lookback 50, pivot_window 3, RSI 50/50, no macd req, trend off, leverage 5); change only geometry atr_sl_mult 3.0→4.0, atr_tp_mult 1.5→1.0. No new config keys; mandatory rule preserved.
+
+### Affected Files
+- `solusdc_config.yaml`
+- `changes.md`
+
+### Reason
+Iter-3 Loop_20260518_10 proved tightening SOL entries collapses its edge (15m +659.6%→−17.1%). Champion _7 already satisfies the monotonic MUST with huge PnL but WR ~74% < 80%. With entries locked, only stop geometry can raise WR; _7 has enormous PnL headroom to trade for win-rate.
+
+### Backtest Result
+- Command/method: `python scripts/backtest.py --symbol SOLUSDC`, mainnet klines, windows [1,3,6,12,15]m + 12m warmup.
+- Loop folder: `backtest_history/Loop_20260518_13/` (pending next loop run).
+- Key metrics / comparison: vs champion Loop_20260518_7 (15m +659.6%, WR 73.86%, monotonic) — pending.
+
+### Documentation Updated
+- `changes.md`
+
+---
+
+## Loop_20260518_12 - BNBUSDC tuning iter 3 (tighten entry quality)
+
+### Summary
+`bnbusdc_config.yaml`: from iter-2 geometry (SL 3.0 / TP 1.5, leverage 5, trend filter off) tighten entry quality — require_macd_divergence true, pivot_window 5, divergence_lookback 60, rsi_long_max 40 / rsi_short_min 60. No new config keys; mandatory RSI-divergence + extremity gate preserved (stricter still satisfies LONG<50/SHORT>50).
+
+### Affected Files
+- `bnbusdc_config.yaml`
+- `changes.md`
+
+### Reason
+Iter 2 (Loop_20260518_9) held WR ~55–67%, below the R:R-0.5 breakeven (~66.7%), so all windows bled negative. Lifting WR via higher-conviction entries is the path to positive expectancy and the >80% WR target.
+
+### Backtest Result
+- Command/method: `python scripts/backtest.py --symbol BNBUSDC`, mainnet klines, windows [1,3,6,12,15]m + 12m warmup.
+- Loop folder: `backtest_history/Loop_20260518_12/` (pending next loop run).
+- Key metrics / comparison: vs Loop_20260518_9 — pending.
+
+### Documentation Updated
+- `changes.md`
+
+---
+
+## Loop_20260518_11 - DOGEUSDC tuning iter 3 (tighten entry quality)
+
+### Summary
+`dogeusdc_config.yaml`: same iteration-3 quality-tightening set as Loop_20260518_12 (require_macd_divergence true, pivot_window 5, divergence_lookback 60, rsi 40/60; geometry SL 3.0 / TP 1.5, leverage 5, trend filter off). No new config keys; mandatory rule preserved.
+
+### Affected Files
+- `dogeusdc_config.yaml`
+- `changes.md`
+
+### Reason
+Iter 2 (Loop_20260518_8) blew the account at 12m/15m (WR ~61%, below breakeven). Tighten entry quality to push WR over breakeven.
+
+### Backtest Result
+- Command/method: `python scripts/backtest.py --symbol DOGEUSDC`, mainnet klines, windows [1,3,6,12,15]m + 12m warmup.
+- Loop folder: `backtest_history/Loop_20260518_11/` (pending next loop run).
+- Key metrics / comparison: vs Loop_20260518_8 — pending.
+
+### Documentation Updated
+- `changes.md`
+
+---
+
+## Loop_20260518_10 - SOLUSDC tuning iter 3 (refine champion _7 toward WR>80)
+
+### Summary
+`solusdc_config.yaml`: refine champion Loop_20260518_7 (15m +659.6%, monotonic, WR ~74%). Mild quality tightening only: rsi extremity 50→45/55 and pivot_window 3→4; geometry (SL 3.0 / TP 1.5), leverage 5, trend filter off all unchanged. No new config keys; mandatory rule preserved (stricter values still satisfy LONG<50/SHORT>50).
+
+### Affected Files
+- `solusdc_config.yaml`
+- `changes.md`
+
+### Reason
+SOL champion already hits monotonic 15m>12m>6m>3m>1m with very strong PnL but WR ~74% < the 80% hard target. Small entry-quality tightening aims to lift WR over 80% while preserving the monotonic PnL. Champion stays Loop_20260518_7 unless _10 strictly improves WR without regressing monotonicity/PnL materially.
+
+### Backtest Result
+- Command/method: `python scripts/backtest.py --symbol SOLUSDC`, mainnet klines, windows [1,3,6,12,15]m + 12m warmup.
+- Loop folder: `backtest_history/Loop_20260518_10/` (pending next loop run).
+- Key metrics / comparison: vs champion Loop_20260518_7 — pending.
+
+### Documentation Updated
+- `changes.md`
+
+---
+
+## Loop_20260518_9 - BNBUSDC tuning iter 2 (high-win-rate hypothesis)
+
+### Summary
+`bnbusdc_config.yaml`: trend filter OFF, RSI extremity at loosest mandatory bound (LONG<50/SHORT>50), pivot_window 3, divergence_lookback 50, rsi_period 14, atr_period 14, wide SL / tight TP (atr_sl_mult 3.0 / atr_tp_mult 1.5), require_macd_divergence false, leverage 20→5. No new config keys; mandatory RSI-divergence + extremity gate preserved.
+
+### Affected Files
+- `bnbusdc_config.yaml`
+- `changes.md`
+
+### Reason
+Iter 1 (ETHUSDC port) starved trades to ~0–2 with 0% win rate because the trend filter blocks counter-trend divergence reversals and the 8-ATR TP is essentially never reached. Iter 2 targets the #1 goal (win rate >80%) via stop geometry + max trade volume, with leverage cut so the wider stop cannot blow the account.
+
+### Backtest Result
+- Command/method: `python scripts/backtest.py --symbol BNBUSDC`, mainnet klines, windows [1,3,6,12,15]m + 12m warmup.
+- Loop folder: `backtest_history/Loop_20260518_9/`.
+- Key metrics / comparison: see loop report (vs baseline Loop_20260518_3 and iter-1 Loop_20260518_6).
+
+### Documentation Updated
+- `changes.md`
+
+---
+
+## Loop_20260518_8 - DOGEUSDC tuning iter 2 (high-win-rate hypothesis)
+
+### Summary
+`dogeusdc_config.yaml`: same iteration-2 high-win-rate parameter set as Loop_20260518_9 (trend filter off, RSI 50/50, pivot_window 3, wide SL / tight TP 3.0/1.5, require_macd_divergence false, leverage 5). No new config keys; mandatory rule preserved.
+
+### Affected Files
+- `dogeusdc_config.yaml`
+- `changes.md`
+
+### Reason
+Same rationale as Loop_20260518_9, applied to DOGEUSDC.
+
+### Backtest Result
+- Command/method: `python scripts/backtest.py --symbol DOGEUSDC`, mainnet klines, windows [1,3,6,12,15]m + 12m warmup.
+- Loop folder: `backtest_history/Loop_20260518_8/`.
+- Key metrics / comparison: see loop report (vs baseline Loop_20260518_2).
+
+### Documentation Updated
+- `changes.md`
+
+---
+
+## Loop_20260518_7 - SOLUSDC tuning iter 2 (high-win-rate hypothesis)
+
+### Summary
+`solusdc_config.yaml`: same iteration-2 high-win-rate parameter set as Loop_20260518_9 (trend filter off, RSI 50/50, pivot_window 3, wide SL / tight TP 3.0/1.5, require_macd_divergence false, leverage 5). No new config keys; mandatory rule preserved.
+
+### Affected Files
+- `solusdc_config.yaml`
+- `changes.md`
+
+### Reason
+Iter 1 (ETHUSDC port) produced only 2 trades at 0% win rate for SOL. Same rationale as Loop_20260518_9, applied to SOLUSDC.
+
+### Backtest Result
+- Command/method: `python scripts/backtest.py --symbol SOLUSDC`, mainnet klines, windows [1,3,6,12,15]m + 12m warmup.
+- Loop folder: `backtest_history/Loop_20260518_7/`.
+- Key metrics / comparison: see loop report (vs baseline Loop_20260518_1 and iter-1 Loop_20260518_4).
+
+### Documentation Updated
+- `changes.md`
+
+---
+
+## Loop_20260518_6 - BNBUSDC tuning iter 1 (port ETHUSDC Loop_10 params)
+
+### Summary
+Replaced the untuned BTCUSDC-baseline params in `bnbusdc_config.yaml` with the repo-validated ETHUSDC Loop_10 tuned parameter set (rsi_period 11, divergence_lookback 60, pivot_window 5, atr_period 10, atr_sl_mult 2.0, atr_tp_mult 8.0, trend_ema_period 150, rsi_long_max 30, rsi_short_min 58, require_macd_divergence true). No new config keys; mandatory RSI-divergence + extremity gate preserved (stricter values still satisfy LONG<50/SHORT>50).
+
+### Affected Files
+- `bnbusdc_config.yaml`
+- `changes.md`
+
+### Reason
+Optimization loop iteration 1. The generic baseline (Loop_20260518_3) blew the account to ~$4 at 15m. ETHUSDC Loop_10 is the best validated config in-repo for a similar USDC perp, so it is a strong prior to iterate from.
+
+### Backtest Result
+- Command/method: `python scripts/backtest.py --symbol BNBUSDC`, mainnet klines, windows [1,3,6,12,15]m + 12m warmup.
+- Loop folder: `backtest_history/Loop_20260518_6/`.
+- Key metrics / comparison: see loop report (compared against Loop_20260518_3 baseline).
+- Limitations: ETH-tuned params may not transfer cleanly to BNB; further per-symbol iteration follows.
+
+### Documentation Updated
+- `changes.md`
+
+---
+
+## Loop_20260518_5 - DOGEUSDC tuning iter 1 (port ETHUSDC Loop_10 params)
+
+### Summary
+Replaced the untuned BTCUSDC-baseline params in `dogeusdc_config.yaml` with the repo-validated ETHUSDC Loop_10 tuned parameter set. No new config keys; mandatory RSI-divergence + extremity gate preserved (stricter values still satisfy LONG<50/SHORT>50).
+
+### Affected Files
+- `dogeusdc_config.yaml`
+- `changes.md`
+
+### Reason
+Optimization loop iteration 1. Baseline Loop_20260518_2 collapsed to −95.9% at 15m. Start from the strongest validated in-repo prior (ETHUSDC Loop_10).
+
+### Backtest Result
+- Command/method: `python scripts/backtest.py --symbol DOGEUSDC`, mainnet klines, windows [1,3,6,12,15]m + 12m warmup.
+- Loop folder: `backtest_history/Loop_20260518_5/`.
+- Key metrics / comparison: see loop report (compared against Loop_20260518_2 baseline).
+- Limitations: ETH-tuned params may not transfer cleanly to DOGE; further per-symbol iteration follows.
+
+### Documentation Updated
+- `changes.md`
+
+---
+
+## Loop_20260518_4 - SOLUSDC tuning iter 1 (port ETHUSDC Loop_10 params)
+
+### Summary
+Replaced the untuned BTCUSDC-baseline params in `solusdc_config.yaml` with the repo-validated ETHUSDC Loop_10 tuned parameter set. No new config keys; mandatory RSI-divergence + extremity gate preserved (stricter values still satisfy LONG<50/SHORT>50).
+
+### Affected Files
+- `solusdc_config.yaml`
+- `changes.md`
+
+### Reason
+Optimization loop iteration 1. Baseline Loop_20260518_1 lost money on every window. Start from the strongest validated in-repo prior (ETHUSDC Loop_10).
+
+### Backtest Result
+- Command/method: `python scripts/backtest.py --symbol SOLUSDC`, mainnet klines, windows [1,3,6,12,15]m + 12m warmup.
+- Loop folder: `backtest_history/Loop_20260518_4/`.
+- Key metrics / comparison: see loop report (compared against Loop_20260518_1 baseline).
+- Limitations: ETH-tuned params may not transfer cleanly to SOL; further per-symbol iteration follows.
+
+### Documentation Updated
+- `changes.md`
+
+---
+
+## Loop_20260518_3 - Add BNBUSDC symbol config
+
+### Summary
+Added a per-symbol backtest/live config for `BNBUSDC`, seeded from the generic USDC baseline (clone of `btcusdc_config.yaml` Loop_20260513_10 strategy parameters). No algorithm/indicator/risk logic changed.
+
+### Affected Files
+- `bnbusdc_config.yaml`
+- `changes.md`
+
+### Reason
+User requested adding `BNBUSDC` alongside `SOLUSDC` and `DOGEUSDC` so the symbol can be backtested and traded. Each new symbol gets a unique `loop_id` so its `backtest_history/` folder does not overwrite the others.
+
+### Backtest Result
+- Command/method: Not run yet. Config addition only — run `python scripts/backtest.py --symbol BNBUSDC` to generate results.
+- Dataset/time range: N/A.
+- Loop folder: `backtest_history/Loop_20260518_3/` (created on first backtest run).
+- Key metrics: N/A.
+- Comparison with previous Loop: New symbol; no prior baseline.
+- Limitations: Parameters are an untuned clone of the BTCUSDC baseline, not optimized for BNB.
+
+### Documentation Updated
+- `changes.md`
+
+---
+
+## Loop_20260518_2 - Add DOGEUSDC symbol config
+
+### Summary
+Added a per-symbol backtest/live config for `DOGEUSDC`, seeded from the generic USDC baseline (clone of `btcusdc_config.yaml` Loop_20260513_10 strategy parameters). No algorithm/indicator/risk logic changed.
+
+### Affected Files
+- `dogeusdc_config.yaml`
+- `changes.md`
+
+### Reason
+User requested adding `DOGEUSDC` alongside `SOLUSDC` and `BNBUSDC` so the symbol can be backtested and traded. Each new symbol gets a unique `loop_id` so its `backtest_history/` folder does not overwrite the others.
+
+### Backtest Result
+- Command/method: Not run yet. Config addition only — run `python scripts/backtest.py --symbol DOGEUSDC` to generate results.
+- Dataset/time range: N/A.
+- Loop folder: `backtest_history/Loop_20260518_2/` (created on first backtest run).
+- Key metrics: N/A.
+- Comparison with previous Loop: New symbol; no prior baseline.
+- Limitations: Parameters are an untuned clone of the BTCUSDC baseline, not optimized for DOGE.
+
+### Documentation Updated
+- `changes.md`
+
+---
+
+## Loop_20260518_1 - Add SOLUSDC symbol config
+
+### Summary
+Added a per-symbol backtest/live config for `SOLUSDC`, seeded from the generic USDC baseline (clone of `btcusdc_config.yaml` Loop_20260513_10 strategy parameters). No algorithm/indicator/risk logic changed.
+
+### Affected Files
+- `solusdc_config.yaml`
+- `changes.md`
+
+### Reason
+User requested adding `SOLUSDC` alongside `DOGEUSDC` and `BNBUSDC` so the symbol can be backtested and traded. Each new symbol gets a unique `loop_id` so its `backtest_history/` folder does not overwrite the others.
+
+### Backtest Result
+- Command/method: Not run yet. Config addition only — run `python scripts/backtest.py --symbol SOLUSDC` to generate results.
+- Dataset/time range: N/A.
+- Loop folder: `backtest_history/Loop_20260518_1/` (created on first backtest run).
+- Key metrics: N/A.
+- Comparison with previous Loop: New symbol; no prior baseline.
+- Limitations: Parameters are an untuned clone of the BTCUSDC baseline, not optimized for SOL.
+
+### Documentation Updated
+- `changes.md`
+
+---
+
 ## Loop_20260515_2 - Live Resampled Warmup Pagination
 
 ### Summary
