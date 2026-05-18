@@ -1,5 +1,33 @@
 # changes.md
 
+## Loop_20260519_2 - SOLUSDC: sharper entry edge — 15m +1164% at min WR 86.8%, lower drawdown
+
+### Summary
+`solusdc_config.yaml`: hold the `Loop_20260519_1` WR>80 basin (fast MACD + MACD-div confluence, leverage 7, eq 1.0) and sharpen the entry edge. Changes vs `_1`: `macd_fast` 6→7, `macd_slow` 21→24, `pivot_window` 5→6, `divergence_lookback` 45→50. No new config keys. Mandatory rule preserved (RSI + MACD divergence; extremity gate 45/55 within LONG<50 / SHORT>50).
+
+### Affected Files
+- `solusdc_config.yaml`
+- `algorithms.md`
+- `changes.md`
+- `scripts/btcusdc_sweep.py` (added `sol_wr80_pnl2` grid + choice)
+
+### Reason
+`_1` (15m +879%) was leverage-driven and carried ~62% drawdown. Target #2 is more PnL, but cranking leverage deeper into drawdown is fragile. A 972-combo sweep (`sol_wr80_pnl2`, `--wrfloor 80`) held leverage fixed at 7 and hunted a higher-conviction gate (MACD-speed neighbors of the 6/21/9 unlock, pivot/lookback, tighter RSI) crossed with wider TP. The best survivor sharpens the gate (`macd_slow` 24, `pivot_window` 6, `divergence_lookback` 50) producing fewer/higher-quality trades that raise 15m PnL to +1164% while *raising* min WR to 86.8% and *lowering* drawdown to ~57% — strictly dominating `_1`. Every wider-`atr_tp_mult` variant again failed the WR>80 floor, conclusively bounding the reward-extension hint by the WR MUST.
+
+### Backtest Result
+- Command/method: search `SWEEP_SYMBOL=SOLUSDC python scripts/btcusdc_sweep.py --grid sol_wr80_pnl2 --wrfloor 80.0`; validation `SWEEP_SYMBOL=SOLUSDC python scripts/btcusdc_optimize.py --windows 1,3,6,12,15` (production path: `SignalEngine.generate_signal` + `run_trade_cycle` + `SimulatedExecutionAdapter`).
+- Dataset/time range: Binance mainnet SOLUSDC 1h klines, 12-month warmup, windows [1,3,6,12,15] months ending 2026-05-19 UTC.
+- Loop folder: `backtest_history/Loop_20260519_2/`.
+- Key metrics (production path): 1m +24.37% WR100.0 (5 tr, DD0.1%) | 3m +109.31% WR94.12 (17, DD16.7%) | 6m +134.84% WR87.50 (32, DD39.0%) | 12m +572.10% WR86.76 (68, DD57.4%) | 15m +1164.47% WR88.00 (75, DD57.4%). Strict-monotonic ✓, all-positive ✓, min WR 86.76% > 80 ✓, trades 5.0-5.7/mo ✓. Fast-harness search result matched production path exactly.
+- Comparison with previous Loop: vs `_1` (15m +879.0%, min WR 83.1%, DD ~62%) — 15m PnL +32%, min WR +3.6pt, drawdown −4.3pt: strict improvement on all axes at identical leverage. vs `_31` (15m +289%) and old non-compliant `_7` (15m +784%, min WR 73.9%) — dominated.
+- Limitations: still leverage-7 (DD ~57%); single best basin in the grid; sensitive to the trailing-15m SOL regime. Funding/ADL/liquidation simplified in simulation.
+
+### Documentation Updated
+- `algorithms.md`
+- `changes.md`
+
+---
+
 ## Loop_20260519_1 - SOLUSDC: PnL maximized inside the WR>80 region (leverage/eq/lookback scale-up)
 
 ### Summary

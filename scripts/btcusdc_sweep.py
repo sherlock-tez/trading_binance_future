@@ -93,7 +93,7 @@ def apply_overrides(settings: Settings, overrides: Dict[str, Any]) -> Settings:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--grid", type=str, default="basic", choices=["basic", "wide", "fine", "monotonic", "refine", "bigreward", "strictrsi", "neighbor2", "tprange", "pivots", "macd_gate", "aggressive", "trendloose", "atrshift", "atr_push", "eqratio", "fastatr", "indicators", "moretrades", "moretrades_fine", "moretrades_scan", "bigrr", "loop10_refine", "manytrades", "rsi_period_probe", "macd_probe", "loop11_wide", "eth_tight", "eth_wide", "eth_long_filter", "eth_short_tune", "eth_refine", "eth_macd_loop3", "eth_loop4_refine", "eth_bigtp", "eth_megatp", "eth_leverage", "eth_loosen", "eth_tightpivot", "eth_trend_window", "eth_finetune", "eth_macd_params", "eth_srstops", "eth_unlock", "sol_wr80", "sol_wr80_refine", "sol_wr80_deep", "sol_wr80_macd", "sol_wr80_pnl"])
+    parser.add_argument("--grid", type=str, default="basic", choices=["basic", "wide", "fine", "monotonic", "refine", "bigreward", "strictrsi", "neighbor2", "tprange", "pivots", "macd_gate", "aggressive", "trendloose", "atrshift", "atr_push", "eqratio", "fastatr", "indicators", "moretrades", "moretrades_fine", "moretrades_scan", "bigrr", "loop10_refine", "manytrades", "rsi_period_probe", "macd_probe", "loop11_wide", "eth_tight", "eth_wide", "eth_long_filter", "eth_short_tune", "eth_refine", "eth_macd_loop3", "eth_loop4_refine", "eth_bigtp", "eth_megatp", "eth_leverage", "eth_loosen", "eth_tightpivot", "eth_trend_window", "eth_finetune", "eth_macd_params", "eth_srstops", "eth_unlock", "sol_wr80", "sol_wr80_refine", "sol_wr80_deep", "sol_wr80_macd", "sol_wr80_pnl", "sol_wr80_pnl2"])
     parser.add_argument("--top", type=int, default=15)
     parser.add_argument("--wrfloor", type=float, default=70.0,
                         help="Minimum win-rate floor (HARD) applied to every window.")
@@ -1031,6 +1031,32 @@ def main():
             "atr_period": [12, 14, 16],
             "leverage": [5, 6, 7],
             "position_equity_ratio": [0.95, 1.0],
+        }
+    elif args.grid == "sol_wr80_pnl2":
+        # Entry-edge hunt at FIXED leverage 7 / eq 1.0. Goal: find a stricter,
+        # higher-conviction gate (tighter RSI extremity, MACD-speed neighbors
+        # of the 6/21/9 unlock, pivot/lookback) that buys enough WR headroom
+        # to afford a WIDER take-profit (user hint #4: extend reward) while
+        # still clearing min WR>80 — a more principled PnL path than scaling
+        # leverage deeper into drawdown. score(wrfloor=80) ranks survivors by
+        # 15m PnL; compare against the _1 champion (15m +879%).
+        grid = {
+            "use_atr_stops": [True],
+            "use_trend_filter": [False],
+            "rsi_period": [14],
+            "require_macd_divergence": [True],
+            "macd_fast": [5, 6, 7],
+            "macd_slow": [18, 21, 24],
+            "macd_signal": [9],
+            "pivot_window": [4, 5, 6],
+            "divergence_lookback": [40, 45, 50],
+            "rsi_long_max": [40.0, 45.0],
+            "rsi_short_min": [55.0, 60.0],
+            "atr_sl_mult": [3.0],
+            "atr_tp_mult": [1.0, 1.25, 1.5],
+            "atr_period": [12],
+            "leverage": [7],
+            "position_equity_ratio": [1.0],
         }
     else:  # fine
         grid = {
