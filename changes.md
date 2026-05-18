@@ -1,5 +1,33 @@
 # changes.md
 
+## Loop_20260519_1 - SOLUSDC: PnL maximized inside the WR>80 region (leverage/eq/lookback scale-up)
+
+### Summary
+`solusdc_config.yaml`: hold the `Loop_20260518_31` WR>80 unlock (fast MACD 6/21/9 + MACD-div confluence, pivot5, rsi 45/55) and scale PnL within the feasible region. Changes vs `_31`: `leverage` 5→7, `position_equity_ratio` 0.95→1.0, `divergence_lookback` 40→45, `atr_period` 14→12. No new config keys. Mandatory rule preserved (RSI + MACD divergence; extremity gate 45/55 within LONG<50 / SHORT>50).
+
+### Affected Files
+- `solusdc_config.yaml`
+- `algorithms.md`
+- `changes.md`
+- `scripts/btcusdc_sweep.py` (added `sol_wr80_pnl` grid + choice)
+
+### Reason
+`_31` satisfied all four hard targets but its 15m PnL (+289%) was far below the old non-compliant champion `_7` (+784%). Target #2 is "increase PnL". A 810-combo sweep (`sol_wr80_pnl`, `--wrfloor 80`) over the PnL levers — TP width (user hint #4), leverage, equity ratio, SL/lookback/atr_period — while pinning the `_31` WR>80 unlock found 25 fully-compliant configs. The best lifts 15m PnL to +879% (beating even `_7`) with min WR still 83.1%. Wider `atr_tp_mult` consistently dropped min WR below 80, so reward-extension is bounded by the WR>80 MUST; leverage is the dominant in-region PnL lever.
+
+### Backtest Result
+- Command/method: search `SWEEP_SYMBOL=SOLUSDC python scripts/btcusdc_sweep.py --grid sol_wr80_pnl --wrfloor 80.0`; validation `SWEEP_SYMBOL=SOLUSDC python scripts/btcusdc_optimize.py --windows 1,3,6,12,15` (production path: `SignalEngine.generate_signal` + `run_trade_cycle` + `SimulatedExecutionAdapter`).
+- Dataset/time range: Binance mainnet SOLUSDC 1h klines, 12-month warmup, windows [1,3,6,12,15] months ending 2026-05-19 UTC.
+- Loop folder: `backtest_history/Loop_20260519_1/`.
+- Key metrics (production path): 1m +30.61% WR100.0 (6 tr, DD0.1%) | 3m +106.35% WR94.12 (17, DD17%) | 6m +109.82% WR87.10 (31, DD31.5%) | 12m +275.16% WR83.12 (77, DD61.7%) | 15m +879.04% WR85.23 (88, DD61.7%). Strict-monotonic ✓, all-positive ✓, min WR 83.12% > 80 ✓, trades 5.2-6.4/mo ✓.
+- Comparison with previous Loop: vs `_31` (15m +289.1%, min WR 82.2%, DD ~48%) — 15m PnL ~3x higher, min WR slightly higher, all four still pass. vs old `_7` (15m +783.8% but min WR 73.9% — non-compliant) — now beaten on PnL while being WR-compliant.
+- Limitations: PnL gain is leverage-driven; 12m/15m max drawdown rises to ~62% (vs ~48% for `_31`). No stated target caps drawdown, but this is a real risk-of-ruin consideration at leverage 7. Funding/ADL/liquidation simplified in simulation; a 62% sim drawdown could be deeper live.
+
+### Documentation Updated
+- `algorithms.md`
+- `changes.md`
+
+---
+
 ## Loop_20260518_31 - SOLUSDC: first WR>80 + strict-monotonic champion (fast MACD unlock)
 
 ### Summary

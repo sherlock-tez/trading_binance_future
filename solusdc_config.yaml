@@ -11,33 +11,37 @@ trading:
     - 12h
     - 1d
     - 1w
-  leverage: 5
+  leverage: 7
   max_open_positions: 1
-  position_equity_ratio: 0.95
+  position_equity_ratio: 1.0
   maker_only: true
 
 strategy:
-  # SOLUSDC CHAMPION = Loop_20260518_31. First config to clear the WR>80
-  # wall while staying strictly monotonic. Production-path backtest
-  # (scripts/btcusdc_optimize.py, mainnet klines, 12m warmup, windows
-  # 1/3/6/12/15m):
-  #   1m +20.2% WR100  | 3m +64.1% WR94.1 | 6m +71.1% WR87.1
-  #   12m +130.6% WR82.2 | 15m +289.1% WR84.2 | 82 trades, strict monotonic.
-  # Min WR 82.2% (12m) > 80 MUST; all-positive; trades 5.2-6.1/mo. The prior
-  # champion (_7) had bigger 15m PnL (+784%) but FAILED WR>80 (min 73.9%).
-  # The unlock was the faster MACD (6/21/9 vs 12/26/9) + MACD-divergence
-  # confluence ON: it reshapes the divergence pivots so the high-WR trade set
-  # is net-positive through the ~4-6mo-ago drawdown patch that broke
-  # monotonicity for every other WR>80 config. Mandatory RSI-divergence +
-  # extremity gate LONG<50 / SHORT>50 preserved (45/55). PnL is the next
-  # optimization target within the WR>80 feasible region.
+  # SOLUSDC CHAMPION = Loop_20260519_1. WR>80 + strict-monotonic, with PnL
+  # maximized inside that feasible region. Production-path backtest
+  # (scripts/btcusdc_optimize.py, mainnet klines, 12m warmup, 1/3/6/12/15m):
+  #   1m +30.6% WR100  | 3m +106.4% WR94.1 | 6m +109.8% WR87.1
+  #   12m +275.2% WR83.1 | 15m +879.0% WR85.2 | 88 trades, strict monotonic.
+  # Min WR 83.1% (12m) > 80 MUST; all-positive; trades 5.2-6.4/mo. Beats the
+  # old non-compliant champion _7 (15m +784%, but min WR 73.9% — failed
+  # WR>80) AND the first compliant config _31 (15m +289%).
+  # Unlock chain: faster MACD (6/21/9 vs 12/26/9) + MACD-divergence
+  # confluence ON reshapes the divergence pivots so the high-WR trade set is
+  # net-positive through the ~4-6mo-ago drawdown patch that broke
+  # monotonicity for every other WR>80 config (-> _31). Then PnL was scaled
+  # within the WR>80 basin via leverage 5->7, equity_ratio 0.95->1.0,
+  # divergence_lookback 40->45, atr_period 14->12 (TP held at 1.0 — wider TP
+  # drops min WR below 80, so reward-extension is capped by the WR MUST).
+  # RISK: leverage 7 raises 12m/15m max drawdown to ~62% (vs _31 ~48%).
+  # Mandatory RSI-divergence + extremity gate LONG<50 / SHORT>50 preserved
+  # (45/55).
   rsi_period: 14
   macd_fast: 6
   macd_slow: 21
   macd_signal: 9
-  divergence_lookback: 40
+  divergence_lookback: 45
   pivot_window: 5
-  atr_period: 14
+  atr_period: 12
   use_atr_stops: true
   atr_sl_mult: 3.0
   atr_tp_mult: 1.0
@@ -48,7 +52,7 @@ strategy:
   require_macd_divergence: true
   min_rr_ratio: 0.0
   max_sl_distance_pct: 0.0
-  loop_id: Loop_20260518_31
+  loop_id: Loop_20260519_1
 
 execution:
   order_reprice_bps: 2

@@ -31,31 +31,39 @@ no additional high-conviction trade in the oldest 12-to-15-month segment.
 
 ### Current SOLUSDC Tuned Profile
 
-`Loop_20260518_31` is the first SOLUSDC config to clear the WR>80 requirement
-while remaining strictly monotonic (15m > 12m > 6m > 3m > 1m), all-positive, and
-inside the 2-5 trades/month band. It keeps the mandatory RSI divergence + extremity
-gate and adds MACD-divergence confluence with a deliberately fast MACD:
+`Loop_20260519_1` clears the WR>80 requirement while remaining strictly monotonic
+(15m > 12m > 6m > 3m > 1m), all-positive, and inside the trades/month band, with
+PnL maximized inside that feasible region. It keeps the mandatory RSI divergence +
+extremity gate and adds MACD-divergence confluence with a deliberately fast MACD:
 
 - `rsi_period=14`, `rsi_long_max=45`, `rsi_short_min=55` (extremity rule preserved)
 - `require_macd_divergence=true`
 - `macd_fast=6`, `macd_slow=21`, `macd_signal=9` (faster than the 12/26/9 default)
-- `pivot_window=5`, `divergence_lookback=40`
+- `pivot_window=5`, `divergence_lookback=45`
 - `use_trend_filter=false`
-- `use_atr_stops=true`, `atr_period=14`, `atr_sl_mult=3.0`, `atr_tp_mult=1.0`
-- `leverage=5`, `position_equity_ratio=0.95`
+- `use_atr_stops=true`, `atr_period=12`, `atr_sl_mult=3.0`, `atr_tp_mult=1.0`
+- `leverage=7`, `position_equity_ratio=1.0`
 
 Production-path backtest (`scripts/btcusdc_optimize.py`, mainnet klines, 12m warmup):
-1m +20.2% WR100 / 3m +64.1% WR94.1 / 6m +71.1% WR87.1 / 12m +130.6% WR82.2 /
-15m +289.1% WR84.2; 82 trades over 15m; min WR 82.2% at 12m.
+1m +30.6% WR100 / 3m +106.4% WR94.1 / 6m +109.8% WR87.1 / 12m +275.2% WR83.1 /
+15m +879.0% WR85.2; 88 trades over 15m; min WR 83.1% at 12m; 12m/15m max drawdown
+~62%.
 
 Why the fast MACD matters: for SOLUSDC the segment roughly 4-6 months ago is a
 drawdown patch. Every selective WR>80 config tested in the macd-off and standard-MACD
 regimes lost money there, pushing 6m cumulative return below 3m and breaking
 monotonicity. `macd_fast=6 / macd_slow=21` shifts the MACD-divergence pivots so the
 high-conviction trade set is net-positive and growing through that segment, which is
-what unlocks strict monotonicity at WR>80. The prior champion `Loop_20260518_7`
-(macd-off, ~149 trades, ~74% WR) had larger absolute 15m PnL but violated the WR>80
-MUST; absolute PnL within the WR>80 feasible region is the next optimization target.
+what unlocks strict monotonicity at WR>80 (this was the `Loop_20260518_31` discovery).
+PnL was then scaled inside the WR>80 basin: `leverage` 5→7, `position_equity_ratio`
+0.95→1.0, `divergence_lookback` 40→45, `atr_period` 14→12. `atr_tp_mult` is held at
+1.0 because any wider take-profit drops min win rate below 80, so the user's
+reward-extension hint is bounded by the WR>80 MUST; leverage is the dominant PnL
+lever within the constraint set. Tradeoff: leverage 7 lifts 12m/15m max drawdown to
+~62% (vs ~48% for `Loop_20260518_31`). The prior champion `Loop_20260518_7`
+(macd-off, ~149 trades, ~74% WR) had no WR>80 compliance at all. Further PnL gains
+now require either higher leverage (drawdown-bounded) or a new entry-edge that lifts
+WR headroom.
 
 ## Indicators
 

@@ -93,7 +93,7 @@ def apply_overrides(settings: Settings, overrides: Dict[str, Any]) -> Settings:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--grid", type=str, default="basic", choices=["basic", "wide", "fine", "monotonic", "refine", "bigreward", "strictrsi", "neighbor2", "tprange", "pivots", "macd_gate", "aggressive", "trendloose", "atrshift", "atr_push", "eqratio", "fastatr", "indicators", "moretrades", "moretrades_fine", "moretrades_scan", "bigrr", "loop10_refine", "manytrades", "rsi_period_probe", "macd_probe", "loop11_wide", "eth_tight", "eth_wide", "eth_long_filter", "eth_short_tune", "eth_refine", "eth_macd_loop3", "eth_loop4_refine", "eth_bigtp", "eth_megatp", "eth_leverage", "eth_loosen", "eth_tightpivot", "eth_trend_window", "eth_finetune", "eth_macd_params", "eth_srstops", "eth_unlock", "sol_wr80", "sol_wr80_refine", "sol_wr80_deep", "sol_wr80_macd"])
+    parser.add_argument("--grid", type=str, default="basic", choices=["basic", "wide", "fine", "monotonic", "refine", "bigreward", "strictrsi", "neighbor2", "tprange", "pivots", "macd_gate", "aggressive", "trendloose", "atrshift", "atr_push", "eqratio", "fastatr", "indicators", "moretrades", "moretrades_fine", "moretrades_scan", "bigrr", "loop10_refine", "manytrades", "rsi_period_probe", "macd_probe", "loop11_wide", "eth_tight", "eth_wide", "eth_long_filter", "eth_short_tune", "eth_refine", "eth_macd_loop3", "eth_loop4_refine", "eth_bigtp", "eth_megatp", "eth_leverage", "eth_loosen", "eth_tightpivot", "eth_trend_window", "eth_finetune", "eth_macd_params", "eth_srstops", "eth_unlock", "sol_wr80", "sol_wr80_refine", "sol_wr80_deep", "sol_wr80_macd", "sol_wr80_pnl"])
     parser.add_argument("--top", type=int, default=15)
     parser.add_argument("--wrfloor", type=float, default=70.0,
                         help="Minimum win-rate floor (HARD) applied to every window.")
@@ -1005,6 +1005,32 @@ def main():
             "macd_fast": [6, 8, 12, 15],
             "macd_slow": [21, 26, 34],
             "macd_signal": [9],
+        }
+    elif args.grid == "sol_wr80_pnl":
+        # PnL-maximization within the WR>80 feasible region. Holds the
+        # Loop_20260518_31 unlock (fast MACD 6/21/9 + MACD-div confluence,
+        # pivot5, rsi 45/55) and pushes the PnL levers: wider TP (user hint
+        # #4 — extend reward as long as more PnL), leverage, equity ratio,
+        # plus small SL/lookback/atr_period neighbors. score(wrfloor=80)
+        # only surfaces configs still passing all four constraints, ranked
+        # by 15m PnL.
+        grid = {
+            "use_atr_stops": [True],
+            "use_trend_filter": [False],
+            "rsi_period": [14],
+            "require_macd_divergence": [True],
+            "macd_fast": [6],
+            "macd_slow": [21],
+            "macd_signal": [9],
+            "pivot_window": [5],
+            "rsi_long_max": [45.0],
+            "rsi_short_min": [55.0],
+            "atr_sl_mult": [2.5, 3.0, 3.5],
+            "atr_tp_mult": [1.0, 1.1, 1.2, 1.3, 1.5],
+            "divergence_lookback": [35, 40, 45],
+            "atr_period": [12, 14, 16],
+            "leverage": [5, 6, 7],
+            "position_equity_ratio": [0.95, 1.0],
         }
     else:  # fine
         grid = {
