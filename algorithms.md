@@ -29,6 +29,34 @@ latest canonical ETHUSDC backtest improved 15-month return and win rate versus
 `Loop_20260514_9`, but it still produces no trade in the latest 1-month window and
 no additional high-conviction trade in the oldest 12-to-15-month segment.
 
+### Current SOLUSDC Tuned Profile
+
+`Loop_20260518_31` is the first SOLUSDC config to clear the WR>80 requirement
+while remaining strictly monotonic (15m > 12m > 6m > 3m > 1m), all-positive, and
+inside the 2-5 trades/month band. It keeps the mandatory RSI divergence + extremity
+gate and adds MACD-divergence confluence with a deliberately fast MACD:
+
+- `rsi_period=14`, `rsi_long_max=45`, `rsi_short_min=55` (extremity rule preserved)
+- `require_macd_divergence=true`
+- `macd_fast=6`, `macd_slow=21`, `macd_signal=9` (faster than the 12/26/9 default)
+- `pivot_window=5`, `divergence_lookback=40`
+- `use_trend_filter=false`
+- `use_atr_stops=true`, `atr_period=14`, `atr_sl_mult=3.0`, `atr_tp_mult=1.0`
+- `leverage=5`, `position_equity_ratio=0.95`
+
+Production-path backtest (`scripts/btcusdc_optimize.py`, mainnet klines, 12m warmup):
+1m +20.2% WR100 / 3m +64.1% WR94.1 / 6m +71.1% WR87.1 / 12m +130.6% WR82.2 /
+15m +289.1% WR84.2; 82 trades over 15m; min WR 82.2% at 12m.
+
+Why the fast MACD matters: for SOLUSDC the segment roughly 4-6 months ago is a
+drawdown patch. Every selective WR>80 config tested in the macd-off and standard-MACD
+regimes lost money there, pushing 6m cumulative return below 3m and breaking
+monotonicity. `macd_fast=6 / macd_slow=21` shifts the MACD-divergence pivots so the
+high-conviction trade set is net-positive and growing through that segment, which is
+what unlocks strict monotonicity at WR>80. The prior champion `Loop_20260518_7`
+(macd-off, ~149 trades, ~74% WR) had larger absolute 15m PnL but violated the WR>80
+MUST; absolute PnL within the WR>80 feasible region is the next optimization target.
+
 ## Indicators
 
 ### RSI Divergence
