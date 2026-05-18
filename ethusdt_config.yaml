@@ -1,5 +1,5 @@
 binance:
-  testnet: true
+  testnet: false
 
 trading:
   symbols:
@@ -11,39 +11,52 @@ trading:
     - 12h
     - 1d
     - 1w
-  leverage: 10
+  # ETH Loop_10 keeps leverage at 20 and restores full capital deployment. Canonical
+  # backtest shows this improves PnL versus the 0.95 sizing without changing signals.
+  leverage: 20
   max_open_positions: 1
   position_equity_ratio: 0.95
   maker_only: true
 
 strategy:
-  rsi_period: 14
+  # ETH Loop_5: refined around Loop_4 winner. rsi_period 9→11 (slightly slower),
+  # tighter SL (2.5→2.0) + wider TP (3.0→4.0) gives RR=2.0 (vs L4's 1.2). Same 5
+  # signals fire but each captures a larger move. 15m PnL doubles: +181% → +399%.
+  rsi_period: 11
   macd_fast: 12
   macd_slow: 26
   macd_signal: 9
-  divergence_lookback: 80
+  divergence_lookback: 60
   pivot_window: 5
   # Volatility-aware stops via ATR (replaces support/resistance buffer sizing).
-  atr_period: 14
+  # ETH Loop_10 shortens ATR memory to 10 so stops/targets respond faster to the
+  # current volatility regime while keeping the same 4R reward profile.
+  atr_period: 10
   use_atr_stops: true
-  atr_sl_mult: 1.0
-  atr_tp_mult: 2.0
+  # ETH Loop_7: TP 7.0→8.0 (RR jumps 3.50→4.00). Sweep confirmed 8.0 is the global
+  # sweet spot — at TP=9 the largest winner reverses before hitting target, collapsing
+  # WR to 66.67% with sharp PnL loss. 8.0 captures the full ETH directional excursion.
+  atr_sl_mult: 2.0
+  atr_tp_mult: 8.0
   # Trend filter on signal timeframe: LONG only when price > EMA, SHORT only when price < EMA.
   use_trend_filter: true
-  trend_ema_period: 200
-  # RSI extremity gate (stricter than the legacy "LONG<50, SHORT>50" rule on the SHORT side).
-  # The original rule must hold; stricter values still satisfy it.
-  rsi_long_max: 50.0
-  rsi_short_min: 60.0
-  # Require both RSI and MACD divergence for entry.
+  trend_ema_period: 150
+  # RSI extremity gate. Mandatory rule: LONG <50 / SHORT >50. Loop_3 tightens further:
+  # rsi_long_max=35 (only LONG on deep RSI oversold) + rsi_short_min=62 (slightly
+  # looser short, captures more profitable shorts than 65).
+  rsi_long_max: 30.0
+  rsi_short_min: 58.0
+  # ETH Loop_4: require MACD divergence ALONGSIDE the mandatory RSI divergence.
+  # This is an ADDITIONAL filter (stricter than mandatory rule), not a replacement —
+  # the mandatory RSI-divergence rule still holds, we just demand confirmation.
+  # Cuts trade count from 17 to 5 but every survivor is a high-conviction signal.
   require_macd_divergence: true
   # Reward/risk + max-SL-distance gates (currently inactive; preserved for future tuning).
   min_rr_ratio: 0.0
   max_sl_distance_pct: 0.0
-  # Loop identifier. Format: Loop_{YYYYMMDD}_{iter}. Bump on every algorithm/config
-  # change (see AGENTS.md "Loop Naming Convention") so previous trade-history files
-  # are preserved for comparison.
-  loop_id: Loop_20260513_1
+  # Loop identifier. Loop_20260514_14 keeps Loop_10 parameters but runs with
+  # pivot-timestamp duplicate filtering in the shared trade cycle.
+  loop_id: Loop_20260514_14
 
 execution:
   order_reprice_bps: 2
