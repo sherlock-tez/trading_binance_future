@@ -31,25 +31,47 @@ no additional high-conviction trade in the oldest 12-to-15-month segment.
 
 ### Current SOLUSDC Tuned Profile
 
-`Loop_20260519_7` clears the WR>80 requirement while remaining strictly monotonic
-(15m > 12m > 6m > 3m > 1m), all-positive, and inside the trades/month band, with
-PnL maximized. It keeps the mandatory RSI divergence + extremity gate and adds
-MACD-divergence confluence with a fast MACD, on coarse daily/weekly S/R levels:
+**CONSTRAINT CHANGE (2026-05-19):** the user imposed a hard cap
+**Risk/Reward = `atr_sl_mult`/`atr_tp_mult` ≤ 0.5** (reward TP ≥ 2× risk SL).
+This forbids the degenerate wide-SL/tiny-TP geometry, which makes the prior
+champion `_7` (sl 2.85 / tp 1.0, R/R 2.85) **INFEASIBLE**. The feasible region
+inverts to tight-SL / far-TP, where the win-rate is **structurally ~20-36% —
+the WR>80 target is unreachable here, an explicit accepted tradeoff** of the
+R/R cap (do not revert to the `_7` basin to chase WR). Among all feasible
+configs the champion is the max-PnL one that still clears the remaining hard
+items (strict-monotonic, all-positive, 2-5 trades/mo).
+
+`Loop_20260519_8` is that feasible champion (found via
+`scripts/btcusdc_sweep.py grid=sol_rr --maxrr 0.5`). It keeps the proven
+`_7` entry edge (RSI divergence + extremity gate, fast MACD-divergence
+confluence, daily/weekly S/R) and re-tunes only SL/TP geometry + `atr_period`:
 
 - `rsi_period=14`, `rsi_long_max=45`, `rsi_short_min=55` (extremity rule preserved)
 - `require_macd_divergence=true`
 - `macd_fast=7`, `macd_slow=24`, `macd_signal=9` (signal is inert — divergence
   uses the MACD line, not the signal line)
 - `pivot_window=6`, `divergence_lookback=52`
-- `sup_res_timeframes=[1d, 1w]` (narrowed from 3h/6h/12h/1d/1w)
+- `sup_res_timeframes=[1d, 1w]`
 - `use_trend_filter=false`
-- `use_atr_stops=true`, `atr_period=12`, `atr_sl_mult=2.85`, `atr_tp_mult=1.0`
+- `use_atr_stops=true`, `atr_period=10`, `atr_sl_mult=0.8`, `atr_tp_mult=5.0`
+  (**R/R = 0.8/5.0 = 0.16 ≤ 0.5 MUST**; reward is 6.25× the risk)
 - `leverage=8`, `position_equity_ratio=1.0`
 
-Production-path backtest (`scripts/btcusdc_optimize.py`, mainnet klines, 12m warmup):
-1m +28.2% WR100 / 3m +133.6% WR94.1 / 6m +313.5% WR90.6 / 12m +1835.2% WR89.9 /
-15m +3287.3% WR90.7; 75 trades over 15m; min WR 89.9% at 12m; 12m/15m max drawdown
-~61%. **Robustness (out-of-sample validated):** `_5`-`_7` are between-node
+Production-path backtest (`scripts/btcusdc_optimize.py`, mainnet klines, 12m
+warmup; fast-harness parity exact): 1m +11.5% WR20.0 / 3m +233.7% WR35.3 /
+6m +402.2% WR28.1 / 12m +1732.1% WR26.5 / 15m **+5490.9%** WR28.8; 73 trades
+over 15m; strict-monotonic ✓, all-positive ✓, ~5 tr/mo ✓; 12m/15m max drawdown
+**49.6%** (lower than `_7`'s ~61%); Sharpe 2.3-2.8. The 15m PnL *exceeds* the
+old `_7` (+3287%): the reward≥2× risk geometry rides large trending moves, so a
+few 5-ATR winners carry a ~28% hit-rate. Equity is **lumpy** and the 0.8-ATR
+stop is tight → expect long losing streaks and high path-variance at leverage 8.
+**Out-of-sample (held-out 18m/24m, never in any sweep; extended 31-month data):**
+`_8` stays strongly net-positive on the held-out windows (18m +3493%, 24m
++2088%) with WR a stable ~22-35% on *every* window — the low WR is a structural
+property of the R/R-capped geometry, **not** overfitting; the edge generalizes.
+
+*Historical (pre-R/R-constraint) lineage, kept for context — `_7` and earlier
+are now INFEASIBLE under R/R≤0.5:* `_5`-`_7` were between-node
 micro-tunes with a jagged `atr_sl_mult` response (sl 2.8/2.85/2.9/2.95/3.0 →
 +2334/+3287/+3152/+3011/+2876%), so the *exact* SL value is sample-sensitive.
 However, OOS testing on never-tuned 18m/24m windows + extended 31-month data shows
@@ -93,12 +115,18 @@ between the coarse grid nodes found `divergence_lookback` 50→52 + `atr_period`
 2.9 peak sat between the {2.8,3.0} grid nodes): 15m +3152%, same min WR, and
 *lower* drawdown ~62% — tighter stops cut per-loss size (`Loop_20260519_6`).
 `macd_signal` was confirmed inert (the strategy takes divergence on the MACD
-line, never the signal line). `atr_tp_mult` is held at 1.0 because every wider take-profit
-variant tested across multiple gate settings drops min win rate below 80, so the
-user's reward-extension hint is firmly bounded by the WR>80 MUST. The original
-`Loop_20260518_7` (macd-off, ~149 trades, ~74% WR) never satisfied WR>80. Coarse-
-grid lever exploration is complete; remaining gains are between-node fine-tuning
-(small) or leverage (drawdown-bounded, ~6pt per step).
+line, never the signal line). Under the *old* (no-R/R) constraint set, `atr_tp_mult`
+was held at 1.0 because every wider take-profit dropped min WR below 80 — that
+conclusion is now MOOT: the R/R≤0.5 cap *requires* a wide TP and explicitly
+accepts the resulting sub-80 WR. The original `Loop_20260518_7` (macd-off,
+~149 trades, ~74% WR) never satisfied WR>80 either.
+
+**Post-constraint search (R/R≤0.5):** the `sol_rr` grid (`--maxrr 0.5` skips
+infeasible (sl,tp) pairs by construction; `MAX_RISK_REWARD=0.5` in the sweep)
+swept the tight-SL/far-TP region with the `_7` entry edge held; `sl 0.8 /
+tp 5.0 / atr_period 10` is the max-PnL feasible config and is the `_8`
+champion. WR>80 is structurally unreachable in this region and is an accepted
+tradeoff; do not re-probe the forbidden wide-SL/tiny-TP basin.
 
 ## Indicators
 

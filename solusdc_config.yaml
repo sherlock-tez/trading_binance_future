@@ -14,39 +14,29 @@ trading:
   maker_only: true
 
 strategy:
-  # SOLUSDC CHAMPION = Loop_20260519_7. WR>80 + strict-monotonic, PnL
-  # maximized. Between-node refinement over _6: atr_sl_mult 2.9->2.85,
-  # atr_period 11->12 (SL change shifted the atr_period optimum).
+  # SOLUSDC CHAMPION = Loop_20260519_8 (feasible-region champion under the
+  # NEW hard constraint Risk/Reward = atr_sl_mult/atr_tp_mult <= 0.5, i.e.
+  # reward TP >= 2x risk SL, imposed by the user 2026-05-19).
+  # CONSTRAINT CHANGE: the prior champion _7 (sl2.85/tp1.0, R/R 2.85) is the
+  # degenerate wide-SL/tiny-TP geometry this cap forbids -> now INFEASIBLE.
+  # The whole feasible region inverts to tight-SL/far-TP. Under R/R<=0.5 the
+  # win-rate is STRUCTURALLY ~20-36% — the WR>80 target is UNREACHABLE here;
+  # that is the accepted, explicit tradeoff of the R/R cap (do NOT revert to
+  # the _7 basin to chase WR). Among all feasible configs we surface the
+  # max-PnL one that still clears the other hard items (strict-monotonic PnL
+  # 15>12>6>3>1, all-positive, 2-5 trades/mo).
+  # Winner found by scripts/btcusdc_sweep.py grid=sol_rr --maxrr 0.5:
+  #   sl 0.8 / tp 5.0 (R/R 0.16), atr_period 10, gate 45/55, rest = _7 edge
+  #   (macd 7/24/9, dlb52, pivot6, [1d,1w] S/R, lev8, MACD-div required).
   # Production-path backtest (scripts/btcusdc_optimize.py, mainnet klines,
-  # 12m warmup, 1/3/6/12/15m):
-  #   1m +28.2% WR100  | 3m +133.6% WR94.1 | 6m +313.5% WR90.6
-  #   12m +1835.2% WR89.9 | 15m +3287.3% WR90.7 | 75 trades, strict monotonic.
-  # Min WR 89.9% (12m) > 80 MUST; all-positive; trades 5.0-5.8/mo; 12m/15m
-  # max drawdown ~61% (same leverage 8). Beats every prior champion.
-  # ROBUSTNESS (OOS-validated): _5-_7 are micro-tunes with a jagged
-  # atr_sl_mult response, so the EXACT sl value is sample-sensitive. But
-  # OOS on never-tuned 18m/24m windows (+31mo data) shows _7's edge over
-  # _4 persists (18m +4664 vs +2488, 24m +3155 vs +1442) with WR ~87-90%
-  # on every window, and _7's 24m history is net-positive every full
-  # quarter (8 qtrs, WR 81-100%). The core edge generalizes. PRIMARY LIVE
-  # RISK is not overfitting but leverage-8 drawdown ~74-78% on 18-24m
-  # horizons -> size conservatively, re-validate periodically.
-  # Unlock chain: (1) faster MACD + MACD-div confluence ON reshapes pivots
-  # so the high-WR trade set survives the ~4-6mo-ago drawdown patch that
-  # broke monotonicity elsewhere (-> _31). (2) leverage 5->7, eq 0.95->1.0
-  # scaled PnL (-> _1). (3) macd 6/21->7/24, pivot_window 5->6,
-  # divergence_lookback 45->50 sharpened the edge (-> _2). (4) leverage 7->8
-  # (user-selected from the lev 7-10 PnL/DD curve) -> _3. (5) S/R timeframes
-  # narrowed to [1d,1w]: +34% 15m PnL at identical DD (-> _4). (6) fine-grid
-  # between-node tune dlb 50->52 / atrp 12->11: +39% 15m PnL, +0.6pt min WR
-  # (-> _5). (7) finer SL tune sl 3.0->2.9: +9.6% 15m PnL AND lower DD (-> _6).
-  # macd_signal confirmed inert (divergence uses the MACD line, not signal).
-  # atr_tp_mult held at 1.0: every wider-TP variant tested across many gates
-  # drops min WR below 80, so the reward-extension hint is firmly bounded by
-  # the WR>80 MUST. Re-confirmed 2026-05-19 AT this refined node via
-  # sol_wr80_reward (135 combos: tp{1-3} x sl{2.6,2.85,3.2} x gate{38-45/55-62}):
-  # _7 ranks #1 by a wide margin; every wider-TP / stricter-gate variant has
-  # strictly lower 15m PnL. SOLUSDC search converged at _7 — monitoring mode.
+  # 12m warmup, 1/3/6/12/15m): see changes.md for the confirmed numbers.
+  # Fast-harness: 1m +11.5/WR20 | 3m +233.7/WR35 | 6m +402.2/WR28 |
+  #   12m +1732.1/WR26 | 15m +5490.9/WR29 | ~5 tr/mo, strict-monotonic.
+  # 15m PnL (+5490%) actually EXCEEDS _7 (+3287%): the reward>=2x-risk
+  # geometry rides large trending moves; equity is LUMPY (few big winners
+  # carry a ~28% hit-rate) and the 0.8-ATR stop is tight -> expect long
+  # losing streaks and high path-variance at leverage 8. R/R cap enforced
+  # by construction in the sweep (MAX_RISK_REWARD=0.5 / --maxrr).
   # Mandatory RSI-divergence + extremity gate LONG<50 / SHORT>50 preserved (45/55).
   rsi_period: 14
   macd_fast: 7
@@ -54,10 +44,10 @@ strategy:
   macd_signal: 9
   divergence_lookback: 52
   pivot_window: 6
-  atr_period: 12  # was 11 (_6); SL change shifted the atr_period optimum
+  atr_period: 10  # _8: re-tuned for the far-TP (reward>=2x risk) regime
   use_atr_stops: true
-  atr_sl_mult: 2.85
-  atr_tp_mult: 1.0
+  atr_sl_mult: 0.8  # _8: tight SL — R/R = 0.8/5.0 = 0.16 <= 0.5 MUST
+  atr_tp_mult: 5.0  # _8: reward >= 2x risk (was 1.0; _7 geometry now forbidden)
   use_trend_filter: false
   trend_ema_period: 200
   rsi_long_max: 45.0
@@ -65,7 +55,7 @@ strategy:
   require_macd_divergence: true
   min_rr_ratio: 0.0
   max_sl_distance_pct: 0.0
-  loop_id: Loop_20260519_7
+  loop_id: Loop_20260519_8
 
 execution:
   order_reprice_bps: 2

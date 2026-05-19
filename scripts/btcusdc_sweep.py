@@ -22,6 +22,22 @@ from src.config import Settings, load_settings
 import btcusdc_optimize as bo  # type: ignore[no-redef]
 import btcusdc_fast as bf  # type: ignore
 
+# User hard constraint (2026-05-19, BNBUSDC then SOLUSDC): Risk/Reward =
+# atr_sl_mult / atr_tp_mult MUST be <= MAX_RISK_REWARD, i.e. reward TP must be
+# at least 2x the risk SL. Forbids the degenerate wide-SL/tiny-TP basin (huge
+# in-sample WR purely as a geometry artifact, with an unrealised live tail
+# loss). When --maxrr is passed, infeasible combos are skipped by construction
+# so every scored config respects the cap.
+MAX_RISK_REWARD = 0.5
+
+
+def _risk_reward_ok(overrides: Dict[str, Any], max_rr: float) -> bool:
+    sl = overrides.get("atr_sl_mult")
+    tp = overrides.get("atr_tp_mult")
+    if sl is None or tp is None or tp <= 0:
+        return True  # R/R not applicable to this combo
+    return (sl / tp) <= max_rr + 1e-9
+
 
 def score(window_results, wr_floor: float = 70.0) -> Tuple[float, bool, Dict[str, Any]]:
     """Score a parameter combination against user targets:
@@ -93,10 +109,13 @@ def apply_overrides(settings: Settings, overrides: Dict[str, Any]) -> Settings:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--grid", type=str, default="basic", choices=["basic", "wide", "fine", "monotonic", "refine", "bigreward", "strictrsi", "neighbor2", "tprange", "pivots", "macd_gate", "aggressive", "trendloose", "atrshift", "atr_push", "eqratio", "fastatr", "indicators", "moretrades", "moretrades_fine", "moretrades_scan", "bigrr", "loop10_refine", "manytrades", "rsi_period_probe", "macd_probe", "loop11_wide", "eth_tight", "eth_wide", "eth_long_filter", "eth_short_tune", "eth_refine", "eth_macd_loop3", "eth_loop4_refine", "eth_bigtp", "eth_megatp", "eth_leverage", "eth_loosen", "eth_tightpivot", "eth_trend_window", "eth_finetune", "eth_macd_params", "eth_srstops", "eth_unlock", "sol_wr80", "sol_wr80_refine", "sol_wr80_deep", "sol_wr80_macd", "sol_wr80_pnl", "sol_wr80_pnl2", "sol_wr80_pnl3", "sol_wr80_edge2", "sol_wr80_struct", "sol_wr80_srtf", "sol_wr80_srtf2", "sol_wr80_freq", "sol_wr80_geo", "sol_wr80_trend", "sol_wr80_fine", "sol_wr80_fine2", "sol_wr80_fine3", "sol_wr80_fine4", "sol_wr80_reward"])
+    parser.add_argument("--grid", type=str, default="basic", choices=["basic", "wide", "fine", "monotonic", "refine", "bigreward", "strictrsi", "neighbor2", "tprange", "pivots", "macd_gate", "aggressive", "trendloose", "atrshift", "atr_push", "eqratio", "fastatr", "indicators", "moretrades", "moretrades_fine", "moretrades_scan", "bigrr", "loop10_refine", "manytrades", "rsi_period_probe", "macd_probe", "loop11_wide", "eth_tight", "eth_wide", "eth_long_filter", "eth_short_tune", "eth_refine", "eth_macd_loop3", "eth_loop4_refine", "eth_bigtp", "eth_megatp", "eth_leverage", "eth_loosen", "eth_tightpivot", "eth_trend_window", "eth_finetune", "eth_macd_params", "eth_srstops", "eth_unlock", "sol_wr80", "sol_wr80_refine", "sol_wr80_deep", "sol_wr80_macd", "sol_wr80_pnl", "sol_wr80_pnl2", "sol_wr80_pnl3", "sol_wr80_edge2", "sol_wr80_struct", "sol_wr80_srtf", "sol_wr80_srtf2", "sol_wr80_freq", "sol_wr80_geo", "sol_wr80_trend", "sol_wr80_fine", "sol_wr80_fine2", "sol_wr80_fine3", "sol_wr80_fine4", "sol_wr80_reward", "sol_rr"])
     parser.add_argument("--top", type=int, default=15)
     parser.add_argument("--wrfloor", type=float, default=70.0,
                         help="Minimum win-rate floor (HARD) applied to every window.")
+    parser.add_argument("--maxrr", type=float, default=None,
+                        help="Hard Risk/Reward cap: skip combos where "
+                             "atr_sl_mult/atr_tp_mult > maxrr (e.g. 0.5 = reward>=2x risk).")
     args = parser.parse_args()
 
     frames = bo.load_or_refresh_cache(refresh=False)
@@ -1416,6 +1435,39 @@ def main():
             "atr_sl_mult": [2.6, 2.85, 3.2],
             "atr_tp_mult": [1.0, 1.25, 1.5, 2.0, 3.0],
         }
+    elif args.grid == "sol_rr":
+        # FRESH feasible-region search under the new hard constraint
+        # Risk/Reward = atr_sl_mult/atr_tp_mult <= 0.5 (reward >= 2x risk),
+        # imposed by the user 2026-05-19. The old champion _7 (sl2.85/tp1.0,
+        # R/R 2.85) is now INFEASIBLE — this re-optimizes from scratch in the
+        # reward>=2x-risk geometry. Run with `--maxrr 0.5` so every infeasible
+        # (sl,tp) pair is skipped by construction. WR>80 may be unreachable
+        # here (accepted tradeoff of the R/R cap — do NOT revert to the
+        # degenerate basin to chase WR; surface the best feasible config).
+        # Holds the proven SOL entry edge (macd 7/24/9, dlb52, pivot6,
+        # [1d,1w] S/R, lev8 pinned, require_macd_divergence) and lets SL/TP
+        # geometry + atr_period + RSI extremity gate re-tune to the far-TP
+        # regime. Score with a relaxed --wrfloor to rank feasible configs by
+        # 15m PnL; report actual WR honestly.
+        grid = {
+            "use_atr_stops": [True],
+            "use_trend_filter": [False],
+            "rsi_period": [14],
+            "require_macd_divergence": [True],
+            "macd_fast": [7],
+            "macd_slow": [24],
+            "macd_signal": [9],
+            "pivot_window": [6],
+            "divergence_lookback": [52],
+            "leverage": [8],
+            "position_equity_ratio": [1.0],
+            "sup_res_timeframes": [["1d", "1w"]],
+            "atr_period": [10, 12, 14],
+            "rsi_long_max": [40.0, 45.0],
+            "rsi_short_min": [55.0, 60.0],
+            "atr_sl_mult": [0.8, 1.0, 1.2, 1.5, 2.0, 2.5],
+            "atr_tp_mult": [2.0, 3.0, 4.0, 5.0, 6.0],
+        }
     else:  # fine
         grid = {
             "use_atr_stops": [True],
@@ -1431,7 +1483,14 @@ def main():
 
     keys = list(grid.keys())
     combos = list(itertools.product(*[grid[k] for k in keys]))
-    print(f"[sweep] grid={args.grid} combinations={len(combos)}")
+    if args.maxrr is not None:
+        feasible = [c for c in combos if _risk_reward_ok(dict(zip(keys, c)), args.maxrr)]
+        print(f"[sweep] grid={args.grid} combinations={len(combos)} "
+              f"feasible(R/R<={args.maxrr})={len(feasible)} "
+              f"skipped={len(combos) - len(feasible)}")
+        combos = feasible
+    else:
+        print(f"[sweep] grid={args.grid} combinations={len(combos)}")
 
     results_log: List[Tuple[float, Dict[str, Any], Dict[str, Any]]] = []
     start = time.time()

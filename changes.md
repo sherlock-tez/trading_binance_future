@@ -1,5 +1,27 @@
 # changes.md
 
+## Loop_20260519_8 — SOLUSDC: NEW HARD CONSTRAINT Risk/Reward ≤ 0.5 → new feasible champion (15m +5490%, WR~28%)
+
+### Summary
+User imposed a new hard target: **Risk/Reward = `atr_sl_mult`/`atr_tp_mult` ≤ 0.5** (reward TP ≥ 2× risk SL), forbidding the degenerate wide-SL/tiny-TP basin. The prior champion `_7` (sl 2.85 / tp 1.0, R/R 2.85) is the *exact* geometry this cap forbids → **INFEASIBLE**. Reset the incumbent and re-optimized from scratch in the feasible (reward ≥ 2× risk) region. New champion `Loop_20260519_8`: `atr_sl_mult 0.8`, `atr_tp_mult 5.0` (R/R 0.16), `atr_period 10`; rest = the proven `_7` entry edge (macd 7/24/9, dlb52, pivot6, RSI gate 45/55, [1d,1w] S/R, lev8 pinned, MACD-div required). No new config keys. Mandatory RSI-divergence + extremity rule preserved.
+
+### Affected Files
+- `solusdc_config.yaml` (champion `_7`→`_8`; sl 2.85→0.8, tp 1.0→5.0, atrp 12→10, loop_id), `algorithms.md`, `changes.md`, `scripts/btcusdc_sweep.py` (added `MAX_RISK_REWARD`/`--maxrr` R/R enforcement + `sol_rr` feasible grid), `backtest_history/Loop_20260519_8/`.
+
+### Reason / Backtest
+`sol_rr` sweep (`--maxrr 0.5` skips infeasible (sl,tp) by construction; `--wrfloor 0` to rank feasible configs by PnL and report real WR honestly): winner `sl 0.8 / tp 5.0 / atrp 10 / gate 45-55`. Production path (`btcusdc_optimize.py`, mainnet, 12m warmup) — **exact fast-harness parity**: 1m +11.5% WR20.0 | 3m +233.7% WR35.3 | 6m +402.2% WR28.1 | 12m +1732.1% WR26.5 | 15m **+5490.9%** WR28.8; 73 trades; strict-monotonic ✓, all-positive ✓, ~5 tr/mo ✓; 12m/15m max DD **49.6%** (vs `_7` ~61%); Sharpe 2.3-2.8. 15m PnL *exceeds* `_7` (+3287%) — reward≥2× risk rides big trends; few 5-ATR winners carry a ~28% hit-rate. Loop folder `backtest_history/Loop_20260519_8/`.
+
+### Win-rate tradeoff (accepted, by design)
+Under R/R ≤ 0.5 the win-rate is **structurally ~20-36%** — the **WR>80 target is UNREACHABLE** in the feasible region. This is the explicit, documented tradeoff of the R/R cap (the user forbade the only geometry that produced WR>80). Per standing guidance: surface the best *feasible* config, do **not** revert to the now-forbidden `_7` wide-SL/tiny-TP basin to chase WR. The other three hard items (strict-monotonic, all-positive, 2-5 tr/mo) are all satisfied; PnL is maximized within the feasible region.
+
+### Robustness (out-of-sample)
+Held-out 18m/24m windows (never in any sweep; extended 31-month data): `_8` strongly net-positive — 18m +3493%, 24m +2088% — with WR a stable ~22-35% on every window incl. held-out. The low WR is a structural property of the R/R-capped geometry, **not** a fragile ≤15m fit; the edge generalizes. Residual live risk: lumpy equity / long losing streaks at ~28% hit-rate, tight 0.8-ATR stop, leverage 8 — size conservatively.
+
+### Documentation Updated
+- `algorithms.md`, `changes.md`
+
+---
+
 ## 2026-05-19 — SOLUSDC: reward-extension probe at the _7 node — NULL RESULT (no champion change)
 
 ### Summary
