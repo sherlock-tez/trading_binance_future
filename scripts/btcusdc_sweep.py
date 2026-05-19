@@ -93,7 +93,7 @@ def apply_overrides(settings: Settings, overrides: Dict[str, Any]) -> Settings:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--grid", type=str, default="basic", choices=["basic", "wide", "fine", "monotonic", "refine", "bigreward", "strictrsi", "neighbor2", "tprange", "pivots", "macd_gate", "aggressive", "trendloose", "atrshift", "atr_push", "eqratio", "fastatr", "indicators", "moretrades", "moretrades_fine", "moretrades_scan", "bigrr", "loop10_refine", "manytrades", "rsi_period_probe", "macd_probe", "loop11_wide", "eth_tight", "eth_wide", "eth_long_filter", "eth_short_tune", "eth_refine", "eth_macd_loop3", "eth_loop4_refine", "eth_bigtp", "eth_megatp", "eth_leverage", "eth_loosen", "eth_tightpivot", "eth_trend_window", "eth_finetune", "eth_macd_params", "eth_srstops", "eth_unlock", "sol_wr80", "sol_wr80_refine", "sol_wr80_deep", "sol_wr80_macd", "sol_wr80_pnl", "sol_wr80_pnl2", "sol_wr80_pnl3", "sol_wr80_edge2", "sol_wr80_struct", "sol_wr80_srtf", "sol_wr80_srtf2", "sol_wr80_freq", "sol_wr80_geo", "sol_wr80_trend", "sol_wr80_fine", "sol_wr80_fine2", "sol_wr80_fine3"])
+    parser.add_argument("--grid", type=str, default="basic", choices=["basic", "wide", "fine", "monotonic", "refine", "bigreward", "strictrsi", "neighbor2", "tprange", "pivots", "macd_gate", "aggressive", "trendloose", "atrshift", "atr_push", "eqratio", "fastatr", "indicators", "moretrades", "moretrades_fine", "moretrades_scan", "bigrr", "loop10_refine", "manytrades", "rsi_period_probe", "macd_probe", "loop11_wide", "eth_tight", "eth_wide", "eth_long_filter", "eth_short_tune", "eth_refine", "eth_macd_loop3", "eth_loop4_refine", "eth_bigtp", "eth_megatp", "eth_leverage", "eth_loosen", "eth_tightpivot", "eth_trend_window", "eth_finetune", "eth_macd_params", "eth_srstops", "eth_unlock", "sol_wr80", "sol_wr80_refine", "sol_wr80_deep", "sol_wr80_macd", "sol_wr80_pnl", "sol_wr80_pnl2", "sol_wr80_pnl3", "sol_wr80_edge2", "sol_wr80_struct", "sol_wr80_srtf", "sol_wr80_srtf2", "sol_wr80_freq", "sol_wr80_geo", "sol_wr80_trend", "sol_wr80_fine", "sol_wr80_fine2", "sol_wr80_fine3", "sol_wr80_fine4"])
     parser.add_argument("--top", type=int, default=15)
     parser.add_argument("--wrfloor", type=float, default=70.0,
                         help="Minimum win-rate floor (HARD) applied to every window.")
@@ -1361,6 +1361,30 @@ def main():
             "rsi_long_max": [44.0, 45.0, 46.0],
             "rsi_short_min": [54.0, 55.0, 56.0],
             "atr_sl_mult": [2.9, 3.0, 3.1],
+        }
+    elif args.grid == "sol_wr80_fine4":
+        # Pin the joint sl x dlb x atrp peak at _6's operating point. sl=2.9
+        # beat {2.8,3.0}; probe {2.85,2.9,2.95} for the exact SL peak, and
+        # re-check dlb/atrp around their optima since the SL change can
+        # shift them. Holds the rest of _6. Strict prod-path gain only.
+        grid = {
+            "use_atr_stops": [True],
+            "use_trend_filter": [False],
+            "rsi_period": [14],
+            "require_macd_divergence": [True],
+            "macd_fast": [7],
+            "macd_slow": [24],
+            "macd_signal": [9],
+            "pivot_window": [6],
+            "rsi_long_max": [45.0],
+            "rsi_short_min": [55.0],
+            "atr_tp_mult": [1.0],
+            "leverage": [8],
+            "position_equity_ratio": [1.0],
+            "sup_res_timeframes": [["1d", "1w"]],
+            "atr_sl_mult": [2.85, 2.9, 2.95],
+            "divergence_lookback": [51, 52, 53],
+            "atr_period": [10, 11, 12],
         }
     else:  # fine
         grid = {

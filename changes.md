@@ -1,5 +1,24 @@
 # changes.md
 
+## Loop_20260519_7 - SOLUSDC: finest SL tune (sl 2.9->2.85, atrp 11->12) — 15m +3287%, OVERFIT CAUTION
+
+### Summary
+`solusdc_config.yaml`: between-node refinement vs `_6` — `atr_sl_mult` 2.9→2.85, `atr_period` 11→12 (the SL change shifted the atr_period optimum). No new config keys. Mandatory rule preserved.
+
+### Affected Files
+- `solusdc_config.yaml`, `algorithms.md`, `changes.md`, `scripts/btcusdc_sweep.py` (added `sol_wr80_fine4`).
+
+### Reason / Backtest
+`sol_wr80_fine4` (27 combos) pinned the joint sl×dlb×atrp peak: `sl=2.85/dlb=52/atrp=12`. Production path (`btcusdc_optimize.py`, mainnet, 12m warmup): 1m +28.2% WR100 | 3m +133.6% WR94.1 | 6m +313.5% WR90.6 | 12m +1835.2% WR89.9 | 15m +3287.3% WR90.7; strict-monotonic ✓, all-positive ✓, min WR 89.86% > 80 ✓, 5.0-5.8 tr/mo ✓; max DD ~61%. Loop folder `backtest_history/Loop_20260519_7/`. vs `_6` (15m +3152%): +4.3% PnL, same WR, slightly lower DD. Fast-harness matched prod exactly.
+
+### Limitations — OVERFITTING CAUTION
+`_5`/`_6`/`_7` are successive between-node micro-tunes (dlb 50→52, atrp 12→11→12, sl 3.0→2.9→2.85). The 15m-PnL response to `atr_sl_mult` is **jagged and non-monotonic** (sl 2.8/2.85/2.9/2.95/3.0 → +2334/+3287/+3152/+3011/+2876%). A robust parameter should yield a smooth response surface; this sensitivity to 0.05-ATR SL steps indicates the incremental gains partly fit the specific trailing-15-month SOL price path rather than a generalizable edge. The **structurally robust champion is `_4`** (divergence/MACD/leverage/S/R-timeframe levers); `_5`-`_7` layer fragile precision on top. Recommended before any live use: out-of-sample / walk-forward validation; treat the micro-tuned absolute PnL as optimistic.
+
+### Documentation Updated
+- `algorithms.md`, `changes.md`
+
+---
+
 ## Loop_20260519_6 - SOLUSDC: finer SL tune (atr_sl_mult 3.0->2.9) — 15m +3152%, lower DD
 
 ### Summary

@@ -14,18 +14,22 @@ trading:
   maker_only: true
 
 strategy:
-  # SOLUSDC CHAMPION = Loop_20260519_6. WR>80 + strict-monotonic, PnL
-  # maximized. Between-node refinement over _5: atr_sl_mult 3.0->2.9 (the
-  # fine grid stepped sl {2.8,3.0,3.2} and missed the 2.9 peak; tighter SL
-  # shrinks per-loss size -> more PnL AND lower drawdown).
+  # SOLUSDC CHAMPION = Loop_20260519_7. WR>80 + strict-monotonic, PnL
+  # maximized. Between-node refinement over _6: atr_sl_mult 2.9->2.85,
+  # atr_period 11->12 (SL change shifted the atr_period optimum).
   # Production-path backtest (scripts/btcusdc_optimize.py, mainnet klines,
   # 12m warmup, 1/3/6/12/15m):
-  #   1m +28.0% WR100  | 3m +133.7% WR94.1 | 6m +309.5% WR90.6
-  #   12m +1755.4% WR89.9 | 15m +3152.0% WR90.7 | 75 trades, strict monotonic.
+  #   1m +28.2% WR100  | 3m +133.6% WR94.1 | 6m +313.5% WR90.6
+  #   12m +1835.2% WR89.9 | 15m +3287.3% WR90.7 | 75 trades, strict monotonic.
   # Min WR 89.9% (12m) > 80 MUST; all-positive; trades 5.0-5.8/mo; 12m/15m
-  # max drawdown ~62% (LOWER than _5's ~64% — tighter SL, same leverage 8).
-  # Beats every prior champion: _5 (15m +2876%), _4 (+2073%), _3 (+1543%),
-  # _2 (+1164%), _1 (+879%), _31 (+289%), old non-compliant _7 (+784% WR73.9).
+  # max drawdown ~61% (same leverage 8). Beats every prior champion.
+  # CAUTION: _5/_6/_7 are between-node micro-tunes; the PnL response to
+  # atr_sl_mult is jagged (sl 2.8/2.85/2.9/2.95/3.0 -> 15m
+  # +2334/+3287/+3152/+3011/+2876%), a sign these gains partly fit the
+  # specific 15m SOL price path (overfitting risk). Robust core = _4
+  # (structural levers); _5-_7 add fragile precision. Treat live sizing
+  # conservatively and prefer out-of-sample/walk-forward before trusting
+  # the micro-tuned PnL.
   # Unlock chain: (1) faster MACD + MACD-div confluence ON reshapes pivots
   # so the high-WR trade set survives the ~4-6mo-ago drawdown patch that
   # broke monotonicity elsewhere (-> _31). (2) leverage 5->7, eq 0.95->1.0
@@ -46,9 +50,9 @@ strategy:
   macd_signal: 9
   divergence_lookback: 52
   pivot_window: 6
-  atr_period: 11
+  atr_period: 12  # was 11 (_6); SL change shifted the atr_period optimum
   use_atr_stops: true
-  atr_sl_mult: 2.9
+  atr_sl_mult: 2.85
   atr_tp_mult: 1.0
   use_trend_filter: false
   trend_ema_period: 200
@@ -57,7 +61,7 @@ strategy:
   require_macd_divergence: true
   min_rr_ratio: 0.0
   max_sl_distance_pct: 0.0
-  loop_id: Loop_20260519_6
+  loop_id: Loop_20260519_7
 
 execution:
   order_reprice_bps: 2

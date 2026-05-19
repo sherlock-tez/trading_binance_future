@@ -31,7 +31,7 @@ no additional high-conviction trade in the oldest 12-to-15-month segment.
 
 ### Current SOLUSDC Tuned Profile
 
-`Loop_20260519_6` clears the WR>80 requirement while remaining strictly monotonic
+`Loop_20260519_7` clears the WR>80 requirement while remaining strictly monotonic
 (15m > 12m > 6m > 3m > 1m), all-positive, and inside the trades/month band, with
 PnL maximized. It keeps the mandatory RSI divergence + extremity gate and adds
 MACD-divergence confluence with a fast MACD, on coarse daily/weekly S/R levels:
@@ -43,13 +43,17 @@ MACD-divergence confluence with a fast MACD, on coarse daily/weekly S/R levels:
 - `pivot_window=6`, `divergence_lookback=52`
 - `sup_res_timeframes=[1d, 1w]` (narrowed from 3h/6h/12h/1d/1w)
 - `use_trend_filter=false`
-- `use_atr_stops=true`, `atr_period=11`, `atr_sl_mult=2.9`, `atr_tp_mult=1.0`
+- `use_atr_stops=true`, `atr_period=12`, `atr_sl_mult=2.85`, `atr_tp_mult=1.0`
 - `leverage=8`, `position_equity_ratio=1.0`
 
 Production-path backtest (`scripts/btcusdc_optimize.py`, mainnet klines, 12m warmup):
-1m +28.0% WR100 / 3m +133.7% WR94.1 / 6m +309.5% WR90.6 / 12m +1755.4% WR89.9 /
-15m +3152.0% WR90.7; 75 trades over 15m; min WR 89.9% at 12m; 12m/15m max drawdown
-~62%. `divergence_lookback` 50→52, `atr_period` 12→11, and `atr_sl_mult` 3.0→2.9
+1m +28.2% WR100 / 3m +133.6% WR94.1 / 6m +313.5% WR90.6 / 12m +1835.2% WR89.9 /
+15m +3287.3% WR90.7; 75 trades over 15m; min WR 89.9% at 12m; 12m/15m max drawdown
+~61%. **Overfitting caution:** `_5`-`_7` are between-node micro-tunes whose 15m-PnL
+response to `atr_sl_mult` is jagged (sl 2.8/2.85/2.9/2.95/3.0 → +2334/+3287/+3152/
++3011/+2876%). The robust structural champion is `_4`; `_5`-`_7` add fragile
+precision that likely partly fits the trailing-15m sample — validate out-of-sample
+before trusting the absolute micro-tuned PnL. `divergence_lookback` 50→52, `atr_period` 12→11, and `atr_sl_mult` 3.0→2.9
 are between-node points the coarse grids (dlb {45,50,55}, atrp {10,12,14}, sl
 {2.8,3.0,3.2}) never tested; successive fine-resolution sweeps found each strictly
 better. The tighter SL (2.9) shrinks per-loss size, raising PnL *and* lowering
