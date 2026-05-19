@@ -1,5 +1,195 @@
 # changes.md
 
+## Loop_20260519_14 - Rejected sup_res_timeframes Probe (inert for ETHUSDC)
+
+### Summary
+Tested narrowing the existing `sup_res_timeframes` config key (no new key
+added) on the converged `Loop_20260519_13` profile. On main this lever drove
+a large SOLUSDC gain, so it was worth checking for ETHUSDC. A 12-subset fast
+sweep (`scripts/ethusdc_srtf.py`) showed aggressive narrowing
+(`[1d,1w]`, `[12h,1d,1w]`, `[6h,12h,1d,1w]`, …) **breaks strict
+monotonicity** for ETHUSDC (12m return collapses to +45–61% while 6m holds
++103%, i.e. 6m > 12m). The only subset that edged baseline,
+`[3h,1d,1w]`, was +0.4% on the 15m fast engine — within fast→canonical
+noise. Config reverted to `Loop_20260519_13`; champion unchanged.
+
+### Affected Files
+- `scripts/ethusdc_srtf.py` (new sup_res_timeframes sweep tool)
+- `changes.md`
+- `backtest_history/Loop_20260519_14/{1,3,6,12,15}m.csv` (probe evidence)
+- `ethusdc_config.yaml` (temporarily set to `[3h,1d,1w]` for the canonical
+  probe, then reverted to `Loop_20260519_13`)
+
+### Reason
+Forever-optimization loop after parameter-search convergence (rounds 5–8,
+~17k evals, 0 gains). `sup_res_timeframes` is the one impactful lever the
+random/refine search never varied; the SOLUSDC precedent justified a probe.
+
+### Backtest Result
+- Command/method: `scripts/ethusdc_srtf.py` fast sweep, then production-path
+  validation `python scripts/backtest.py --symbol ETHUSDC` (canonical
+  `BacktestRunner`, real `SignalEngine + run_trade_cycle +
+  SimulatedExecutionAdapter`) with `sup_res_timeframes=[3h,1d,1w]`.
+- Dataset/time range: Binance Futures ETHUSDC mainnet 1h klines,
+  1m/3m/6m/12m/15m as of 2026-05-19.
+- Loop folder: `backtest_history/Loop_20260519_14/`
+- Key metrics (canonical, `[3h,1d,1w]`): 1m +20.64% / 3m +62.45% / 6m
+  +102.77% / 12m +332.16% / 15m +1339.17%; WR 100/100/88.24/86.49/87.50;
+  DD 67.08% — **byte-identical to `Loop_20260519_13`** on every window.
+- Comparison: zero difference vs `_10` on the production path. For
+  ETHUSDC's converged high-conviction divergence trade set, the binding
+  S/R levels come from 3h/1d/1w; the 6h/12h levels never gate differently,
+  so dropping them changes nothing. The +0.4% fast-engine delta was noise.
+- Conclusion: **rejected — no improvement.** The `sup_res_timeframes`
+  lever is inert for ETHUSDC (in contrast to SOLUSDC). This complements the
+  parameter-search convergence: the ETHUSDC profile is fully optimised
+  within scope. `Loop_20260519_13` remains the production champion.
+- Limitations: only subsets resampleable from the 1h cache were tested
+  (3h/6h/12h/1d/1w); finer intraday S/R sets are not available from cached
+  data.
+
+### Documentation Updated
+- `changes.md`
+- (`algorithms.md` unchanged — champion `Loop_20260519_13` still current.)
+
+---
+
+## Loop_20260519_13 - ETHUSDC leverage 15->17 + equity 0.98 (15m +1339.17%, dominates Loop_12)
+
+### Summary
+Strict PnL improvement over `Loop_20260519_12`. A round-6 fine-grid refine
+(`scripts/ethusdc_loop.py` with finer leverage/ATR/equity steps added around
+the converged champion) found `leverage 15→17`, `position_equity_ratio
+0.95→0.98`, plus inert `atr_period 21→28` and `macd_signal 9→7`. The
+production-path trade set and win-rate are byte-identical to `_9` (same
+3/6/17/37/48 trades, same WR every window), so the ATR/MACD tweaks do not
+change signals on this data — the entire PnL gain is leverage + equity. RSI
+divergence stays mandatory, MACD divergence still required, extremity gate
+preserved (`rsi_long_max=50`, `rsi_short_min=60`). No new config keys.
+
+### Affected Files
+- `ethusdc_config.yaml` (`leverage 15→17`, `position_equity_ratio 0.95→0.98`,
+  `atr_period 21→28`, `macd_signal 9→7`, `loop_id → Loop_20260519_13`)
+- `algorithms.md`
+- `changes.md`
+- `backtest_history/Loop_20260519_13/{1,3,6,12,15}m.csv`
+
+### Reason
+Forever-optimization directive: keep increasing PnL while holding every hard
+target. The trading algorithm converged at `_8`; rounds 4–6 only find
+leverage/equity risk-scaling. `_10` is the highest-PnL point still satisfying
+all targets that the finer grid surfaced. Drawdown (not a user-specified
+target) is the cost.
+
+### Backtest Result
+- Command/method: `scripts/ethusdc_loop.py` fine refine (parity-verified fast
+  engine), then production-path validation `python scripts/backtest.py
+  --symbol ETHUSDC` (canonical `BacktestRunner`, 12-month warmup, real
+  `SignalEngine + run_trade_cycle + SimulatedExecutionAdapter`).
+- Dataset/time range: Binance Futures ETHUSDC mainnet 1h klines, windows
+  1m/3m/6m/12m/15m as of 2026-05-19.
+- Loop folder: `backtest_history/Loop_20260519_13/`
+- Key metrics (canonical production path):
+  - 1m:  `+20.64%`,  3 trades, 100.00% WR, 0.33% max DD
+  - 3m:  `+62.45%`,  6 trades, 100.00% WR, 0.33% max DD
+  - 6m:  `+102.77%`, 17 trades, 88.24% WR, 67.08% max DD
+  - 12m: `+332.16%`, 37 trades, 86.49% WR, 67.08% max DD
+  - 15m: `+1339.17%`, 48 trades, 87.50% WR, 67.08% max DD
+- Targets check: WR min 86.49% (>80 ✓); strictly monotonic
+  20.64<62.45<102.77<332.16<1339.17 (✓); all-positive (✓); trades/month
+  3.0/2.0/2.83/3.08/3.2 all in [2,5] (✓).
+- Comparison with previous Loop: strictly dominates `Loop_20260519_12` on PnL
+  in every window (15m +1339.17% vs +955.57%, +40%). WR and trade set
+  identical. Max DD rises 62.29→67.08% — the cost of leverage 15→17 and
+  equity 0.95→0.98.
+- Fast-engine champion (15-month cache): 15m +1890% with a pathological
+  6m≈12m plateau then 15m explosion (light-warmup artifact at the cache's
+  left edge). Canonical 12-month-warmup run corrected this to a sane,
+  consistent +1339.17%; the production number is authoritative.
+- Convergence note: six search rounds (random + neighbourhood refine + a
+  finer grid) found no algorithmic edge beyond the `_8` geometry. `_9`/`_10`
+  are pure leverage/equity scaling; further loop iterations will only push
+  leverage toward the grid cap (20) at escalating drawdown.
+- Limitations: simulation excludes funding, liquidation, ADL, and slippage
+  beyond the maker-only fill/reject model. `leverage=17` makes the ~67%
+  in-sample drawdown a severe live-account tail risk; every stated user
+  target is met but risk-tolerant operators may prefer `_8` (lev 10, ~45%
+  DD) or `_9` (lev 15, ~62% DD).
+
+### Documentation Updated
+- `algorithms.md`
+- `changes.md`
+- (`architecture.md` unchanged — no structural change this loop.)
+
+---
+
+## Loop_20260519_12 - ETHUSDC leverage 10->15 (15m +955.57%, WR≥86.5%, strict monotonic, dominates Loop_8)
+
+### Summary
+Strict PnL improvement over `Loop_20260519_8`: the **only** change is
+`leverage: 10 -> 15`. A round-4 random+refine pass (`scripts/ethusdc_loop.py`,
+seeds 11/12/13) converged on the `_8` geometry at higher leverage. Leverage
+only scales position notional, so the trade set, win-rate, and monotonicity
+are identical to `_8`; PnL roughly doubles in every window. RSI divergence
+stays mandatory, MACD divergence still required, extremity gate preserved
+(`rsi_long_max=50` LONG only if RSI<50, `rsi_short_min=60` SHORT only if
+RSI>50). No new config keys.
+
+Effective change vs `Loop_20260519_8`: `leverage 10→15`. Everything else
+(geometry, RSI/MACD params, divergence lookback, ATR, equity ratio) unchanged.
+
+### Affected Files
+- `ethusdc_config.yaml` (`leverage: 10 -> 15`, `loop_id: Loop_20260519_8 -> Loop_20260519_12`)
+- `algorithms.md`
+- `changes.md`
+- `backtest_history/Loop_20260519_12/{1,3,6,12,15}m.csv`
+
+### Reason
+Forever-optimization directive: keep increasing PnL while holding every hard
+target. `_8` already satisfies all targets; raising leverage is a direct PnL
+lever that does not change which trades win or lose, so WR and strict
+monotonicity are preserved by construction. The cost is drawdown, which is
+not a user-specified target.
+
+### Backtest Result
+- Command/method: `scripts/ethusdc_loop.py` search (parity-verified fast
+  engine), then production-path validation `python scripts/backtest.py
+  --symbol ETHUSDC` (canonical `BacktestRunner`, 12-month warmup, real
+  `SignalEngine + run_trade_cycle + SimulatedExecutionAdapter`).
+- Dataset/time range: Binance Futures ETHUSDC mainnet 1h klines, windows
+  1m/3m/6m/12m/15m as of 2026-05-19.
+- Loop folder: `backtest_history/Loop_20260519_12/`
+- Key metrics (canonical production path):
+  - 1m:  `+16.89%`,  3 trades, 100.00% WR, 0.29% max DD
+  - 3m:  `+50.61%`,  6 trades, 100.00% WR, 0.29% max DD
+  - 6m:  `+81.28%`, 17 trades, 88.24% WR, 62.29% max DD
+  - 12m: `+263.30%`, 37 trades, 86.49% WR, 62.29% max DD
+  - 15m: `+955.57%`, 48 trades, 87.50% WR, 62.29% max DD
+- Targets check: WR min 86.49% (>80 ✓); strictly monotonic
+  16.89<50.61<81.28<263.30<955.57 (✓); all-positive (✓); trades/month
+  3.0/2.0/2.83/3.08/3.2 all in [2,5] (✓).
+- Comparison with previous Loop: strictly dominates `Loop_20260519_8` on PnL
+  in every window (1m 16.89 vs 11.07, 3m 50.61 vs 31.87, 6m 81.28 vs 60.53,
+  12m 263.30 vs 174.18, 15m 955.57 vs 474.60 — ~2.0× on 15m). WR and trade
+  set identical (leverage does not change which trades win/lose). Max DD
+  rises 44.85→62.29% — the cost of leverage 10→15.
+- Fast-engine champion (15-month cache): 15m +1278% with a pathological
+  12m+87/15m+1278 shape (artifact of light indicator warmup at the cache's
+  left edge). The canonical 12-month-warmup run corrected this to a sane,
+  consistent +955.57%; the production number is authoritative.
+- Limitations: simulation excludes funding, liquidation, ADL, and slippage
+  beyond the maker-only fill/reject model. `leverage=15` makes the ~62%
+  in-sample drawdown a material live-account tail risk; every stated user
+  target is met but risk-tolerant operators may prefer `_8` (leverage 10,
+  ~45% DD) for a smaller tail.
+
+### Documentation Updated
+- `algorithms.md`
+- `changes.md`
+- (`architecture.md` unchanged — no structural change this loop.)
+
+---
+
 ## Loop_20260519_10 - XRPUSDC PnL+frequency upgrade (15m +11207%, WR 100%, strict monotonic, dominates Loop_9)
 
 ### Summary

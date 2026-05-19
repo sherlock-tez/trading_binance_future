@@ -133,22 +133,26 @@ def score(window_results) -> Tuple[float, bool, Dict[str, Any]]:
 # Search space. Every option keeps the mandatory rule (rsi_long_max<=50, rsi_short_min>=50).
 SPACE: Dict[str, List[Any]] = {
     "use_atr_stops": [True],
-    "atr_sl_mult": [1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 6.0, 7.0],
-    "atr_tp_mult": [0.6, 0.8, 1.0, 1.2, 1.5, 1.8, 2.0, 2.5, 3.0, 4.0, 5.0, 6.0, 8.0],
+    # Finer granularity added around the converged champion (Loop_20260519_9:
+    # sl 2.0 / tp 0.8 / lev 15 / div_lb 160 / rsi 21 / atr 21) so the
+    # neighbourhood-refine takes smaller steps and can find intermediate
+    # values the original coarse grid skipped.
+    "atr_sl_mult": [1.5, 1.7, 1.8, 1.9, 2.0, 2.1, 2.2, 2.3, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 6.0, 7.0],
+    "atr_tp_mult": [0.5, 0.6, 0.7, 0.75, 0.8, 0.85, 0.9, 1.0, 1.1, 1.2, 1.5, 1.8, 2.0, 2.5, 3.0, 4.0, 5.0, 6.0, 8.0],
     "use_trend_filter": [True, False],
     "trend_ema_period": [50, 100, 150, 200, 250],
-    "leverage": [3, 5, 8, 10, 15, 20],
-    "position_equity_ratio": [0.5, 0.7, 0.9, 0.95, 1.0],
+    "leverage": [3, 5, 8, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20],
+    "position_equity_ratio": [0.5, 0.7, 0.85, 0.9, 0.95, 0.98, 1.0],
     "pivot_window": [3, 4, 5, 6, 7, 8],
-    "divergence_lookback": [40, 60, 80, 100, 120, 160],
-    "rsi_period": [7, 9, 11, 14, 21],
+    "divergence_lookback": [40, 60, 80, 100, 120, 140, 160, 180, 200, 240],
+    "rsi_period": [7, 9, 11, 14, 18, 21, 24, 28],
     "rsi_long_max": [25.0, 30.0, 35.0, 40.0, 45.0, 50.0],
     "rsi_short_min": [50.0, 55.0, 60.0, 65.0, 70.0, 75.0],
     "require_macd_divergence": [True, False],
     "macd_fast": [8, 12, 16],
     "macd_slow": [21, 26, 34],
     "macd_signal": [7, 9, 12],
-    "atr_period": [7, 10, 14, 21],
+    "atr_period": [7, 10, 14, 18, 21, 24, 28],
 }
 
 
