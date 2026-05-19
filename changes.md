@@ -1,23 +1,23 @@
 # changes.md
 
-## Loop_20260519_4 - BTCUSDC refine: atr_period 14->9 (+918pp 15m, lower DD)
+## Loop_20260519_6 - BTCUSDC refine: atr_period 14->9 (+918pp 15m, lower DD)
 
 ### Summary
-Strict Pareto improvement over `Loop_20260519_3`: the **only** change is
+Strict Pareto improvement over `Loop_20260519_5`: the **only** change is
 `atr_period: 14 -> 9` (faster ATR). A local-optimum probe over
 `atr_period x atr_sl_mult x rsi_long_max` (126 combos, 49 deployable) showed
-`atr_period=9` is the peak — every other dimension at the `_3` value. Faster
+`atr_period=9` is the peak — every other dimension at the `_5` value. Faster
 ATR places the rare losing trade's stop tighter and lets winners' TP track a
 more responsive volatility estimate, lifting 15m PnL while *reducing*
 drawdown. Trade set, WR, and monotonicity are unchanged.
 
 ### Affected Files
-- `btcusdc_config.yaml` (`atr_period: 14 -> 9`, `loop_id: Loop_20260519_3 -> Loop_20260519_4`)
+- `btcusdc_config.yaml` (`atr_period: 14 -> 9`, `loop_id: Loop_20260519_5 -> Loop_20260519_6`)
 - `algorithms.md` (current BTCUSDC tuned profile)
 - `changes.md`
 
 ### Reason
-Forever-loop directive: keep improving. `_3` already satisfies every MUST
+Forever-loop directive: keep improving. `_5` already satisfies every MUST
 (WR>80 strict, monotonic) and tripled PnL; this refine is a free gain — more
 PnL AND lower drawdown at identical risk profile (same 24 trades, same
 WR=90.91 on 15m / 100 elsewhere). RSI-divergence + extremity gate unchanged
@@ -27,7 +27,7 @@ WR=90.91 on 15m / 100 elsewhere). RSI-divergence + extremity gate unchanged
 - Command/method: `python scripts/btcusdc_optimize.py --windows 1,3,6,12,15`
   (production path; numbers match the parity-verified fast engine exactly).
 - Dataset/time range: BTCUSDC 1h mainnet, 15-month cache ending 2026-05-19.
-- Loop folder: `backtest_history/Loop_20260519_4/`
+- Loop folder: `backtest_history/Loop_20260519_6/`
 - Key metrics (production-path):
 
 | Window | Return %     | WR %   | Trades | MDD %  | Sharpe |
@@ -38,17 +38,17 @@ WR=90.91 on 15m / 100 elsewhere). RSI-divergence + extremity gate unchanged
 | 12m    | 3370.41      | 100.00 | 7      | 0.50   | 4.85   |
 | 15m    | **15127.71** | 90.91  | **11** | 24.95  | 4.76   |
 
-- Comparison with `Loop_20260519_3` (same data, production-path):
+- Comparison with `Loop_20260519_5` (same data, production-path):
   - 15m return: 14209.85 -> **15127.71** (+917.86pp, +6.5%)
   - 15m MDD: 27.63 -> **24.95** (-2.68pp, lower risk)
   - 12m return: 3302.00 -> 3370.41; 6m: 508.25 -> 467.09 (still strict
     monotonic: 48.48<122.25<467.09<3370.41<15127.71)
   - min WR: 90.91 -> 90.91 (unchanged, strictly > 80 on every window)
   - trades: 24 -> 24 (1/2/3/7/11 unchanged)
-- Targets status: #1 WR>80 PASS (min 90.91); #2 PnL PASS (higher than `_3`);
-  #3 2-5 trades/mo NOT MET (structural, see `_3`); #3b monotonic PASS.
+- Targets status: #1 WR>80 PASS (min 90.91); #2 PnL PASS (higher than `_5`);
+  #3 2-5 trades/mo NOT MET (structural, see `_5`); #3b monotonic PASS.
 - Mandatory rule preserved; RR = 4.0/1.5 = 2.67.
-- Limitations: same as `Loop_20260519_3` (no liquidation/funding in sim;
+- Limitations: same as `Loop_20260519_5` (no liquidation/funding in sim;
   single 15m losing trade is a real live tail; TP cannot exceed ~4xATR
   without breaking WR>80; 2-5 trades/mo infeasible at WR>80 on 1h BTCUSDC).
 
@@ -56,7 +56,7 @@ WR=90.91 on 15m / 100 elsewhere). RSI-divergence + extremity gate unchanged
 - `algorithms.md`
 - `changes.md`
 
-## Loop_20260519_3 - BTCUSDC deployable champion: WR>80 all windows + 3.4x PnL (15m +14210%)
+## Loop_20260519_5 - BTCUSDC deployable champion: WR>80 all windows + 3.4x PnL (15m +14210%)
 
 ### Summary
 The previous BTCUSDC champion (`Loop_20260513_10`) **failed the user's #1 MUST
@@ -66,7 +66,7 @@ self-paced optimisation loop (`scripts/btcusdc_loop.py`, a BTCUSDC search
 harness reusing the parity-verified fast engine) searched for a config that is
 strictly compliant on every MUST target while maximising PnL.
 
-Winner `Loop_20260519_3` (params below) is **strictly WR > 80 on every
+Winner `Loop_20260519_5` (params below) is **strictly WR > 80 on every
 window** (min 90.91%), **strict monotonic** `15>12>6>3>1`, all-positive, and
 delivers **3.4x the old champion's 15-month PnL** (+4160% -> +14210%) at a
 comparable tail drawdown and *lower* drawdown on every window except 15m.
@@ -81,7 +81,7 @@ Changes vs `Loop_20260513_10`:
 - `leverage: 20 -> 25`, `position_equity_ratio: 0.95 -> 1.0` (PnL scaling; DD-aware search kept tail DD ~28%)
 
 ### Affected Files
-- `btcusdc_config.yaml` (params above, `loop_id: Loop_20260513_10 -> Loop_20260519_3`)
+- `btcusdc_config.yaml` (params above, `loop_id: Loop_20260513_10 -> Loop_20260519_5`)
 - `scripts/btcusdc_loop.py` (new BTCUSDC search harness; WR>80 + strict-monotonic
   gated scoring, PnL-dominant among deployable configs, RR>=2 enforced)
 - `algorithms.md` (current BTCUSDC tuned profile)
@@ -105,7 +105,7 @@ and the over-tight 7-trade structure.
   parity-verified — production numbers below match the fast engine exactly).
 - Dataset/time range: BTCUSDC 1h mainnet, 15-month cache ending 2026-05-19,
   windows 1m/3m/6m/12m/15m.
-- Loop folder: `backtest_history/Loop_20260519_3/`
+- Loop folder: `backtest_history/Loop_20260519_5/`
 - Key metrics (production-path):
 
 | Window | Return %     | WR %   | Trades | MDD %  | Sharpe |

@@ -14,7 +14,7 @@ A trade is valid only when all required conditions agree on the same direction.
 
 ### Current BTCUSDC Tuned Profile
 
-`Loop_20260519_4` is the deployable BTCUSDC champion. It keeps the mandatory
+`Loop_20260519_6` is the deployable BTCUSDC champion. It keeps the mandatory
 RSI divergence plus the extremity gate and uses a moderate-conviction
 trend-filtered ATR setup tuned so that **every** backtest window is strictly
 WR > 80 (the user's #1 MUST), strict monotonic `15>12>6>3>1`, all-positive:
@@ -34,7 +34,7 @@ Production-path backtest (parity-verified vs the fast harness): 1m +48.5% /
 24 trades total (1/2/3/7/11), max drawdown 0.5% on 1m–12m and 24.9% on 15m.
 This lineage replaces `Loop_20260513_10`, whose 6m window was exactly 80.00%
 WR and therefore failed the strict `WR > 80` requirement, and roughly
-3.6x's its 15m PnL (`_3` adopted the WR>80 structure at +14210%; `_4`
+3.6x's its 15m PnL (`_5` adopted the WR>80 structure at +14210%; `_6`
 refined `atr_period 14->9` for +15128% at lower drawdown).
 
 `rsi_long_max=47` is the key edge: it is the intermediate long-extremity

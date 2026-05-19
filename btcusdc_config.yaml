@@ -43,7 +43,7 @@ strategy:
   # Loop identifier. Format: Loop_{YYYYMMDD}_{iter}. Bump on every algorithm/config
   # change (see AGENTS.md "Loop Naming Convention") so previous trade-history files
   # are preserved for comparison.
-  loop_id: Loop_20260519_4
+  loop_id: Loop_20260519_6
 
 execution:
   order_reprice_bps: 2
