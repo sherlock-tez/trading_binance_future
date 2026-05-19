@@ -11,39 +11,53 @@ trading:
     - 12h
     - 1d
     - 1w
-  leverage: 5
+  leverage: 8
   max_open_positions: 1
-  position_equity_ratio: 0.95
+  position_equity_ratio: 1.0
   maker_only: true
 
 strategy:
-  # SOLUSDC FINAL CHAMPION = Loop_20260518_7. Best of 30 configs / 9
-  # iterations. Backtest (mainnet klines, 12m warmup):
-  #   1m +12.6% WR80.0 | 3m +29.3% WR73.9 | 6m +85.0% WR75.5
-  #   12m +312.7% WR74.4 | 15m +659.6% WR73.9 | 153 trades, perfectly monotonic.
-  # Meets PnL, trade-count, and the monotonic-consistency MUST. WR ~74% is
-  # the profitable-region ceiling; WR>80 was conclusively shown to require
-  # negative PnL (hard Pareto wall). Even isolated MACD-confluence (iter 9
-  # _28) cut 15m PnL to +14% without raising long-window WR. Mandatory
-  # RSI-divergence + extremity LONG<50/SHORT>50 preserved.
+  # SOLUSDC CHAMPION = Loop_20260519_3. WR>80 + strict-monotonic, PnL
+  # maximized: converged entry edge (= _2) at user-selected leverage 8.
+  # Production-path backtest (scripts/btcusdc_optimize.py, mainnet klines,
+  # 12m warmup, 1/3/6/12/15m):
+  #   1m +28.2% WR100  | 3m +130.9% WR94.1 | 6m +158.2% WR87.5
+  #   12m +701.8% WR86.8 | 15m +1543.0% WR88.0 | 75 trades, strict monotonic.
+  # Min WR 86.8% (12m) > 80 MUST; all-positive; trades 5.0-5.7/mo; 12m/15m
+  # max drawdown ~64%. Beats every prior champion: _2 (15m +1164%, DD ~57%),
+  # _1 (+879%), _31 (+289%), old non-compliant _7 (+784% but min WR 73.9%).
+  # Unlock chain: (1) faster MACD + MACD-div confluence ON reshapes pivots
+  # so the high-WR trade set survives the ~4-6mo-ago drawdown patch that
+  # broke monotonicity elsewhere (-> _31). (2) leverage 5->7, eq 0.95->1.0
+  # scaled PnL (-> _1). (3) macd 6/21->7/24, pivot_window 5->6,
+  # divergence_lookback 45->50 sharpened the edge: +1164% at min WR 86.8%,
+  # LOWER drawdown (-> _2). A 1296-combo fine scan confirmed _2's edge is the
+  # neighborhood optimum. (4) leverage 7->8 scales the converged edge to
+  # +1543% (DD ~64%) — leverage level chosen by the user from the
+  # production-path PnL/drawdown curve (lev 7-10 all pass all four; PnL and
+  # DD scale ~linearly; WR/monotonic/trades are leverage-invariant).
+  # atr_tp_mult held at 1.0: every wider-TP variant tested across many gates
+  # drops min WR below 80, so the reward-extension hint is firmly bounded by
+  # the WR>80 MUST. Mandatory RSI-divergence + extremity gate LONG<50 /
+  # SHORT>50 preserved (45/55).
   rsi_period: 14
-  macd_fast: 12
-  macd_slow: 26
+  macd_fast: 7
+  macd_slow: 24
   macd_signal: 9
   divergence_lookback: 50
-  pivot_window: 3
-  atr_period: 14
+  pivot_window: 6
+  atr_period: 12
   use_atr_stops: true
   atr_sl_mult: 3.0
-  atr_tp_mult: 1.5
+  atr_tp_mult: 1.0
   use_trend_filter: false
   trend_ema_period: 200
-  rsi_long_max: 50.0
-  rsi_short_min: 50.0
-  require_macd_divergence: false
+  rsi_long_max: 45.0
+  rsi_short_min: 55.0
+  require_macd_divergence: true
   min_rr_ratio: 0.0
   max_sl_distance_pct: 0.0
-  loop_id: Loop_20260518_7
+  loop_id: Loop_20260519_3
 
 execution:
   order_reprice_bps: 2

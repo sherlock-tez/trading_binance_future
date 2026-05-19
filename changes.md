@@ -1,5 +1,117 @@
 # changes.md
 
+## Loop_20260519_3 - SOLUSDC: leverage 7->8 on converged edge — 15m +1543% (user-selected risk)
+
+### Summary
+`solusdc_config.yaml`: hold the converged `Loop_20260519_2` entry edge and raise `leverage` 7→8. No other changes. No new config keys. Mandatory rule preserved (RSI + MACD divergence; extremity gate 45/55 within LONG<50 / SHORT>50).
+
+### Affected Files
+- `solusdc_config.yaml`
+- `algorithms.md`
+- `changes.md`
+- `scripts/btcusdc_sweep.py` (added `sol_wr80_pnl3` fine-scan grid + choice)
+
+### Reason
+A 1296-combo fine scan (`sol_wr80_pnl3`, `--wrfloor 80`) around `_2` returned `_2` itself as the neighborhood optimum — the entry edge has converged. The only remaining PnL lever is leverage, which is WR/monotonic/trade-count-invariant and trades PnL for drawdown ~1:1. The full production-path lev 7→10 curve (all four constraints pass at every level: lev7 +1164%/57%DD, lev8 +1543%/64%DD, lev9 +1970%/70%DD, lev10 +2420%/75%DD) was presented to the user as a risk decision; the user selected leverage 8.
+
+### Backtest Result
+- Command/method: leverage curve via inline production-path harness (`btcusdc_optimize.run_full`, `SignalEngine` + `run_trade_cycle` + `SimulatedExecutionAdapter`); champion confirmed via `SWEEP_SYMBOL=SOLUSDC python scripts/btcusdc_optimize.py --windows 1,3,6,12,15`.
+- Dataset/time range: Binance mainnet SOLUSDC 1h klines, 12-month warmup, windows [1,3,6,12,15] months ending 2026-05-19 UTC.
+- Loop folder: `backtest_history/Loop_20260519_3/`.
+- Key metrics (production path): 1m +28.20% WR100.0 (5 tr, DD0.2%) | 3m +130.91% WR94.12 (17, DD19.1%) | 6m +158.20% WR87.50 (32, DD44.1%) | 12m +701.78% WR86.76 (68, DD63.8%) | 15m +1542.97% WR88.00 (75, DD63.8%). Strict-monotonic ✓, all-positive ✓, min WR 86.76% > 80 ✓, trades 5.0-5.7/mo ✓.
+- Comparison with previous Loop: vs `_2` (15m +1164.5%, DD ~57%) — 15m PnL +33% via leverage; WR/monotonic/trades identical; drawdown +6.4pt (user-accepted).
+- Limitations: PnL gain is purely leverage; 12m/15m max drawdown ~64% — a real risk-of-ruin consideration, deeper live than sim (funding/ADL/liquidation/slippage simplified). Entry edge converged; further in-region PnL is leverage-bounded.
+
+### Documentation Updated
+- `algorithms.md`
+- `changes.md`
+
+---
+
+## Loop_20260519_2 - SOLUSDC: sharper entry edge — 15m +1164% at min WR 86.8%, lower drawdown
+
+### Summary
+`solusdc_config.yaml`: hold the `Loop_20260519_1` WR>80 basin (fast MACD + MACD-div confluence, leverage 7, eq 1.0) and sharpen the entry edge. Changes vs `_1`: `macd_fast` 6→7, `macd_slow` 21→24, `pivot_window` 5→6, `divergence_lookback` 45→50. No new config keys. Mandatory rule preserved (RSI + MACD divergence; extremity gate 45/55 within LONG<50 / SHORT>50).
+
+### Affected Files
+- `solusdc_config.yaml`
+- `algorithms.md`
+- `changes.md`
+- `scripts/btcusdc_sweep.py` (added `sol_wr80_pnl2` grid + choice)
+
+### Reason
+`_1` (15m +879%) was leverage-driven and carried ~62% drawdown. Target #2 is more PnL, but cranking leverage deeper into drawdown is fragile. A 972-combo sweep (`sol_wr80_pnl2`, `--wrfloor 80`) held leverage fixed at 7 and hunted a higher-conviction gate (MACD-speed neighbors of the 6/21/9 unlock, pivot/lookback, tighter RSI) crossed with wider TP. The best survivor sharpens the gate (`macd_slow` 24, `pivot_window` 6, `divergence_lookback` 50) producing fewer/higher-quality trades that raise 15m PnL to +1164% while *raising* min WR to 86.8% and *lowering* drawdown to ~57% — strictly dominating `_1`. Every wider-`atr_tp_mult` variant again failed the WR>80 floor, conclusively bounding the reward-extension hint by the WR MUST.
+
+### Backtest Result
+- Command/method: search `SWEEP_SYMBOL=SOLUSDC python scripts/btcusdc_sweep.py --grid sol_wr80_pnl2 --wrfloor 80.0`; validation `SWEEP_SYMBOL=SOLUSDC python scripts/btcusdc_optimize.py --windows 1,3,6,12,15` (production path: `SignalEngine.generate_signal` + `run_trade_cycle` + `SimulatedExecutionAdapter`).
+- Dataset/time range: Binance mainnet SOLUSDC 1h klines, 12-month warmup, windows [1,3,6,12,15] months ending 2026-05-19 UTC.
+- Loop folder: `backtest_history/Loop_20260519_2/`.
+- Key metrics (production path): 1m +24.37% WR100.0 (5 tr, DD0.1%) | 3m +109.31% WR94.12 (17, DD16.7%) | 6m +134.84% WR87.50 (32, DD39.0%) | 12m +572.10% WR86.76 (68, DD57.4%) | 15m +1164.47% WR88.00 (75, DD57.4%). Strict-monotonic ✓, all-positive ✓, min WR 86.76% > 80 ✓, trades 5.0-5.7/mo ✓. Fast-harness search result matched production path exactly.
+- Comparison with previous Loop: vs `_1` (15m +879.0%, min WR 83.1%, DD ~62%) — 15m PnL +32%, min WR +3.6pt, drawdown −4.3pt: strict improvement on all axes at identical leverage. vs `_31` (15m +289%) and old non-compliant `_7` (15m +784%, min WR 73.9%) — dominated.
+- Limitations: still leverage-7 (DD ~57%); single best basin in the grid; sensitive to the trailing-15m SOL regime. Funding/ADL/liquidation simplified in simulation.
+
+### Documentation Updated
+- `algorithms.md`
+- `changes.md`
+
+---
+
+## Loop_20260519_1 - SOLUSDC: PnL maximized inside the WR>80 region (leverage/eq/lookback scale-up)
+
+### Summary
+`solusdc_config.yaml`: hold the `Loop_20260518_31` WR>80 unlock (fast MACD 6/21/9 + MACD-div confluence, pivot5, rsi 45/55) and scale PnL within the feasible region. Changes vs `_31`: `leverage` 5→7, `position_equity_ratio` 0.95→1.0, `divergence_lookback` 40→45, `atr_period` 14→12. No new config keys. Mandatory rule preserved (RSI + MACD divergence; extremity gate 45/55 within LONG<50 / SHORT>50).
+
+### Affected Files
+- `solusdc_config.yaml`
+- `algorithms.md`
+- `changes.md`
+- `scripts/btcusdc_sweep.py` (added `sol_wr80_pnl` grid + choice)
+
+### Reason
+`_31` satisfied all four hard targets but its 15m PnL (+289%) was far below the old non-compliant champion `_7` (+784%). Target #2 is "increase PnL". A 810-combo sweep (`sol_wr80_pnl`, `--wrfloor 80`) over the PnL levers — TP width (user hint #4), leverage, equity ratio, SL/lookback/atr_period — while pinning the `_31` WR>80 unlock found 25 fully-compliant configs. The best lifts 15m PnL to +879% (beating even `_7`) with min WR still 83.1%. Wider `atr_tp_mult` consistently dropped min WR below 80, so reward-extension is bounded by the WR>80 MUST; leverage is the dominant in-region PnL lever.
+
+### Backtest Result
+- Command/method: search `SWEEP_SYMBOL=SOLUSDC python scripts/btcusdc_sweep.py --grid sol_wr80_pnl --wrfloor 80.0`; validation `SWEEP_SYMBOL=SOLUSDC python scripts/btcusdc_optimize.py --windows 1,3,6,12,15` (production path: `SignalEngine.generate_signal` + `run_trade_cycle` + `SimulatedExecutionAdapter`).
+- Dataset/time range: Binance mainnet SOLUSDC 1h klines, 12-month warmup, windows [1,3,6,12,15] months ending 2026-05-19 UTC.
+- Loop folder: `backtest_history/Loop_20260519_1/`.
+- Key metrics (production path): 1m +30.61% WR100.0 (6 tr, DD0.1%) | 3m +106.35% WR94.12 (17, DD17%) | 6m +109.82% WR87.10 (31, DD31.5%) | 12m +275.16% WR83.12 (77, DD61.7%) | 15m +879.04% WR85.23 (88, DD61.7%). Strict-monotonic ✓, all-positive ✓, min WR 83.12% > 80 ✓, trades 5.2-6.4/mo ✓.
+- Comparison with previous Loop: vs `_31` (15m +289.1%, min WR 82.2%, DD ~48%) — 15m PnL ~3x higher, min WR slightly higher, all four still pass. vs old `_7` (15m +783.8% but min WR 73.9% — non-compliant) — now beaten on PnL while being WR-compliant.
+- Limitations: PnL gain is leverage-driven; 12m/15m max drawdown rises to ~62% (vs ~48% for `_31`). No stated target caps drawdown, but this is a real risk-of-ruin consideration at leverage 7. Funding/ADL/liquidation simplified in simulation; a 62% sim drawdown could be deeper live.
+
+### Documentation Updated
+- `algorithms.md`
+- `changes.md`
+
+---
+
+## Loop_20260518_31 - SOLUSDC: first WR>80 + strict-monotonic champion (fast MACD unlock)
+
+### Summary
+`solusdc_config.yaml`: replace champion `Loop_20260518_7` (macd-off, min WR 73.9% — failed the WR>80 MUST) with a config that clears all four hard targets. Changes vs `_7`: `macd_fast` 12→6, `macd_slow` 26→21, `divergence_lookback` 50→40, `pivot_window` 3→5, `atr_tp_mult` 1.5→1.0, `rsi_long_max` 50→45, `rsi_short_min` 50→55, `require_macd_divergence` false→true. No new config keys. Mandatory rule preserved (RSI + MACD divergence detection; extremity gate 45/55 within LONG<50 / SHORT>50).
+
+### Affected Files
+- `solusdc_config.yaml`
+- `algorithms.md`
+- `changes.md`
+- `scripts/btcusdc_sweep.py` (added `--wrfloor` arg + `sol_wr80`/`sol_wr80_refine`/`sol_wr80_deep`/`sol_wr80_macd` grids; `score()` takes a parametric WR floor — default 70.0 unchanged for existing grids)
+
+### Reason
+The user loop requires WR>80% (HARD) together with strict-monotonic 15>12>6>3>1, all-positive, and 2-5 trades/mo. A 4-iteration sweep (4,392 combos: macd-off coarse/refine, macd-ON deep, MACD-params) showed the WR>80 wall is caused by a ~4-6-months-ago SOLUSDC drawdown patch: every selective high-WR config in the macd-off and standard-MACD regimes loses money in that segment, pushing 6m cumulative return below 3m and breaking monotonicity. A faster MACD (`6/21/9`) with MACD-divergence confluence ON shifts the divergence pivots so the high-WR trade set is net-positive through that segment — the only region found that satisfies all four constraints.
+
+### Backtest Result
+- Command/method: `SWEEP_SYMBOL=SOLUSDC python scripts/btcusdc_optimize.py --windows 1,3,6,12,15` (production path: `SignalEngine.generate_signal` + `run_trade_cycle` + `SimulatedExecutionAdapter`); search via `scripts/btcusdc_sweep.py --grid sol_wr80_macd --wrfloor 80.0` (parity-verified fast harness).
+- Dataset/time range: Binance mainnet SOLUSDC 1h klines, 12-month warmup, windows [1,3,6,12,15] months ending 2026-05-18 UTC.
+- Loop folder: `backtest_history/Loop_20260518_31/`.
+- Key metrics (production path): 1m +20.21% WR100.0 (6 tr) | 3m +64.11% WR94.12 (17) | 6m +71.13% WR87.10 (31) | 12m +130.59% WR82.19 (73) | 15m +289.13% WR84.15 (82). Strict-monotonic ✓, all-positive ✓, min WR 82.19% > 80 ✓, trades 5.2-6.1/mo ✓. Fast-harness search result matched the production path exactly (no parity drift).
+- Comparison with previous Loop: vs champion `_7` (1m +12.6% WR80 / 3m +29.3% WR73.9 / 6m +85.0% WR75.5 / 12m +454.5% WR75.0 / 15m +783.8% WR74.5). `_7` had ~2.7x the 15m PnL but **failed the WR>80 MUST** (min 73.9%). `_31` is the first fully-compliant config; absolute PnL is now the optimization target within the WR>80 feasible region.
+- Limitations: Single full-pass config in a 1,152-combo grid — narrow basin; sensitive to the SOL price regime of the last 15 months. Funding/ADL/liquidation simplified in simulation.
+
+### Documentation Updated
+- `algorithms.md`
+- `changes.md`
+
+---
+
 ## Loop_20260519_2 - BNBUSDC edge refine (15m +1003%, WR 100%, ~0% DD)
 
 ### Summary
