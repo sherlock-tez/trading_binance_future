@@ -11,7 +11,7 @@ trading:
     - 12h
     - 1d
     - 1w
-  leverage: 25
+  leverage: 10
   max_open_positions: 1
   position_equity_ratio: 1.0
   maker_only: true

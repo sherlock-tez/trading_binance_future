@@ -15,7 +15,7 @@ trading:
   # converged Loop_20260519_9 geometry. Pure risk scaling — same trade set,
   # same WR; more PnL at higher drawdown. Validated on the production path
   # before adoption.
-  leverage: 17
+  leverage: 15
   max_open_positions: 1
   position_equity_ratio: 0.98
   maker_only: true
