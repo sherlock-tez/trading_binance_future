@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
+from datetime import datetime, timezone
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, List, Optional
 
 import pandas as pd
 import websockets
+from websockets.exceptions import ConnectionClosed
 
 from src.data.binance_api import BinanceFuturesClient
 from src.utils.logging import get_logger
@@ -20,6 +23,34 @@ from src.utils.timeframe import (
 logger = get_logger(__name__)
 
 MAX_KLINE_LIMIT = 1500
+
+# Websocket resilience knobs.
+STREAM_STALENESS_TIMEOUT = 90.0      # no message in N s -> reconnect
+RECONNECT_BACKOFF_BASE = 1.0
+RECONNECT_BACKOFF_CAP = 60.0
+MAX_CONNECTION_SECONDS = 23 * 3600   # rotate before Binance's 24h hard cap
+ALERT_THROTTLE_SECONDS = 300.0       # min gap between repeated failure alerts
+REST_ALIGN_BUFFER_MS = 3000          # wake this long after a candle closes
+
+
+def _build_ws_url(base: str, combined: str, mode: str, is_testnet: bool) -> str:
+    """Build the stream URL for the requested routing mode.
+
+    `combined` is the `/`-joined stream list (e.g. ``a@kline_1m/b@kline_1m``).
+    Testnet base does not support routed paths, so force legacy there.
+    `raw` is single-stream only; multi-symbol falls back to legacy.
+    """
+    if is_testnet and mode != "legacy":
+        logger.info("testnet base has no routed paths; using legacy stream mode")
+        mode = "legacy"
+    if mode == "market":
+        return f"{base}/market/stream?streams={combined}"
+    if mode == "raw":
+        if "/" in combined:
+            logger.info("raw mode is single-stream only; using legacy for multi-symbol")
+            return f"{base}/stream?streams={combined}"
+        return f"{base}/ws/{combined}"
+    return f"{base}/stream?streams={combined}"
 
 
 @dataclass
@@ -198,36 +229,300 @@ class BinanceMarketDataService:
         symbols: List[str],
         timeframe: str,
         on_close: Callable[[CandleEvent], Any],
+        *,
+        on_error: Optional[Callable[[str], Any]] = None,
+        mode: str = "websocket",
+        staleness_timeout: float = STREAM_STALENESS_TIMEOUT,
+        stream_path_mode: str = "legacy",
+        rest_fallback_after: int = 3,
+        rest_poll_seconds: float = 30.0,
+        recover_probe_seconds: float = 300.0,
     ) -> None:
-        streams = "/".join(f"{symbol.lower()}@kline_{timeframe}" for symbol in symbols)
-        ws_url = f"{self.client.ws_base_url}/stream?streams={streams}"
+        combined = "/".join(f"{symbol.lower()}@kline_{timeframe}" for symbol in symbols)
+        ws_url = _build_ws_url(
+            self.client.ws_base_url, combined, stream_path_mode, self.client.testnet
+        )
+
+        last_close_time: Dict[str, int] = {}
+        last_failure_alert_at = 0.0
+
+        async def _emit(message: str) -> None:
+            if on_error is None:
+                return
+            try:
+                result = on_error(message)
+                if asyncio.iscoroutine(result):
+                    await result
+            except Exception:
+                logger.exception("on_error callback failed")
+
+        async def _emit_failure(message: str) -> None:
+            nonlocal last_failure_alert_at
+            now = time.monotonic()
+            if now - last_failure_alert_at >= ALERT_THROTTLE_SECONDS:
+                last_failure_alert_at = now
+                await _emit(message)
+
+        async def _dispatch(kline: Dict[str, Any]) -> None:
+            sym = str(kline["s"]).upper()
+            close_time = int(kline["T"])
+            if close_time <= last_close_time.get(sym, 0):
+                return
+            last_close_time[sym] = close_time
+            event = CandleEvent(
+                symbol=str(kline["s"]),
+                timeframe=str(kline["i"]),
+                open_time=int(kline["t"]),
+                close_time=close_time,
+                open_price=float(kline["o"]),
+                high_price=float(kline["h"]),
+                low_price=float(kline["l"]),
+                close_price=float(kline["c"]),
+                volume=float(kline["v"]),
+            )
+            result = on_close(event)
+            if asyncio.iscoroutine(result):
+                await result
+
+        if mode == "rest":
+            logger.info(
+                "Market data mode: REST polling only (websocket disabled)"
+            )
+            await self._poll_closed_klines(
+                symbols,
+                timeframe,
+                on_close,
+                _emit_failure,
+                last_close_time,
+                ws_url,
+                rest_poll_seconds,
+                recover_probe_seconds,
+                probe_for_recovery=False,
+            )
+            return
+
+        backoff = RECONNECT_BACKOFF_BASE
+        consecutive_stalls = 0
+        degraded = False
 
         while True:
+            if consecutive_stalls >= rest_fallback_after:
+                await _emit(
+                    f"WS degraded ({consecutive_stalls} stalls); switching to REST "
+                    f"polling every {rest_poll_seconds:.0f}s"
+                )
+                await self._poll_closed_klines(
+                    symbols,
+                    timeframe,
+                    on_close,
+                    _emit_failure,
+                    last_close_time,
+                    ws_url,
+                    rest_poll_seconds,
+                    recover_probe_seconds,
+                )
+                await _emit("WS RECOVERED; leaving REST fallback")
+                consecutive_stalls = 0
+                degraded = False
+                backoff = RECONNECT_BACKOFF_BASE
+                continue
+
             try:
-                async with websockets.connect(ws_url, ping_interval=20, ping_timeout=20) as ws:
+                async with websockets.connect(
+                    ws_url, ping_interval=20, ping_timeout=20
+                ) as ws:
+                    connected_at = time.monotonic()
+                    got_first = False
                     logger.info("Connected websocket: %s", ws_url)
-                    async for message in ws:
+                    while True:
+                        if time.monotonic() - connected_at >= MAX_CONNECTION_SECONDS:
+                            logger.info(
+                                "Rotating websocket connection before 24h limit"
+                            )
+                            backoff = RECONNECT_BACKOFF_BASE
+                            break
+                        try:
+                            message = await asyncio.wait_for(
+                                ws.recv(), timeout=staleness_timeout
+                            )
+                        except asyncio.TimeoutError:
+                            consecutive_stalls += 1
+                            degraded = True
+                            age = time.monotonic() - connected_at
+                            logger.warning(
+                                "Websocket STALE: no message in %.0fs "
+                                "(conn alive %.0fs, stall #%d) - reconnecting",
+                                staleness_timeout,
+                                age,
+                                consecutive_stalls,
+                            )
+                            await _emit_failure(
+                                f"No market data for {staleness_timeout:.0f}s "
+                                f"(stall #{consecutive_stalls}); reconnecting"
+                            )
+                            break
+
+                        if not got_first:
+                            got_first = True
+                            logger.info(
+                                "Websocket stream live: first message %.1fs after connect",
+                                time.monotonic() - connected_at,
+                            )
+                            backoff = RECONNECT_BACKOFF_BASE
+                            consecutive_stalls = 0
+                            if degraded:
+                                degraded = False
+                                await _emit("Market data RECOVERED on websocket")
+
                         payload = json.loads(message)
                         kline_payload = payload.get("data", {}).get("k", {})
                         if not kline_payload:
                             continue
                         if not bool(kline_payload.get("x")):
                             continue
-
-                        event = CandleEvent(
-                            symbol=str(kline_payload["s"]),
-                            timeframe=str(kline_payload["i"]),
-                            open_time=int(kline_payload["t"]),
-                            close_time=int(kline_payload["T"]),
-                            open_price=float(kline_payload["o"]),
-                            high_price=float(kline_payload["h"]),
-                            low_price=float(kline_payload["l"]),
-                            close_price=float(kline_payload["c"]),
-                            volume=float(kline_payload["v"]),
-                        )
-                        result = on_close(event)
-                        if asyncio.iscoroutine(result):
-                            await result
+                        await _dispatch(kline_payload)
+            except ConnectionClosed as exc:
+                logger.warning("Websocket closed (%s) - reconnecting", exc)
+                degraded = True
+                await _emit_failure(
+                    f"Stream connection closed ({type(exc).__name__}); reconnecting"
+                )
             except Exception as exc:
                 logger.exception("WebSocket stream failed: %s", exc)
-                await asyncio.sleep(3)
+                degraded = True
+                await _emit_failure(
+                    f"Stream error: {type(exc).__name__}; reconnecting"
+                )
+
+            sleep_for = min(backoff, RECONNECT_BACKOFF_CAP)
+            logger.info("Reconnecting websocket in %.0fs", sleep_for)
+            await asyncio.sleep(sleep_for)
+            backoff = min(backoff * 2, RECONNECT_BACKOFF_CAP)
+
+    async def _probe_ws(self, ws_url: str, *, recv_timeout: float = 10.0) -> bool:
+        """Open a short-lived connection and return True if any message arrives."""
+        try:
+            async with websockets.connect(
+                ws_url, ping_interval=20, ping_timeout=20
+            ) as ws:
+                await asyncio.wait_for(ws.recv(), timeout=recv_timeout)
+                return True
+        except Exception:
+            return False
+
+    async def _poll_closed_klines(
+        self,
+        symbols: List[str],
+        timeframe: str,
+        on_close: Callable[[CandleEvent], Any],
+        emit_failure: Callable[[str], Any],
+        last_close_time: Dict[str, int],
+        ws_url: str,
+        poll_seconds: float,
+        probe_seconds: float,
+        *,
+        probe_for_recovery: bool = True,
+    ) -> None:
+        """REST-poll closed klines.
+
+        Emits each newly-closed candle through the same `on_close` path,
+        deduped via the shared `last_close_time` map. When
+        `probe_for_recovery` is True (fallback use) it returns once a
+        websocket probe succeeds so the caller resumes websocket mode;
+        when False (REST-only mode) it polls forever and never probes.
+        """
+        align_to_close = not probe_for_recovery
+        if align_to_close:
+            logger.warning(
+                "REST polling %s, aligned to %s candle close (+%.0fs buffer)",
+                ",".join(symbols),
+                timeframe,
+                REST_ALIGN_BUFFER_MS / 1000.0,
+            )
+        else:
+            logger.warning(
+                "REST fallback engaged: polling %s every %.0fs (ws probe every %.0fs)",
+                ",".join(symbols),
+                poll_seconds,
+                probe_seconds,
+            )
+        last_probe = time.monotonic()
+        while True:
+            round_ok = True
+            next_close_ms: Optional[int] = None
+            for symbol in symbols:
+                try:
+                    frame = self.fetch_klines_frame(symbol, timeframe, limit=3)
+                except Exception as exc:
+                    logger.exception("REST poll failed for %s: %s", symbol, exc)
+                    result = emit_failure(
+                        f"REST poll error for {symbol}: {type(exc).__name__}"
+                    )
+                    if asyncio.iscoroutine(result):
+                        await result
+                    round_ok = False
+                    continue
+
+                if frame is None or frame.empty or len(frame) < 2:
+                    round_ok = False
+                    continue
+
+                # Last row is the still-forming candle; its close_time is
+                # exactly when the next candle closes -> schedule from it.
+                forming_close = int(frame.iloc[-1]["close_time"])
+                next_close_ms = (
+                    forming_close
+                    if next_close_ms is None
+                    else max(next_close_ms, forming_close)
+                )
+
+                closed = frame.iloc[-2]
+                close_time = int(closed["close_time"])
+                sym_key = symbol.upper()
+                if close_time <= last_close_time.get(sym_key, 0):
+                    continue
+                last_close_time[sym_key] = close_time
+
+                event = CandleEvent(
+                    symbol=sym_key,
+                    timeframe=timeframe,
+                    open_time=int(closed["open_time"]),
+                    close_time=close_time,
+                    open_price=float(closed["open"]),
+                    high_price=float(closed["high"]),
+                    low_price=float(closed["low"]),
+                    close_price=float(closed["close"]),
+                    volume=float(closed["volume"]),
+                )
+                logger.info(
+                    "[rest-fallback] closed candle %s %s close_time=%s",
+                    sym_key,
+                    timeframe,
+                    close_time,
+                )
+                result = on_close(event)
+                if asyncio.iscoroutine(result):
+                    await result
+
+            if probe_for_recovery and time.monotonic() - last_probe >= probe_seconds:
+                last_probe = time.monotonic()
+                if await self._probe_ws(ws_url):
+                    logger.info("Websocket probe succeeded; leaving REST fallback")
+                    return
+
+            if align_to_close and round_ok and next_close_ms is not None:
+                wake_ms = next_close_ms + 1 + REST_ALIGN_BUFFER_MS
+                delay = max(wake_ms / 1000.0 - time.time(), 1.0)
+                wake_utc = datetime.fromtimestamp(
+                    wake_ms / 1000.0, timezone.utc
+                ).strftime("%Y-%m-%d %H:%M:%S UTC")
+                logger.info(
+                    "REST: next %s close ~%s; sleeping %.0fs",
+                    timeframe,
+                    wake_utc,
+                    delay,
+                )
+                await asyncio.sleep(delay)
+            else:
+                # fallback cadence, or a failed/empty round -> retry soon
+                await asyncio.sleep(poll_seconds)
