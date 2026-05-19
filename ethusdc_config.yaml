@@ -11,7 +11,7 @@ trading:
     - 12h
     - 1d
     - 1w
-  # ETH Loop_20260519_4: leverage 8->10 + equity 0.9->0.95. The wide-SL /
+  # ETH Loop_20260519_8: leverage 8->10 + equity 0.9->0.95. The wide-SL /
   # tight-TP bounce geometry below produces a very high per-trade hit rate, so
   # this moderate leverage compounds to large PnL while every window stays
   # WR>80, strictly monotonic, and >=2 trades/month.
@@ -21,7 +21,7 @@ trading:
   maker_only: true
 
 strategy:
-  # ETH Loop_20260519_4: random+refine search (scripts/ethusdc_loop.py, parity
+  # ETH Loop_20260519_8: random+refine search (scripts/ethusdc_loop.py, parity
   # verified fast engine) for the all-targets ETHUSDC profile. RSI divergence
   # stays mandatory, MACD divergence still required, extremity gate kept
   # (rsi_long_max<=50 / rsi_short_min>=50). Slower RSI (->21) filters to the
@@ -34,7 +34,7 @@ strategy:
   # significant prior pivot, lifting win-rate on every window.
   divergence_lookback: 160
   pivot_window: 6
-  # Volatility-aware stops via ATR. Loop_20260519_4 uses atr_period 21 and a
+  # Volatility-aware stops via ATR. Loop_20260519_8 uses atr_period 21 and a
   # wide-SL / tight-TP geometry: SL=2.0*ATR rarely reached while TP=0.8*ATR is
   # hit quickly, giving a high per-trade win rate. PnL comes from a high hit
   # rate compounding, not from a large reward multiple.
@@ -57,9 +57,9 @@ strategy:
   # Reward/risk + max-SL-distance gates (currently inactive; preserved for future tuning).
   min_rr_ratio: 0.0
   max_sl_distance_pct: 0.0
-  # Loop identifier. Loop_20260519_4 is the all-targets ETHUSDC profile
+  # Loop identifier. Loop_20260519_8 is the all-targets ETHUSDC profile
   # (WR>80 every window, strict monotonic 15>12>6>3>1, >=2 trades/month).
-  loop_id: Loop_20260519_4
+  loop_id: Loop_20260519_8
 
 execution:
   order_reprice_bps: 2

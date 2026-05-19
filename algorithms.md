@@ -14,7 +14,7 @@ A trade is valid only when all required conditions agree on the same direction.
 
 ### Current ETHUSDC Tuned Profile
 
-`Loop_20260519_4` keeps the mandatory RSI divergence plus extremity gate and
+`Loop_20260519_8` keeps the mandatory RSI divergence plus extremity gate and
 the required MACD divergence, and uses a wide-SL / tight-TP bounce geometry on
 those high-conviction divergence entries:
 
@@ -32,7 +32,7 @@ SimulatedExecutionAdapter`): 1m +11.07% / 3m +31.87% / 6m +60.53% / 12m
 +174.18% / 15m +474.60%; win-rate 100/100/88.2/86.5/87.5% (min 86.49%);
 strictly monotonic 15>12>6>3>1; all-positive; 2.0–3.2 trades/month; Sharpe
 1.4–7.6; max drawdown 0.19% on 1m/3m rising to 44.85% on 6/12/15m. This
-strictly dominates `Loop_20260519_3` on PnL in every window (e.g. 15m
+strictly dominates `Loop_20260519_7` on PnL in every window (e.g. 15m
 +474.60% vs +181.66%, ~2.6×) while still satisfying every target (WR>80 on
 every window, strict monotonic consistency, ≥2 trades/month, all-positive).
 
@@ -41,8 +41,8 @@ hit rate; the slower RSI (`rsi_period=21`) plus long divergence memory
 (`divergence_lookback=160`) filter to the highest-conviction reversals. Found
 via `scripts/ethusdc_loop.py` (random map + neighbourhood refine,
 ETHUSDC-specific reuse of the parity-verified fast engine), then re-validated
-on the production path before adoption. Lineage: `Loop_20260519_3`
-(first all-targets pass, 15m +181.66%) → `Loop_20260519_4` (round-3 refine,
+on the production path before adoption. Lineage: `Loop_20260519_7`
+(first all-targets pass, 15m +181.66%) → `Loop_20260519_8` (round-3 refine,
 15m +474.60%, current).
 
 **Caveat:** as with the BNBUSDC tight-TP profile, the high in-sample win-rate

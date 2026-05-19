@@ -1,17 +1,17 @@
 # changes.md
 
-## Loop_20260519_4 - ETHUSDC PnL upgrade (15m +474.60%, WR≥86.5%, strict monotonic, dominates Loop_3)
+## Loop_20260519_8 - ETHUSDC PnL upgrade (15m +474.60%, WR≥86.5%, strict monotonic, dominates Loop_7)
 
 ### Summary
-Strict PnL improvement over `Loop_20260519_3` that still passes every user
+Strict PnL improvement over `Loop_20260519_7` that still passes every user
 target. A round-3 random+refine pass (`scripts/ethusdc_loop.py`, seeds 7/8/9)
 found a neighbouring config whose canonical production-path PnL beats
-`Loop_20260519_3` in **every** window while keeping WR>80, strict
+`Loop_20260519_7` in **every** window while keeping WR>80, strict
 monotonicity, and ≥2 trades/month. RSI divergence stays mandatory, MACD
 divergence still required, extremity gate preserved (`rsi_long_max=50` LONG
 only if RSI<50, `rsi_short_min=60` SHORT only if RSI>50). No new config keys.
 
-Effective changes vs `Loop_20260519_3`: `atr_sl_mult 2.5→2.0`, `atr_tp_mult
+Effective changes vs `Loop_20260519_7`: `atr_sl_mult 2.5→2.0`, `atr_tp_mult
 0.6→0.8`, `atr_period 14→21`, `macd_signal 7→9`, `leverage 8→10`,
 `position_equity_ratio 0.9→0.95`. (`divergence_lookback`, `pivot_window`,
 `rsi_period`, RSI gates, `require_macd_divergence`, trend filter unchanged.)
@@ -20,10 +20,10 @@ Effective changes vs `Loop_20260519_3`: `atr_sl_mult 2.5→2.0`, `atr_tp_mult
 - `ethusdc_config.yaml`
 - `algorithms.md`
 - `changes.md`
-- `backtest_history/Loop_20260519_4/{1,3,6,12,15}m.csv`
+- `backtest_history/Loop_20260519_8/{1,3,6,12,15}m.csv`
 
 ### Reason
-The forever-optimization loop continued past `Loop_20260519_3` to maximise
+The forever-optimization loop continued past `Loop_20260519_7` to maximise
 PnL subject to the hard targets. The slightly wider TP (0.8 vs 0.6 ×ATR),
 slower ATR (period 21), and higher leverage/equity (10 / 0.95) compound the
 high-hit-rate bounce geometry into materially larger returns without breaking
@@ -37,7 +37,7 @@ WR>80 or strict monotonicity.
   SimulatedExecutionAdapter`).
 - Dataset/time range: Binance Futures ETHUSDC mainnet 1h klines, windows
   1m/3m/6m/12m/15m as of 2026-05-19.
-- Loop folder: `backtest_history/Loop_20260519_4/`
+- Loop folder: `backtest_history/Loop_20260519_8/`
 - Key metrics (canonical production path):
   - 1m:  `+11.07%`,  3 trades, 100.00% WR, 7.617 Sharpe, 0.19% max DD
   - 3m:  `+31.87%`,  6 trades, 100.00% WR, 5.972 Sharpe, 0.19% max DD
@@ -47,7 +47,7 @@ WR>80 or strict monotonicity.
 - Targets check: WR min 86.49% (>80 ✓); strictly monotonic
   11.07<31.87<60.53<174.18<474.60 (✓); all-positive (✓); trades/month
   3.0/2.0/2.83/3.08/3.2 all in [2,5] (✓).
-- Comparison with previous Loop: strictly dominates `Loop_20260519_3` on PnL
+- Comparison with previous Loop: strictly dominates `Loop_20260519_7` on PnL
   in every window (1m 11.07 vs 5.67, 3m 31.87 vs 16.48, 6m 60.53 vs 48.34,
   12m 174.18 vs 95.40, 15m 474.60 vs 181.66 — ~2.6× on 15m). WR is lower
   (min 86.49 vs 91.67) but still well above the 80 floor; max DD rises
@@ -68,11 +68,11 @@ WR>80 or strict monotonicity.
 - `algorithms.md`
 - `changes.md`
 - (`architecture.md` unchanged — no structural change this loop;
-  `scripts/ethusdc_loop.py` was already documented in `Loop_20260519_3`.)
+  `scripts/ethusdc_loop.py` was already documented in `Loop_20260519_7`.)
 
 ---
 
-## Loop_20260519_3 - ETHUSDC all-targets profile (15m +181.66%, WR≥91.7%, strict monotonic)
+## Loop_20260519_7 - ETHUSDC all-targets profile (15m +181.66%, WR≥91.7%, strict monotonic)
 
 ### Summary
 First ETHUSDC config to satisfy every user target simultaneously. Replaced the
@@ -98,7 +98,7 @@ Effective changes vs `Loop_20260514_14`: `rsi_period 11→21`, `macd_slow
 - `algorithms.md`
 - `architecture.md`
 - `changes.md`
-- `backtest_history/Loop_20260519_3/{1,3,6,12,15}m.csv`
+- `backtest_history/Loop_20260519_7/{1,3,6,12,15}m.csv`
 
 ### Reason
 `Loop_20260514_14` failed three of the four user targets: trade frequency
@@ -117,7 +117,7 @@ while keeping the mandatory divergence + extremity rule intact.
   SimulatedExecutionAdapter`).
 - Dataset/time range: Binance Futures ETHUSDC mainnet 1h klines, windows
   1m/3m/6m/12m/15m as of 2026-05-19.
-- Loop folder: `backtest_history/Loop_20260519_3/`
+- Loop folder: `backtest_history/Loop_20260519_7/`
 - Key metrics (canonical production path):
   - 1m:  `+5.67%`,  3 trades, 100.00% WR, 7.033 Sharpe, 0.14% max DD
   - 3m:  `+16.48%`, 6 trades, 100.00% WR, 5.097 Sharpe, 0.14% max DD
@@ -129,7 +129,7 @@ while keeping the mandatory divergence + extremity rule intact.
   3.0/2.0/2.83/3.08/3.2 all in [2,5] (✓).
 - Comparison with previous Loop: `Loop_20260514_14` had higher raw 15m PnL
   (+3018% canonical) but failed frequency, strict monotonicity, and left
-  1m/3m empty. `Loop_20260519_3` is the first profile that passes every hard
+  1m/3m empty. `Loop_20260519_7` is the first profile that passes every hard
   target; its PnL is the best achievable subject to those constraints.
 - Fast-engine champion (15-month cache, minimal long-window warmup): 15m
   +230.65%, min WR 92.11%, identical structure — production path is slightly
