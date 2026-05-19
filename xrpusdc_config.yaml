@@ -11,30 +11,30 @@ trading:
     - 12h
     - 1d
     - 1w
-  leverage: 10
+  leverage: 25
   max_open_positions: 1
-  position_equity_ratio: 0.95
+  position_equity_ratio: 1.0
   maker_only: true
 
 strategy:
-  rsi_period: 11
-  macd_fast: 12
+  rsi_period: 7
+  macd_fast: 16
   macd_slow: 26
-  macd_signal: 12
-  divergence_lookback: 80
-  pivot_window: 6
+  macd_signal: 7
+  divergence_lookback: 100
+  pivot_window: 5
   atr_period: 21
   use_atr_stops: true
-  atr_sl_mult: 6.0
-  atr_tp_mult: 0.6
-  use_trend_filter: false
-  trend_ema_period: 200
+  atr_sl_mult: 5.0
+  atr_tp_mult: 1.0
+  use_trend_filter: true
+  trend_ema_period: 50
   rsi_long_max: 50.0
-  rsi_short_min: 75.0
+  rsi_short_min: 55.0
   require_macd_divergence: false
   min_rr_ratio: 0.0
   max_sl_distance_pct: 0.0
-  loop_id: ""
+  loop_id: Loop_20260519_10
 
 execution:
   order_reprice_bps: 2
