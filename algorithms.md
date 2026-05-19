@@ -31,27 +31,30 @@ no additional high-conviction trade in the oldest 12-to-15-month segment.
 
 ### Current SOLUSDC Tuned Profile
 
-`Loop_20260519_3` clears the WR>80 requirement while remaining strictly monotonic
+`Loop_20260519_4` clears the WR>80 requirement while remaining strictly monotonic
 (15m > 12m > 6m > 3m > 1m), all-positive, and inside the trades/month band, with
-PnL maximized: the converged `_2` entry edge run at user-selected leverage 8. It
-keeps the mandatory RSI divergence + extremity gate and adds MACD-divergence
-confluence with a fast MACD:
+PnL maximized. It keeps the mandatory RSI divergence + extremity gate and adds
+MACD-divergence confluence with a fast MACD, on coarse daily/weekly S/R levels:
 
 - `rsi_period=14`, `rsi_long_max=45`, `rsi_short_min=55` (extremity rule preserved)
 - `require_macd_divergence=true`
 - `macd_fast=7`, `macd_slow=24`, `macd_signal=9` (faster than the 12/26/9 default)
 - `pivot_window=6`, `divergence_lookback=50`
+- `sup_res_timeframes=[1d, 1w]` (narrowed from 3h/6h/12h/1d/1w)
 - `use_trend_filter=false`
 - `use_atr_stops=true`, `atr_period=12`, `atr_sl_mult=3.0`, `atr_tp_mult=1.0`
 - `leverage=8`, `position_equity_ratio=1.0`
 
 Production-path backtest (`scripts/btcusdc_optimize.py`, mainnet klines, 12m warmup):
-1m +28.2% WR100 / 3m +130.9% WR94.1 / 6m +158.2% WR87.5 / 12m +701.8% WR86.8 /
-15m +1543.0% WR88.0; 75 trades over 15m; min WR 86.8% at 12m; 12m/15m max drawdown
-~64%. Leverage was chosen by the user from the production-path PnL/drawdown curve
-(lev 7→10 all pass all four constraints; PnL and drawdown scale ~linearly while
-WR/monotonicity/trade-count are leverage-invariant: lev7 +1164%/57%DD, lev8
-+1543%/64%DD, lev9 +1970%/70%DD, lev10 +2420%/75%DD).
+1m +28.2% WR100 / 3m +130.9% WR94.1 / 6m +268.3% WR90.3 / 12m +1141.7% WR89.2 /
+15m +2073.3% WR90.1; 71 trades over 15m; min WR 89.2% at 12m; 12m/15m max drawdown
+~64% (unchanged vs `_3` — same leverage 8). Narrowing `sup_res_timeframes` to the
+daily/weekly levels widens the valid-entry zone between the nearest support and
+resistance and filters to structurally stronger reversals: +34% more 15m PnL and
++2.5pt higher min win rate at identical leverage and drawdown vs `_3`. Leverage 8
+was chosen by the user from the production-path PnL/drawdown curve (lev 7→10 all
+pass all four constraints; PnL and drawdown scale ~linearly while
+WR/monotonicity/trade-count are leverage-invariant).
 
 Why the fast MACD matters: for SOLUSDC the segment roughly 4-6 months ago is a
 drawdown patch. Every selective WR>80 config tested in the macd-off and standard-MACD
@@ -66,14 +69,16 @@ that simultaneously raised 15m PnL to +1164%, lifted min WR to 86.8%, AND lowere
 drawdown to ~57% at the same leverage (`Loop_20260519_2`); a 1296-combo fine scan
 then confirmed `_2`'s edge is the optimum of its neighborhood. Finally (c) leverage
 was raised 7→8 on the converged edge (`Loop_20260519_3`, 15m +1543%, DD ~64%),
-the level chosen by the user from the full lev 7→10 PnL/drawdown curve. `atr_tp_mult`
-is held at 1.0 because every wider take-profit variant tested across multiple gate
-settings drops min win rate below 80, so the user's reward-extension hint is firmly
-bounded by the WR>80 MUST. The original `Loop_20260518_7` (macd-off, ~149 trades,
-~74% WR) never satisfied WR>80. The entry edge has converged; further PnL within
-the WR>80 region is now leverage-bounded (drawdown grows ~6pt per leverage step) —
-the open research direction is a structurally different entry edge that raises WR
-headroom enough to also admit a wider take-profit.
+the level chosen by the user from the full lev 7→10 PnL/drawdown curve. Finally
+(d) the last untouched lever — `sup_res_timeframes` — was swept: narrowing it from
+3h/6h/12h/1d/1w to just [1d,1w] lifted 15m PnL to +2073% and min WR to 89.2% at
+unchanged leverage/drawdown (`Loop_20260519_4`). `atr_tp_mult` is held at 1.0
+because every wider take-profit variant tested across multiple gate settings drops
+min win rate below 80, so the user's reward-extension hint is firmly bounded by the
+WR>80 MUST. The original `Loop_20260518_7` (macd-off, ~149 trades, ~74% WR) never
+satisfied WR>80. With the divergence/MACD/pivot/SL-TP edge, leverage, and S/R
+timeframes all explored, further PnL within the WR>80 region is now primarily
+leverage-bounded (drawdown grows ~6pt per leverage step).
 
 ## Indicators
 

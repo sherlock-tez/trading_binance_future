@@ -6,9 +6,6 @@ trading:
     - SOLUSDC
   signal_timeframe: 1h
   sup_res_timeframes:
-    - 3h
-    - 6h
-    - 12h
     - 1d
     - 1w
   leverage: 8
@@ -17,25 +14,25 @@ trading:
   maker_only: true
 
 strategy:
-  # SOLUSDC CHAMPION = Loop_20260519_3. WR>80 + strict-monotonic, PnL
-  # maximized: converged entry edge (= _2) at user-selected leverage 8.
-  # Production-path backtest (scripts/btcusdc_optimize.py, mainnet klines,
-  # 12m warmup, 1/3/6/12/15m):
-  #   1m +28.2% WR100  | 3m +130.9% WR94.1 | 6m +158.2% WR87.5
-  #   12m +701.8% WR86.8 | 15m +1543.0% WR88.0 | 75 trades, strict monotonic.
-  # Min WR 86.8% (12m) > 80 MUST; all-positive; trades 5.0-5.7/mo; 12m/15m
-  # max drawdown ~64%. Beats every prior champion: _2 (15m +1164%, DD ~57%),
-  # _1 (+879%), _31 (+289%), old non-compliant _7 (+784% but min WR 73.9%).
+  # SOLUSDC CHAMPION = Loop_20260519_4. WR>80 + strict-monotonic, PnL
+  # maximized. Single-lever gain over _3: sup_res_timeframes
+  # [3h,6h,12h,1d,1w] -> [1d,1w] (coarser daily/weekly S/R levels filter to
+  # a stronger trade set). Production-path backtest
+  # (scripts/btcusdc_optimize.py, mainnet klines, 12m warmup, 1/3/6/12/15m):
+  #   1m +28.2% WR100  | 3m +130.9% WR94.1 | 6m +268.3% WR90.3
+  #   12m +1141.7% WR89.2 | 15m +2073.3% WR90.1 | 71 trades, strict monotonic.
+  # Min WR 89.2% (12m) > 80 MUST; all-positive; trades 4.7-5.7/mo; 12m/15m
+  # max drawdown ~64% (UNCHANGED vs _3 — same leverage 8). Beats every prior
+  # champion: _3 (15m +1543%, minWR 86.8%), _2 (+1164%), _1 (+879%), _31
+  # (+289%), old non-compliant _7 (+784% but minWR 73.9%).
   # Unlock chain: (1) faster MACD + MACD-div confluence ON reshapes pivots
   # so the high-WR trade set survives the ~4-6mo-ago drawdown patch that
   # broke monotonicity elsewhere (-> _31). (2) leverage 5->7, eq 0.95->1.0
   # scaled PnL (-> _1). (3) macd 6/21->7/24, pivot_window 5->6,
-  # divergence_lookback 45->50 sharpened the edge: +1164% at min WR 86.8%,
-  # LOWER drawdown (-> _2). A 1296-combo fine scan confirmed _2's edge is the
-  # neighborhood optimum. (4) leverage 7->8 scales the converged edge to
-  # +1543% (DD ~64%) — leverage level chosen by the user from the
-  # production-path PnL/drawdown curve (lev 7-10 all pass all four; PnL and
-  # DD scale ~linearly; WR/monotonic/trades are leverage-invariant).
+  # divergence_lookback 45->50 sharpened the edge (-> _2). (4) leverage 7->8
+  # (user-selected from the lev 7-10 PnL/DD curve) -> _3. (5) S/R timeframes
+  # narrowed to [1d,1w]: +34% more 15m PnL AND +2.5pt min WR at identical
+  # leverage/drawdown (-> _4).
   # atr_tp_mult held at 1.0: every wider-TP variant tested across many gates
   # drops min WR below 80, so the reward-extension hint is firmly bounded by
   # the WR>80 MUST. Mandatory RSI-divergence + extremity gate LONG<50 /
@@ -57,7 +54,7 @@ strategy:
   require_macd_divergence: true
   min_rr_ratio: 0.0
   max_sl_distance_pct: 0.0
-  loop_id: Loop_20260519_3
+  loop_id: Loop_20260519_4
 
 execution:
   order_reprice_bps: 2
