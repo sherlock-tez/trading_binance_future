@@ -259,17 +259,21 @@ class BacktestRunner:
                     continue
 
                 signal_frame = data[symbol][self.settings.signal_timeframe]
-                # Pass the FULL pre-window history (no tail truncation) so the 200-EMA
-                # and other slow indicators have full decay precision — matches live
-                # production where the bot accumulates indicator state continuously.
-                signal_slice = signal_frame[signal_frame["open_time"] <= t]
+                # Trailing window must match live exactly: live re-fetches only
+                # the last `frame_lookback` candles per timeframe each cycle, so
+                # the backtest slices to the same tail or its S/R (windowed
+                # extremes) would diverge from production.
+                lookback = self.settings.frame_lookback
+                signal_slice = signal_frame[signal_frame["open_time"] <= t].tail(lookback)
                 if len(signal_slice) < 100:
                     continue
 
                 higher_slices = {}
                 for timeframe in self.settings.sup_res_timeframes:
                     frame = data[symbol][timeframe]
-                    higher_slices[timeframe] = frame[frame["open_time"] <= t]
+                    higher_slices[timeframe] = (
+                        frame[frame["open_time"] <= t].tail(lookback)
+                    )
 
                 outcome = run_trade_cycle(
                     symbol=symbol,

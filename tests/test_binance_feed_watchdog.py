@@ -341,3 +341,15 @@ def test_settings_invalid_market_data_mode_raises(monkeypatch):
     monkeypatch.setenv("MARKET_DATA_MODE", "bogus")
     with pytest.raises(ConfigError):
         load_settings()
+
+
+def test_settings_frame_lookback_default_and_env(monkeypatch):
+    assert load_settings().frame_lookback == 600
+    monkeypatch.setenv("FRAME_LOOKBACK", "1500")
+    assert load_settings().frame_lookback == 1500
+
+
+def test_settings_invalid_frame_lookback_raises(monkeypatch):
+    monkeypatch.setenv("FRAME_LOOKBACK", "0")
+    with pytest.raises(ConfigError):
+        load_settings()

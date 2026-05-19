@@ -60,6 +60,10 @@ class Settings:
     loop_id: str = "Loop_20260513_1"
     backtest_history_dir: str = "backtest_history"
 
+    # Trailing #candles fed to the signal engine per timeframe. Shared by
+    # backtest and live so both evaluate on an identical window.
+    frame_lookback: int = 600
+
     # Market-data source: "websocket" (default) or "rest" (poll only, no WS).
     market_data_mode: str = "websocket"
 
@@ -225,6 +229,9 @@ def load_settings(symbol: str | None = None) -> Settings:
         require_macd_divergence=_parse_bool(strategy_cfg.get("require_macd_divergence"), default=True),
         loop_id=str(strategy_cfg.get("loop_id", "Loop_20260513_1")).strip(),
         backtest_history_dir=str(backtest_cfg.get("history_dir", "backtest_history")).strip(),
+        frame_lookback=int(
+            _env_or_cfg("FRAME_LOOKBACK", runtime_cfg, "frame_lookback", 600)
+        ),
         market_data_mode=str(
             _env_or_cfg("MARKET_DATA_MODE", runtime_cfg, "market_data_mode", "websocket")
         ).strip().lower(),
@@ -251,6 +258,8 @@ def load_settings(symbol: str | None = None) -> Settings:
         raise ConfigError("POSITION_EQUITY_RATIO must be in (0, 1]")
     if settings.max_open_positions <= 0:
         raise ConfigError("MAX_OPEN_POSITIONS must be > 0")
+    if settings.frame_lookback <= 0:
+        raise ConfigError("FRAME_LOOKBACK must be > 0")
     if settings.market_data_mode not in {"websocket", "rest"}:
         raise ConfigError("MARKET_DATA_MODE must be one of: websocket, rest")
     if settings.ws_stream_path_mode not in {"legacy", "market", "raw"}:
