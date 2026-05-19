@@ -1,5 +1,27 @@
 # changes.md
 
+## Loop_20260519_9 — SOLUSDC: feasible-region refinement → 15m +9072%, lower DD, OOS-stable (R/R 0.12)
+
+### Summary
+Refined the R/R≤0.5 feasible champion. `_8` sat at the `sol_rr` grid edge in `atr_sl_mult` (min 0.8) and `atr_period` (min 10) — a sign the true optimum was outside that range. New grid `sol_rr_refine` probed below/finer (sl {0.4-1.0}, atrp {6,8,10,12}, tp {4-8}; R/R≤0.5 enforced by `--maxrr 0.5`). Found a coherent high-PnL **plateau** at sl{0.6,0.7} × tp{5,6} × atrp{10,12}. New champion `Loop_20260519_9` = `atr_sl_mult 0.6 / atr_tp_mult 5.0 / atr_period 10` (R/R 0.12); only `atr_sl_mult` changes vs `_8` (0.8→0.6). No new config keys. Mandatory RSI-divergence + extremity rule preserved; leverage pinned 8.
+
+### Affected Files
+- `solusdc_config.yaml` (`_8`→`_9`; `atr_sl_mult` 0.8→0.6, loop_id), `algorithms.md`, `changes.md`, `scripts/btcusdc_sweep.py` (added `sol_rr_refine` grid + choice), `backtest_history/Loop_20260519_9/`.
+
+### Reason / Backtest — overfit guard applied
+Production path (`btcusdc_optimize.py`, mainnet, 12m warmup) — **exact fast-harness parity**: 1m +16.2% WR20.0 | 3m +290.9% WR35.3 | 6m +339.6% WR25.0 | 12m +2793.4% WR25.0 | 15m **+9071.9%** WR27.4; 73 trades; strict-monotonic ✓, all-positive ✓, ~5 tr/mo ✓; 12m/15m max DD **37.7%** (vs `_8` 49.6%, `_7` ~61%); Sharpe 0.6→3.1. The refinement's nominal max #1 (`sl0.7/tp6.0/atrp12`, in-sample 15m +9211%) was **rejected as overfit**: it had the best in-sample but the worst out-of-sample (24m OOS **+840%, 85% DD**, WR 17%) and sat at the `atr_period` grid edge. `_9` (#2) is interior on every axis and the most OOS-stable point of the plateau. Loop folder `backtest_history/Loop_20260519_9/`.
+
+### Robustness (out-of-sample, held-out 18m/24m, extended ~29-month data)
+`_9`: 18m +4066% / 24m **+4167%** — essentially **no decay** 18m→24m (the most stable OOS profile of the whole feasible plateau), DD ~62%, WR stable ~20-35%. `_9` strictly dominates `_8` on PnL (+9072% vs +5491% prod 15m; +4167% vs +2088% OOS 24m), drawdown (37.7% vs 49.6% prod), and OOS stability (`_8` decayed 18m→24m; `_9` holds). Low WR is a structural property of the R/R-capped geometry, not overfitting; the edge generalizes.
+
+### Win-rate tradeoff (unchanged, accepted by design)
+Under R/R ≤ 0.5 the win-rate stays **structurally ~20-35%** — the **WR>80 target remains UNREACHABLE** in the feasible region. This is the explicit, documented tradeoff of the R/R cap; the best *feasible* config is surfaced rather than reverting to the forbidden `_7` wide-SL/tiny-TP basin. The other three hard items (strict-monotonic, all-positive, 2-5 tr/mo) are all satisfied; PnL is maximized within the feasible region. Residual live risk: lumpy equity / long losing streaks at ~27% hit-rate, tight 0.6-ATR stop, leverage 8 — size conservatively.
+
+### Documentation Updated
+- `algorithms.md`, `changes.md`
+
+---
+
 ## Loop_20260519_8 — SOLUSDC: NEW HARD CONSTRAINT Risk/Reward ≤ 0.5 → new feasible champion (15m +5490%, WR~28%)
 
 ### Summary

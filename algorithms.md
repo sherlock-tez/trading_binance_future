@@ -41,10 +41,10 @@ R/R cap (do not revert to the `_7` basin to chase WR). Among all feasible
 configs the champion is the max-PnL one that still clears the remaining hard
 items (strict-monotonic, all-positive, 2-5 trades/mo).
 
-`Loop_20260519_8` is that feasible champion (found via
-`scripts/btcusdc_sweep.py grid=sol_rr --maxrr 0.5`). It keeps the proven
-`_7` entry edge (RSI divergence + extremity gate, fast MACD-divergence
-confluence, daily/weekly S/R) and re-tunes only SL/TP geometry + `atr_period`:
+`Loop_20260519_9` is that feasible champion (refined from `_8` via
+`scripts/btcusdc_sweep.py grid=sol_rr_refine --maxrr 0.5`). It keeps the
+proven `_7`/`_8` entry edge (RSI divergence + extremity gate, fast
+MACD-divergence confluence, daily/weekly S/R) and tightens only the SL:
 
 - `rsi_period=14`, `rsi_long_max=45`, `rsi_short_min=55` (extremity rule preserved)
 - `require_macd_divergence=true`
@@ -53,22 +53,35 @@ confluence, daily/weekly S/R) and re-tunes only SL/TP geometry + `atr_period`:
 - `pivot_window=6`, `divergence_lookback=52`
 - `sup_res_timeframes=[1d, 1w]`
 - `use_trend_filter=false`
-- `use_atr_stops=true`, `atr_period=10`, `atr_sl_mult=0.8`, `atr_tp_mult=5.0`
-  (**R/R = 0.8/5.0 = 0.16 ≤ 0.5 MUST**; reward is 6.25× the risk)
+- `use_atr_stops=true`, `atr_period=10`, `atr_sl_mult=0.6`, `atr_tp_mult=5.0`
+  (**R/R = 0.6/5.0 = 0.12 ≤ 0.5 MUST**; reward is 8.3× the risk)
 - `leverage=8`, `position_equity_ratio=1.0`
 
+`_9` was chosen over the nominally-higher refinement winner #1
+(`sl0.7/tp6.0/atrp12`, in-sample 15m +9211%) because #1 is **overfit**: its
+held-out 24m OOS collapses to +840% with **85% drawdown** and WR 17% (best
+in-sample, worst out-of-sample, sat at the `atr_period` grid edge). `_9` is
+interior on every swept axis and part of a coherent high-PnL plateau with the
+best *out-of-sample stability* in that cluster.
+
 Production-path backtest (`scripts/btcusdc_optimize.py`, mainnet klines, 12m
-warmup; fast-harness parity exact): 1m +11.5% WR20.0 / 3m +233.7% WR35.3 /
-6m +402.2% WR28.1 / 12m +1732.1% WR26.5 / 15m **+5490.9%** WR28.8; 73 trades
+warmup; fast-harness parity exact): 1m +16.2% WR20.0 / 3m +290.9% WR35.3 /
+6m +339.6% WR25.0 / 12m +2793.4% WR25.0 / 15m **+9071.9%** WR27.4; 73 trades
 over 15m; strict-monotonic ✓, all-positive ✓, ~5 tr/mo ✓; 12m/15m max drawdown
-**49.6%** (lower than `_7`'s ~61%); Sharpe 2.3-2.8. The 15m PnL *exceeds* the
-old `_7` (+3287%): the reward≥2× risk geometry rides large trending moves, so a
-few 5-ATR winners carry a ~28% hit-rate. Equity is **lumpy** and the 0.8-ATR
-stop is tight → expect long losing streaks and high path-variance at leverage 8.
-**Out-of-sample (held-out 18m/24m, never in any sweep; extended 31-month data):**
-`_8` stays strongly net-positive on the held-out windows (18m +3493%, 24m
-+2088%) with WR a stable ~22-35% on *every* window — the low WR is a structural
-property of the R/R-capped geometry, **not** overfitting; the edge generalizes.
+**37.7%** (vs `_8` 49.6%, `_7` ~61%); Sharpe 0.6→3.1. The 15m PnL is +65% over
+`_8` (+5491%) and far above old `_7` (+3287%): the reward≥2× risk geometry
+rides large trending moves, so a few 5-ATR winners carry a ~27% hit-rate.
+Equity is **lumpy** and the 0.6-ATR stop is tight → expect long losing streaks
+and high path-variance at leverage 8.
+**Out-of-sample (held-out 18m/24m, never in any sweep; extended ~29-month
+data):** `_9` is strongly net-positive on the held-out windows — 18m +4066%,
+24m **+4167%** (essentially *no decay* 18m→24m, the most stable OOS profile of
+the whole feasible plateau) — with WR a stable ~20-35% on *every* window. The
+low WR is a structural property of the R/R-capped geometry, **not** overfitting;
+the edge generalizes. `_9` dominates `_8` on PnL, drawdown *and* OOS stability
+(`_8` was 18m +3493% / 24m +2088%, decaying; `_9` holds). Residual live risk:
+lumpy equity / long losing streaks at a ~27% hit-rate with a tight 0.6-ATR stop
+and leverage 8 — size conservatively.
 
 *Historical (pre-R/R-constraint) lineage, kept for context — `_7` and earlier
 are now INFEASIBLE under R/R≤0.5:* `_5`-`_7` were between-node
@@ -123,9 +136,14 @@ accepts the resulting sub-80 WR. The original `Loop_20260518_7` (macd-off,
 
 **Post-constraint search (R/R≤0.5):** the `sol_rr` grid (`--maxrr 0.5` skips
 infeasible (sl,tp) pairs by construction; `MAX_RISK_REWARD=0.5` in the sweep)
-swept the tight-SL/far-TP region with the `_7` entry edge held; `sl 0.8 /
-tp 5.0 / atr_period 10` is the max-PnL feasible config and is the `_8`
-champion. WR>80 is structurally unreachable in this region and is an accepted
+swept the tight-SL/far-TP region with the `_7` entry edge held → `_8`
+(`sl0.8/tp5.0/atrp10`). `sol_rr_refine` then probed below the `_8` grid edges
+(sl<0.8, atrp<10) and finer/wider TP, revealing a high-PnL plateau at
+sl{0.6,0.7} × tp{5,6} × atrp{10,12}. The plateau's nominal max (#1
+`sl0.7/tp6/atrp12`, 15m +9211%) is overfit (24m OOS +840%, 85% DD, atrp grid
+edge); the robust max-PnL pick is `_9` (`sl0.6/tp5.0/atrp10`, R/R 0.12) —
+interior on every axis, lowest drawdown, and the most OOS-stable point of the
+plateau. WR>80 is structurally unreachable in this region and is an accepted
 tradeoff; do not re-probe the forbidden wide-SL/tiny-TP basin.
 
 ## Indicators

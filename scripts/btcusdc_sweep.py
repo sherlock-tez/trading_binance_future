@@ -109,7 +109,7 @@ def apply_overrides(settings: Settings, overrides: Dict[str, Any]) -> Settings:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--grid", type=str, default="basic", choices=["basic", "wide", "fine", "monotonic", "refine", "bigreward", "strictrsi", "neighbor2", "tprange", "pivots", "macd_gate", "aggressive", "trendloose", "atrshift", "atr_push", "eqratio", "fastatr", "indicators", "moretrades", "moretrades_fine", "moretrades_scan", "bigrr", "loop10_refine", "manytrades", "rsi_period_probe", "macd_probe", "loop11_wide", "eth_tight", "eth_wide", "eth_long_filter", "eth_short_tune", "eth_refine", "eth_macd_loop3", "eth_loop4_refine", "eth_bigtp", "eth_megatp", "eth_leverage", "eth_loosen", "eth_tightpivot", "eth_trend_window", "eth_finetune", "eth_macd_params", "eth_srstops", "eth_unlock", "sol_wr80", "sol_wr80_refine", "sol_wr80_deep", "sol_wr80_macd", "sol_wr80_pnl", "sol_wr80_pnl2", "sol_wr80_pnl3", "sol_wr80_edge2", "sol_wr80_struct", "sol_wr80_srtf", "sol_wr80_srtf2", "sol_wr80_freq", "sol_wr80_geo", "sol_wr80_trend", "sol_wr80_fine", "sol_wr80_fine2", "sol_wr80_fine3", "sol_wr80_fine4", "sol_wr80_reward", "sol_rr"])
+    parser.add_argument("--grid", type=str, default="basic", choices=["basic", "wide", "fine", "monotonic", "refine", "bigreward", "strictrsi", "neighbor2", "tprange", "pivots", "macd_gate", "aggressive", "trendloose", "atrshift", "atr_push", "eqratio", "fastatr", "indicators", "moretrades", "moretrades_fine", "moretrades_scan", "bigrr", "loop10_refine", "manytrades", "rsi_period_probe", "macd_probe", "loop11_wide", "eth_tight", "eth_wide", "eth_long_filter", "eth_short_tune", "eth_refine", "eth_macd_loop3", "eth_loop4_refine", "eth_bigtp", "eth_megatp", "eth_leverage", "eth_loosen", "eth_tightpivot", "eth_trend_window", "eth_finetune", "eth_macd_params", "eth_srstops", "eth_unlock", "sol_wr80", "sol_wr80_refine", "sol_wr80_deep", "sol_wr80_macd", "sol_wr80_pnl", "sol_wr80_pnl2", "sol_wr80_pnl3", "sol_wr80_edge2", "sol_wr80_struct", "sol_wr80_srtf", "sol_wr80_srtf2", "sol_wr80_freq", "sol_wr80_geo", "sol_wr80_trend", "sol_wr80_fine", "sol_wr80_fine2", "sol_wr80_fine3", "sol_wr80_fine4", "sol_wr80_reward", "sol_rr", "sol_rr_refine"])
     parser.add_argument("--top", type=int, default=15)
     parser.add_argument("--wrfloor", type=float, default=70.0,
                         help="Minimum win-rate floor (HARD) applied to every window.")
@@ -1467,6 +1467,36 @@ def main():
             "rsi_short_min": [55.0, 60.0],
             "atr_sl_mult": [0.8, 1.0, 1.2, 1.5, 2.0, 2.5],
             "atr_tp_mult": [2.0, 3.0, 4.0, 5.0, 6.0],
+        }
+    elif args.grid == "sol_rr_refine":
+        # Refine the feasible-region champion _8 (sl0.8/tp5.0/atrp10). _8 sat
+        # at the GRID EDGE in atr_sl_mult (min tested 0.8) and atr_period
+        # (min tested 10) in sol_rr — a sign the true PnL optimum lies
+        # outside that range. Probe BELOW (sl<0.8, atrp<10) and ABOVE in TP,
+        # at finer resolution, holding the proven _7/_8 entry edge. All pairs
+        # keep R/R<=0.5 by construction (sl<=1.0 -> 2*sl<=2.0 < every tp>=4);
+        # run with --maxrr 0.5 as belt-and-suspenders. WR stays structurally
+        # ~20-35% (accepted). Adopt a new champion only on a strict
+        # production-path 15m-PnL gain over _8 that also OOS-validates and is
+        # NOT itself sitting at a fresh grid edge (overfit guard).
+        grid = {
+            "use_atr_stops": [True],
+            "use_trend_filter": [False],
+            "rsi_period": [14],
+            "require_macd_divergence": [True],
+            "macd_fast": [7],
+            "macd_slow": [24],
+            "macd_signal": [9],
+            "pivot_window": [6],
+            "divergence_lookback": [52],
+            "rsi_long_max": [45.0],
+            "rsi_short_min": [55.0],
+            "leverage": [8],
+            "position_equity_ratio": [1.0],
+            "sup_res_timeframes": [["1d", "1w"]],
+            "atr_period": [6, 8, 10, 12],
+            "atr_sl_mult": [0.4, 0.5, 0.6, 0.7, 0.8, 1.0],
+            "atr_tp_mult": [4.0, 5.0, 6.0, 7.0, 8.0],
         }
     else:  # fine
         grid = {
