@@ -93,7 +93,7 @@ def apply_overrides(settings: Settings, overrides: Dict[str, Any]) -> Settings:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--grid", type=str, default="basic", choices=["basic", "wide", "fine", "monotonic", "refine", "bigreward", "strictrsi", "neighbor2", "tprange", "pivots", "macd_gate", "aggressive", "trendloose", "atrshift", "atr_push", "eqratio", "fastatr", "indicators", "moretrades", "moretrades_fine", "moretrades_scan", "bigrr", "loop10_refine", "manytrades", "rsi_period_probe", "macd_probe", "loop11_wide", "eth_tight", "eth_wide", "eth_long_filter", "eth_short_tune", "eth_refine", "eth_macd_loop3", "eth_loop4_refine", "eth_bigtp", "eth_megatp", "eth_leverage", "eth_loosen", "eth_tightpivot", "eth_trend_window", "eth_finetune", "eth_macd_params", "eth_srstops", "eth_unlock", "sol_wr80", "sol_wr80_refine", "sol_wr80_deep", "sol_wr80_macd", "sol_wr80_pnl", "sol_wr80_pnl2"])
+    parser.add_argument("--grid", type=str, default="basic", choices=["basic", "wide", "fine", "monotonic", "refine", "bigreward", "strictrsi", "neighbor2", "tprange", "pivots", "macd_gate", "aggressive", "trendloose", "atrshift", "atr_push", "eqratio", "fastatr", "indicators", "moretrades", "moretrades_fine", "moretrades_scan", "bigrr", "loop10_refine", "manytrades", "rsi_period_probe", "macd_probe", "loop11_wide", "eth_tight", "eth_wide", "eth_long_filter", "eth_short_tune", "eth_refine", "eth_macd_loop3", "eth_loop4_refine", "eth_bigtp", "eth_megatp", "eth_leverage", "eth_loosen", "eth_tightpivot", "eth_trend_window", "eth_finetune", "eth_macd_params", "eth_srstops", "eth_unlock", "sol_wr80", "sol_wr80_refine", "sol_wr80_deep", "sol_wr80_macd", "sol_wr80_pnl", "sol_wr80_pnl2", "sol_wr80_pnl3"])
     parser.add_argument("--top", type=int, default=15)
     parser.add_argument("--wrfloor", type=float, default=70.0,
                         help="Minimum win-rate floor (HARD) applied to every window.")
@@ -1055,6 +1055,30 @@ def main():
             "atr_sl_mult": [3.0],
             "atr_tp_mult": [1.0, 1.25, 1.5],
             "atr_period": [12],
+            "leverage": [7],
+            "position_equity_ratio": [1.0],
+        }
+    elif args.grid == "sol_wr80_pnl3":
+        # Fine entry-edge scan around the Loop_20260519_2 winner
+        # (mf7/ms24/piv6/dlb50), leverage fixed at 7 (drawdown-safe path).
+        # Large WR headroom (min WR 86.8 vs 80 floor) suggests a still-
+        # sharper gate may exist that lifts PnL further. atr_tp_mult held
+        # at 1.0 (conclusively optimal under WR>80 across every gate tested).
+        grid = {
+            "use_atr_stops": [True],
+            "use_trend_filter": [False],
+            "rsi_period": [14],
+            "require_macd_divergence": [True],
+            "macd_fast": [6, 7, 8],
+            "macd_slow": [22, 24, 26, 28],
+            "macd_signal": [9],
+            "pivot_window": [6, 7, 8],
+            "divergence_lookback": [48, 50, 55, 60],
+            "rsi_long_max": [45.0],
+            "rsi_short_min": [55.0],
+            "atr_sl_mult": [2.75, 3.0, 3.25],
+            "atr_tp_mult": [1.0],
+            "atr_period": [10, 12, 14],
             "leverage": [7],
             "position_equity_ratio": [1.0],
         }

@@ -1,5 +1,33 @@
 # changes.md
 
+## Loop_20260519_3 - SOLUSDC: leverage 7->8 on converged edge — 15m +1543% (user-selected risk)
+
+### Summary
+`solusdc_config.yaml`: hold the converged `Loop_20260519_2` entry edge and raise `leverage` 7→8. No other changes. No new config keys. Mandatory rule preserved (RSI + MACD divergence; extremity gate 45/55 within LONG<50 / SHORT>50).
+
+### Affected Files
+- `solusdc_config.yaml`
+- `algorithms.md`
+- `changes.md`
+- `scripts/btcusdc_sweep.py` (added `sol_wr80_pnl3` fine-scan grid + choice)
+
+### Reason
+A 1296-combo fine scan (`sol_wr80_pnl3`, `--wrfloor 80`) around `_2` returned `_2` itself as the neighborhood optimum — the entry edge has converged. The only remaining PnL lever is leverage, which is WR/monotonic/trade-count-invariant and trades PnL for drawdown ~1:1. The full production-path lev 7→10 curve (all four constraints pass at every level: lev7 +1164%/57%DD, lev8 +1543%/64%DD, lev9 +1970%/70%DD, lev10 +2420%/75%DD) was presented to the user as a risk decision; the user selected leverage 8.
+
+### Backtest Result
+- Command/method: leverage curve via inline production-path harness (`btcusdc_optimize.run_full`, `SignalEngine` + `run_trade_cycle` + `SimulatedExecutionAdapter`); champion confirmed via `SWEEP_SYMBOL=SOLUSDC python scripts/btcusdc_optimize.py --windows 1,3,6,12,15`.
+- Dataset/time range: Binance mainnet SOLUSDC 1h klines, 12-month warmup, windows [1,3,6,12,15] months ending 2026-05-19 UTC.
+- Loop folder: `backtest_history/Loop_20260519_3/`.
+- Key metrics (production path): 1m +28.20% WR100.0 (5 tr, DD0.2%) | 3m +130.91% WR94.12 (17, DD19.1%) | 6m +158.20% WR87.50 (32, DD44.1%) | 12m +701.78% WR86.76 (68, DD63.8%) | 15m +1542.97% WR88.00 (75, DD63.8%). Strict-monotonic ✓, all-positive ✓, min WR 86.76% > 80 ✓, trades 5.0-5.7/mo ✓.
+- Comparison with previous Loop: vs `_2` (15m +1164.5%, DD ~57%) — 15m PnL +33% via leverage; WR/monotonic/trades identical; drawdown +6.4pt (user-accepted).
+- Limitations: PnL gain is purely leverage; 12m/15m max drawdown ~64% — a real risk-of-ruin consideration, deeper live than sim (funding/ADL/liquidation/slippage simplified). Entry edge converged; further in-region PnL is leverage-bounded.
+
+### Documentation Updated
+- `algorithms.md`
+- `changes.md`
+
+---
+
 ## Loop_20260519_2 - SOLUSDC: sharper entry edge — 15m +1164% at min WR 86.8%, lower drawdown
 
 ### Summary
