@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import time
+from datetime import datetime, timezone
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
 
@@ -29,6 +30,7 @@ RECONNECT_BACKOFF_BASE = 1.0
 RECONNECT_BACKOFF_CAP = 60.0
 MAX_CONNECTION_SECONDS = 23 * 3600   # rotate before Binance's 24h hard cap
 ALERT_THROTTLE_SECONDS = 300.0       # min gap between repeated failure alerts
+REST_ALIGN_BUFFER_MS = 3000          # wake this long after a candle closes
 
 
 def _build_ws_url(base: str, combined: str, mode: str, is_testnet: bool) -> str:
@@ -284,10 +286,7 @@ class BinanceMarketDataService:
 
         if mode == "rest":
             logger.info(
-                "Market data mode: REST polling only (websocket disabled); "
-                "polling %s every %.0fs",
-                ",".join(symbols),
-                rest_poll_seconds,
+                "Market data mode: REST polling only (websocket disabled)"
             )
             await self._poll_closed_klines(
                 symbols,
@@ -432,14 +431,25 @@ class BinanceMarketDataService:
         websocket probe succeeds so the caller resumes websocket mode;
         when False (REST-only mode) it polls forever and never probes.
         """
-        logger.warning(
-            "REST fallback engaged: polling %s every %.0fs (ws probe every %.0fs)",
-            ",".join(symbols),
-            poll_seconds,
-            probe_seconds,
-        )
+        align_to_close = not probe_for_recovery
+        if align_to_close:
+            logger.warning(
+                "REST polling %s, aligned to %s candle close (+%.0fs buffer)",
+                ",".join(symbols),
+                timeframe,
+                REST_ALIGN_BUFFER_MS / 1000.0,
+            )
+        else:
+            logger.warning(
+                "REST fallback engaged: polling %s every %.0fs (ws probe every %.0fs)",
+                ",".join(symbols),
+                poll_seconds,
+                probe_seconds,
+            )
         last_probe = time.monotonic()
         while True:
+            round_ok = True
+            next_close_ms: Optional[int] = None
             for symbol in symbols:
                 try:
                     frame = self.fetch_klines_frame(symbol, timeframe, limit=3)
@@ -450,10 +460,21 @@ class BinanceMarketDataService:
                     )
                     if asyncio.iscoroutine(result):
                         await result
+                    round_ok = False
                     continue
 
                 if frame is None or frame.empty or len(frame) < 2:
+                    round_ok = False
                     continue
+
+                # Last row is the still-forming candle; its close_time is
+                # exactly when the next candle closes -> schedule from it.
+                forming_close = int(frame.iloc[-1]["close_time"])
+                next_close_ms = (
+                    forming_close
+                    if next_close_ms is None
+                    else max(next_close_ms, forming_close)
+                )
 
                 closed = frame.iloc[-2]
                 close_time = int(closed["close_time"])
@@ -489,4 +510,19 @@ class BinanceMarketDataService:
                     logger.info("Websocket probe succeeded; leaving REST fallback")
                     return
 
-            await asyncio.sleep(poll_seconds)
+            if align_to_close and round_ok and next_close_ms is not None:
+                wake_ms = next_close_ms + 1 + REST_ALIGN_BUFFER_MS
+                delay = max(wake_ms / 1000.0 - time.time(), 1.0)
+                wake_utc = datetime.fromtimestamp(
+                    wake_ms / 1000.0, timezone.utc
+                ).strftime("%Y-%m-%d %H:%M:%S UTC")
+                logger.info(
+                    "REST: next %s close ~%s; sleeping %.0fs",
+                    timeframe,
+                    wake_utc,
+                    delay,
+                )
+                await asyncio.sleep(delay)
+            else:
+                # fallback cadence, or a failed/empty round -> retry soon
+                await asyncio.sleep(poll_seconds)
