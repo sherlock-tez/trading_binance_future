@@ -7,7 +7,7 @@ from src.config import Settings
 from src.data.binance_api import BinanceFuturesClient
 from src.data.binance_feed import BinanceMarketDataService, CandleEvent
 from src.execution.binance_futures import BinanceFuturesExecutor
-from src.notify.telegram import TelegramNotifier
+from src.notify.telegram import TelegramNotifier, escape_html
 from src.runtime.backtest_runner import _strategy_params_from_settings
 from src.runtime.trade_cycle import run_trade_cycle
 from src.strategy.signal_engine import SignalEngine
@@ -28,6 +28,23 @@ def _float_field(item: Dict[str, Any], key: str) -> float:
 
 def _format_amount(value: float) -> str:
     return f"{value:,.4f}"
+
+
+def _pnl_icon(value: float) -> str:
+    if value > 0:
+        return "🟢"
+    if value < 0:
+        return "🔴"
+    return "⚪"
+
+
+def _direction_icon(direction: str) -> str:
+    normalized = direction.strip().upper()
+    if normalized in {"LONG", "BUY"}:
+        return "🟢⬆️"
+    if normalized in {"SHORT", "SELL"}:
+        return "🔴⬇️"
+    return "⚪"
 
 
 class LiveTradingRunner:
@@ -88,46 +105,51 @@ class LiveTradingRunner:
         error: str | None = None,
     ) -> str:
         mode = "TESTNET" if self.settings.binance_testnet else "MAINNET"
+        event_icon = {"STARTING": "🟢", "STOPPED": "🔴"}.get(event.upper(), "ℹ️")
+        mode_icon = "🧪" if self.settings.binance_testnet else "🌐"
         lines = [
-            f"Bot {event}",
-            f"Mode: {mode}",
-            f"Symbols: {', '.join(self.settings.symbols)}",
-            f"Signal timeframe: {self.settings.signal_timeframe}",
-            f"Leverage config: {self.settings.leverage}x",
-            f"Position equity ratio: {self.settings.position_equity_ratio:.4f}",
-            f"Max open positions: {self.settings.max_open_positions}",
+            f"{event_icon} <b>Bot {escape_html(event)}</b>",
+            f"{mode_icon} Mode: <b>{mode}</b>",
+            f"📈 Symbols: <b>{escape_html(', '.join(self.settings.symbols))}</b>",
+            f"⏱ Signal timeframe: <b>{escape_html(self.settings.signal_timeframe)}</b>",
+            f"⚙️ Leverage: <b>{self.settings.leverage}x</b>",
+            f"📐 Position equity ratio: <code>{self.settings.position_equity_ratio:.4f}</code>",
+            f"🔢 Max open positions: <b>{self.settings.max_open_positions}</b>",
         ]
 
         if error:
-            lines.append(f"Account snapshot: unavailable ({error})")
+            lines.append(f"⚠️ Account snapshot: <i>unavailable ({escape_html(error)})</i>")
             return "\n".join(lines)
 
         if snapshot is None:
-            lines.append("Account snapshot: unavailable")
+            lines.append("⚠️ Account snapshot: <i>unavailable</i>")
             return "\n".join(lines)
 
+        unrealized = float(snapshot["unrealized_pnl"])
         lines.extend(
             [
-                f"Wallet balance: {_format_amount(float(snapshot['wallet_balance']))}",
-                f"Available balance: {_format_amount(float(snapshot['available_balance']))}",
-                f"Unrealized PnL: {_format_amount(float(snapshot['unrealized_pnl']))}",
-                f"Equity: {_format_amount(float(snapshot['equity']))}",
+                "",
+                "💰 <b>Account</b>",
+                f"  💵 Wallet: <code>{_format_amount(float(snapshot['wallet_balance']))}</code>",
+                f"  🟦 Available: <code>{_format_amount(float(snapshot['available_balance']))}</code>",
+                f"  {_pnl_icon(unrealized)} Unrealized PnL: <code>{_format_amount(unrealized)}</code>",
+                f"  🏦 Equity: <code>{_format_amount(float(snapshot['equity']))}</code>",
             ]
         )
 
         assets = snapshot.get("assets", [])
         if isinstance(assets, list) and assets:
-            lines.append("Assets:")
+            lines.append("📦 <b>Assets</b>")
             for row in assets:
                 if not isinstance(row, dict):
                     continue
+                row_pnl = float(row["unrealized_pnl"])
                 lines.append(
-                    " - "
-                    f"{row['asset']}: "
-                    f"wallet={_format_amount(float(row['wallet_balance']))}, "
-                    f"available={_format_amount(float(row['available_balance']))}, "
-                    f"unrealized={_format_amount(float(row['unrealized_pnl']))}, "
-                    f"equity={_format_amount(float(row['equity']))}"
+                    f"  • <b>{escape_html(row['asset'])}</b> — "
+                    f"wallet=<code>{_format_amount(float(row['wallet_balance']))}</code>, "
+                    f"avail=<code>{_format_amount(float(row['available_balance']))}</code>, "
+                    f"{_pnl_icon(row_pnl)} uPnL=<code>{_format_amount(row_pnl)}</code>, "
+                    f"eq=<code>{_format_amount(float(row['equity']))}</code>"
                 )
 
         return "\n".join(lines)
@@ -167,11 +189,11 @@ class LiveTradingRunner:
         self.notifier.send(
             "\n".join(
                 [
-                    f"Signal scan {symbol}",
-                    f"Decision: {outcome.diagnostics.decision}",
-                    f"RSI: {outcome.diagnostics.rsi_value:.2f}",
-                    f"Support: {outcome.diagnostics.nearest_support}",
-                    f"Resistance: {outcome.diagnostics.nearest_resistance}",
+                    f"🔍 <b>Signal Scan</b> — <b>{escape_html(symbol)}</b>",
+                    f"🧭 Decision: <b>{escape_html(outcome.diagnostics.decision)}</b>",
+                    f"📊 RSI: <code>{outcome.diagnostics.rsi_value:.2f}</code>",
+                    f"🟩 Support: <code>{escape_html(outcome.diagnostics.nearest_support)}</code>",
+                    f"🟥 Resistance: <code>{escape_html(outcome.diagnostics.nearest_resistance)}</code>",
                 ]
             )
         )
@@ -186,15 +208,19 @@ class LiveTradingRunner:
         if outcome.execution is None:
             return
 
+        direction = str(outcome.plan.metadata.get("direction", ""))
+        accepted = outcome.execution.accepted
+        accept_icon = "✅" if accepted else "❌"
         self.notifier.send(
             "\n".join(
                 [
-                    f"Trade signal {symbol} {outcome.plan.metadata.get('direction', '')}",
-                    f"Accepted: {outcome.execution.accepted}",
-                    f"Reason: {outcome.execution.reason}",
-                    f"Entry: {outcome.plan.entry_price:.4f}",
-                    f"SL: {outcome.plan.stop_loss:.4f}",
-                    f"TP: {outcome.plan.take_profit:.4f}",
+                    f"🚨 <b>Trade Signal</b> — <b>{escape_html(symbol)}</b> "
+                    f"{_direction_icon(direction)} <b>{escape_html(direction)}</b>",
+                    f"{accept_icon} Accepted: <b>{accepted}</b>",
+                    f"📝 Reason: <i>{escape_html(outcome.execution.reason)}</i>",
+                    f"🎯 Entry: <code>{outcome.plan.entry_price:.4f}</code>",
+                    f"🛑 SL: <code>{outcome.plan.stop_loss:.4f}</code>",
+                    f"🏁 TP: <code>{outcome.plan.take_profit:.4f}</code>",
                 ]
             )
         )
@@ -206,7 +232,7 @@ class LiveTradingRunner:
         try:
             self.data_service.warmup(self.settings.symbols, all_timeframes, limit=600)
 
-            self.notifier.send("Live runner started in maker-only mode")
+            self.notifier.send("🚀 <i>Live runner started in maker-only mode</i>")
             await self.data_service.stream_closed_klines(
                 self.settings.symbols,
                 self.settings.signal_timeframe,
