@@ -1,5 +1,33 @@
 # changes.md
 
+## Loop_20260519_6 - SOLUSDC: finer SL tune (atr_sl_mult 3.0->2.9) — 15m +3152%, lower DD
+
+### Summary
+`solusdc_config.yaml`: one between-node refinement vs `Loop_20260519_5` — `atr_sl_mult` 3.0→2.9. All other params identical. No new config keys. Mandatory rule preserved (RSI + MACD divergence; extremity gate 45/55 within LONG<50 / SHORT>50).
+
+### Affected Files
+- `solusdc_config.yaml`
+- `algorithms.md`
+- `changes.md`
+- `scripts/btcusdc_sweep.py` (added `sol_wr80_fine3` grid + choice)
+
+### Reason
+`sol_wr80_fine` stepped `atr_sl_mult` in {2.8,3.0,3.2} and `_5` took 3.0; the 2.9 peak sat between nodes. `sol_wr80_fine3` (135 combos) also fine-probed `macd_signal` {7..11} and the RSI gate (44-46/54-56) around `_5`: `macd_signal` is inert (the engine takes divergence on the MACD *line*, not the signal line — identical results across 7-11), the 45/55 gate is optimal, and `atr_sl_mult=2.9` strictly dominates 3.0.
+
+### Backtest Result
+- Command/method: search `SWEEP_SYMBOL=SOLUSDC python scripts/btcusdc_sweep.py --grid sol_wr80_fine3 --wrfloor 80.0`; validation `SWEEP_SYMBOL=SOLUSDC python scripts/btcusdc_optimize.py --windows 1,3,6,12,15` (production path: `SignalEngine.generate_signal` + `run_trade_cycle` + `SimulatedExecutionAdapter`).
+- Dataset/time range: Binance mainnet SOLUSDC 1h klines, 12-month warmup, windows [1,3,6,12,15] months ending 2026-05-19 UTC.
+- Loop folder: `backtest_history/Loop_20260519_6/`.
+- Key metrics (production path): 1m +28.04% WR100.0 (5 tr, DD0.2%) | 3m +133.70% WR94.12 (17, DD17.9%) | 6m +309.49% WR90.62 (32, DD34.7%) | 12m +1755.39% WR89.86 (69, DD62.0%) | 15m +3152.02% WR90.67 (75, DD62.0%). Strict-monotonic ✓, all-positive ✓, min WR 89.86% > 80 ✓, trades 5.0-5.8/mo ✓. Fast-harness search matched the production path exactly.
+- Comparison with previous Loop: vs `_5` (15m +2875.67%, min WR 89.86%, DD ~64%) — 15m PnL +9.6%, min WR unchanged, drawdown *lower* (~62% vs ~64%): tighter SL cuts per-loss size, improving PnL and risk simultaneously.
+- Limitations: between-node gain sensitive to the trailing-15m SOL structure; the SL optimum may shift as the data window advances. Funding/ADL/liquidation simplified in simulation.
+
+### Documentation Updated
+- `algorithms.md`
+- `changes.md`
+
+---
+
 ## Loop_20260519_5 - SOLUSDC: fine-grid between-node tune (dlb 50->52, atrp 12->11) — 15m +2876%
 
 ### Summary
