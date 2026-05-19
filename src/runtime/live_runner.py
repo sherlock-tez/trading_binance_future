@@ -165,6 +165,31 @@ class LiveTradingRunner:
         self.notifier.send(self._format_lifecycle_message(event, snapshot=snapshot))
 
     async def _on_closed_candle(self, event: CandleEvent) -> None:
+        logger.info(
+            "[live] closed candle %s %s | open_time=%s close_time=%s close=%s",
+            event.symbol,
+            event.timeframe,
+            event.open_time,
+            event.close_time,
+            event.close_price,
+        )
+        try:
+            await self._process_closed_candle(event)
+        except Exception as exc:
+            logger.exception(
+                "Closed-candle processing failed for %s: %s", event.symbol, exc
+            )
+            self.notifier.send(
+                "\n".join(
+                    [
+                        f"⚠️ <b>Signal cycle error</b> — <b>{escape_html(event.symbol)}</b>",
+                        f"🕒 Candle close: <code>{event.close_time}</code>",
+                        f"❗ <i>{escape_html(type(exc).__name__)}: {escape_html(exc)}</i>",
+                    ]
+                )
+            )
+
+    async def _process_closed_candle(self, event: CandleEvent) -> None:
         symbol = event.symbol
         all_timeframes = [self.settings.signal_timeframe] + self.settings.sup_res_timeframes
         frames = self.data_service.refresh_symbol_timeframes(symbol, all_timeframes, limit=600)

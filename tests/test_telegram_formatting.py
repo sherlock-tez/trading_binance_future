@@ -1,4 +1,7 @@
+import asyncio
+
 from src.config import load_settings
+from src.data.binance_feed import CandleEvent
 from src.notify.telegram import TelegramNotifier, escape_html
 from src.runtime.live_runner import (
     LiveTradingRunner,
@@ -88,6 +91,50 @@ def test_lifecycle_message_has_icons_and_bold():
     assert "🔴 Unrealized PnL: <code>-12.5000</code>" in msg
     assert "📦 <b>Assets</b>" in msg
     assert "<b>USDC</b>" in msg
+
+
+class _RecordingNotifier:
+    def __init__(self):
+        self.messages = []
+
+    def send(self, message: str) -> None:
+        self.messages.append(message)
+
+
+class _ExplodingDataService:
+    def refresh_symbol_timeframes(self, *a, **k):
+        raise RuntimeError("binance refresh boom <x>")
+
+
+def test_closed_candle_failure_alerts_telegram_and_does_not_raise():
+    runner = LiveTradingRunner.__new__(LiveTradingRunner)
+    runner.settings = load_settings()
+    runner.notifier = _RecordingNotifier()
+    runner.data_service = _ExplodingDataService()
+
+    event = CandleEvent(
+        symbol="SOLUSDC",
+        timeframe="1h",
+        open_time=1,
+        close_time=2,
+        open_price=1.0,
+        high_price=1.0,
+        low_price=1.0,
+        close_price=1.0,
+        volume=1.0,
+    )
+
+    # must not propagate — a bad candle should never kill the stream loop
+    asyncio.run(runner._on_closed_candle(event))
+
+    assert len(runner.notifier.messages) == 1
+    alert = runner.notifier.messages[0]
+    assert "⚠️ <b>Signal cycle error</b>" in alert
+    assert "SOLUSDC" in alert
+    assert "RuntimeError" in alert
+    # error text is HTML-escaped, not raw
+    assert "binance refresh boom &lt;x&gt;" in alert
+    assert "<x>" not in alert
 
 
 def test_lifecycle_message_escapes_error_text():
