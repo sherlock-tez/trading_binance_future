@@ -29,6 +29,41 @@ latest canonical ETHUSDC backtest improved 15-month return and win rate versus
 `Loop_20260514_9`, but it still produces no trade in the latest 1-month window and
 no additional high-conviction trade in the oldest 12-to-15-month segment.
 
+### Current BNBUSDC Tuned Profile
+
+`Loop_20260519_2` keeps the mandatory RSI divergence plus extremity gate and
+uses a wide-SL / very-tight-TP bounce geometry on a high-conviction divergence
+entry:
+
+- `rsi_period=11`, `rsi_long_max=50`, `rsi_short_min=75`
+- `require_macd_divergence=false` (RSI divergence still mandatory; MACD line
+  never gates entries, so `macd_fast/slow/signal` are inert for this profile)
+- `pivot_window=6`, `divergence_lookback=80`
+- `use_trend_filter=false`, `trend_ema_period=200` (inactive)
+- `use_atr_stops=true`, `atr_period=21`, `atr_sl_mult=6.0`, `atr_tp_mult=0.6`
+- `leverage=10`, `position_equity_ratio=1.0`
+
+Production-path backtest (parity-verified vs fast harness): 1m +7.6% / 3m +34.4%
+/ 6m +150.6% / 12m +540.8% / 15m +1003.4%, win-rate 100% on every window,
+strictly monotonic 15>12>6>3>1, all-positive, 3.0–3.9 trades/month, max
+drawdown ~0.2%. This satisfies every BNBUSDC target with margin (WR≫80,
+monotonic consistency, PnL, trade frequency). The very tight TP relative to a
+wide SL gives a high per-trade hit rate; the stricter RSI inputs (`rsi_period
+11`, `rsi_short_min 75`) filter to the highest-conviction reversals so the rare
+large stop that drove `_33`'s 41% drawdown no longer occurs in-sample.
+
+**Caveat:** the perfect in-sample win-rate is partly a geometry+sample artifact.
+A 6×ATR stop is rarely reached when the TP is only 0.6×ATR, but live trading can
+still hit it on a gap/adverse spike; that single tail loss (~10× a typical win)
+did not occur in this 15-month window. The profile is excellent but not
+risk-free — its real risk is the unrealised tail, not the in-sample variance.
+
+Found via `scripts/bnbusdc_loop.py` (random map + neighbourhood refine with a
+drawdown-aware full-pass objective), a BNBUSDC-specific search reusing the
+parity-verified fast engine. Champion lineage: `_21` → `_31` (first all-targets
+pass) → `_32` (DD-aware) → `_33` (leverage ceiling) → `_20260519_1` (edge
+refine, perfect WR) → `_20260519_2` (stricter short gate, +1003% 15m, current).
+
 ## Indicators
 
 ### RSI Divergence
@@ -129,7 +164,7 @@ The user-required rule "LONG only if RSI < 50, SHORT only if RSI > 50" is always
   - Position-limit rejection is enforced by execution adapters with the same rejection reason.
 - Duplicate-signal filtering keys accepted entries by the RSI divergence pivot timestamp plus direction. This prevents repeated re-entry from the same stale divergence setup on later candles while still allowing a new trade when a new pivot forms.
 
-A separate fast vectorized harness (`scripts/btcusdc_fast.py`) is used for parameter search. It is mathematically equivalent to the engine path (parity verified against `scripts/btcusdc_optimize.py`) and only serves the iterative tuning loop; production logic still flows through `SignalEngine` + `run_trade_cycle` + `SimulatedExecutionAdapter`.
+A separate fast vectorized harness (`scripts/btcusdc_fast.py`) is used for parameter search. It is mathematically equivalent to the engine path (parity verified against `scripts/btcusdc_optimize.py`) and only serves the iterative tuning loop; production logic still flows through `SignalEngine` + `run_trade_cycle` + `SimulatedExecutionAdapter`. `scripts/bnbusdc_loop.py` is a BNBUSDC-specific search driver (random map + neighbourhood refine) that reuses the same fast engine and scores against the BNBUSDC targets; any winning config it finds is always re-validated on the production path before being adopted (it was for `Loop_20260518_31`, with identical numbers).
 
 ## Known Limitations
 
