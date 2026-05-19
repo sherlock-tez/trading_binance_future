@@ -12,6 +12,42 @@ This bot opens BTCUSDC 1h positions on strict confluence:
 
 A trade is valid only when all required conditions agree on the same direction.
 
+### Current BTCUSDC Tuned Profile
+
+`Loop_20260519_6` is the deployable BTCUSDC champion. It keeps the mandatory
+RSI divergence plus the extremity gate and uses a moderate-conviction
+trend-filtered ATR setup tuned so that **every** backtest window is strictly
+WR > 80 (the user's #1 MUST), strict monotonic `15>12>6>3>1`, all-positive:
+
+- `rsi_period=12`, `rsi_long_max=47`, `rsi_short_min=62`
+- `require_macd_divergence=false` (RSI divergence still mandatory; the MACD
+  line never gates entries, so `macd_fast/slow/signal` are inert)
+- `pivot_window=4`, `divergence_lookback=100`
+- `use_trend_filter=true`, `trend_ema_period=225`
+- `use_atr_stops=true`, `atr_period=9`, `atr_sl_mult=1.5`, `atr_tp_mult=4.0`
+  (RR = 2.67)
+- `leverage=25`, `position_equity_ratio=1.0`
+
+Production-path backtest (parity-verified vs the fast harness): 1m +48.5% /
+3m +122.3% / 6m +467.1% / 12m +3370.4% / 15m +15127.7%, win-rate
+100/100/100/100/90.91 (min 90.91 > 80 on every window), strict monotonic,
+24 trades total (1/2/3/7/11), max drawdown 0.5% on 1m–12m and 24.9% on 15m.
+This lineage replaces `Loop_20260513_10`, whose 6m window was exactly 80.00%
+WR and therefore failed the strict `WR > 80` requirement, and roughly
+3.6x's its 15m PnL (`_5` adopted the WR>80 structure at +14210%; `_6`
+refined `atr_period 14->9` for +15128% at lower drawdown).
+
+`rsi_long_max=47` is the key edge: it is the intermediate long-extremity
+threshold that admits the extra high-conviction longs (24 trades vs the
+18-trade over-tight set) without dropping any window to <=80% WR. Two BTCUSDC
+properties bound this profile: (1) trade frequency cannot reach the 2-5/month
+target while holding WR > 80 — loosening pivots/gates for frequency collapses
+WR to 30-45% and blows the account; (2) the reward leg cannot exceed ~4xATR —
+TP at 5-8xATR turns the bounded divergence wins into losses and breaks the
+WR>80 gate. PnL magnitude is leverage(25) x full-equity x compounding; the
+simulator models no liquidation/funding, so the single 15m losing trade is a
+real live tail risk.
+
 ### Current ETHUSDC Tuned Profile
 
 `Loop_20260514_14` keeps the mandatory RSI divergence plus extremity gate and uses
