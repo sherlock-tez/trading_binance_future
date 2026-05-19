@@ -23,9 +23,9 @@ import btcusdc_optimize as bo  # type: ignore[no-redef]
 import btcusdc_fast as bf  # type: ignore
 
 
-def score(window_results) -> Tuple[float, bool, Dict[str, Any]]:
+def score(window_results, wr_floor: float = 70.0) -> Tuple[float, bool, Dict[str, Any]]:
     """Score a parameter combination against user targets:
-       1. min WR across all windows > 70% (HARD) — relaxed from 80% in Loop_11 round.
+       1. min WR across all windows > `wr_floor` (HARD).
        2. strict monotonic PnL: 15m > 12m > 6m > 3m > 1m (HARD)
        3. all positive returns (HARD)
        4. min trades/month >= 2.0 across all windows (HARD)
@@ -44,7 +44,7 @@ def score(window_results) -> Tuple[float, bool, Dict[str, Any]]:
     strict_monotonic = all(rets[i] < rets[i + 1] for i in range(len(rets) - 1))
     all_positive = all(r > 0 for r in rets)
     min_wr = min(wrs) if wrs else 0.0
-    wr_floor_ok = min_wr > 70.0
+    wr_floor_ok = min_wr > wr_floor
     min_tpm = min(trades_per_month) if trades_per_month else 0.0
     tpm_floor_ok = min_tpm >= 2.0
     avg_ret = sum(rets) / len(rets)
@@ -93,8 +93,10 @@ def apply_overrides(settings: Settings, overrides: Dict[str, Any]) -> Settings:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--grid", type=str, default="basic", choices=["basic", "wide", "fine", "monotonic", "refine", "bigreward", "strictrsi", "neighbor2", "tprange", "pivots", "macd_gate", "aggressive", "trendloose", "atrshift", "atr_push", "eqratio", "fastatr", "indicators", "moretrades", "moretrades_fine", "moretrades_scan", "bigrr", "loop10_refine", "manytrades", "rsi_period_probe", "macd_probe", "loop11_wide", "eth_tight", "eth_wide", "eth_long_filter", "eth_short_tune", "eth_refine", "eth_macd_loop3", "eth_loop4_refine", "eth_bigtp", "eth_megatp", "eth_leverage", "eth_loosen", "eth_tightpivot", "eth_trend_window", "eth_finetune", "eth_macd_params", "eth_srstops", "eth_unlock"])
+    parser.add_argument("--grid", type=str, default="basic", choices=["basic", "wide", "fine", "monotonic", "refine", "bigreward", "strictrsi", "neighbor2", "tprange", "pivots", "macd_gate", "aggressive", "trendloose", "atrshift", "atr_push", "eqratio", "fastatr", "indicators", "moretrades", "moretrades_fine", "moretrades_scan", "bigrr", "loop10_refine", "manytrades", "rsi_period_probe", "macd_probe", "loop11_wide", "eth_tight", "eth_wide", "eth_long_filter", "eth_short_tune", "eth_refine", "eth_macd_loop3", "eth_loop4_refine", "eth_bigtp", "eth_megatp", "eth_leverage", "eth_loosen", "eth_tightpivot", "eth_trend_window", "eth_finetune", "eth_macd_params", "eth_srstops", "eth_unlock", "sol_wr80", "sol_wr80_refine", "sol_wr80_deep", "sol_wr80_macd", "sol_wr80_pnl", "sol_wr80_pnl2", "sol_wr80_pnl3", "sol_wr80_edge2", "sol_wr80_struct", "sol_wr80_srtf", "sol_wr80_srtf2"])
     parser.add_argument("--top", type=int, default=15)
+    parser.add_argument("--wrfloor", type=float, default=70.0,
+                        help="Minimum win-rate floor (HARD) applied to every window.")
     args = parser.parse_args()
 
     frames = bo.load_or_refresh_cache(refresh=False)
@@ -914,6 +916,290 @@ def main():
             "atr_period": [6, 10, 14],
             "require_macd_divergence": [False],
         }
+    elif args.grid == "sol_wr80":
+        # SOLUSDC WR>80 search. Anchor on champion Loop_20260518_7 (sl3/tp1.5,
+        # rsi 50/50, pivot 3, div_lb 50, macd-gate off, lev 5). Champion fails
+        # ONLY the WR>80 target (min WR ~74 at 3m/15m). The WR levers: wider SL
+        # vs tighter TP (more TP-hits), and a tighter RSI extremity gate
+        # (still satisfies the mandatory <=50 / >=50 rule). Coarse pass.
+        grid = {
+            "use_atr_stops": [True],
+            "atr_sl_mult": [3.0, 4.0, 5.0],
+            "atr_tp_mult": [1.0, 1.5, 2.0],
+            "use_trend_filter": [False],
+            "leverage": [5],
+            "position_equity_ratio": [0.95],
+            "pivot_window": [3, 4, 5],
+            "divergence_lookback": [40, 50, 60],
+            "rsi_long_max": [45.0, 50.0],
+            "rsi_short_min": [50.0, 55.0],
+            "atr_period": [14],
+            "rsi_period": [14],
+            "require_macd_divergence": [False, True],
+        }
+    elif args.grid == "sol_wr80_refine":
+        # Fine neighborhood around the coarse monotonic edge bucket
+        # (sl3/tp1.0, rsi 50/50, pivot3, macd off — min WR 79.84 at 12m,
+        # strict-monotonic). Goal: nudge min WR over 80 WITHOUT breaking
+        # monotonicity. Levers: slightly wider SL, tighter extremity gate
+        # (still <=50/>=50 rule), and atr_period/div_lb/pivot reshaping which
+        # trades cross the 6m/12m boundary (the consistent monotonicity break).
+        grid = {
+            "use_atr_stops": [True],
+            "atr_sl_mult": [3.0, 3.25, 3.5, 4.0],
+            "atr_tp_mult": [1.0, 1.25, 1.5],
+            "use_trend_filter": [False],
+            "leverage": [5],
+            "position_equity_ratio": [0.95],
+            "pivot_window": [3, 4],
+            "divergence_lookback": [45, 50, 55],
+            "rsi_long_max": [44.0, 47.0, 50.0],
+            "rsi_short_min": [50.0, 53.0, 56.0],
+            "atr_period": [10, 14],
+            "rsi_period": [14],
+            "require_macd_divergence": [False],
+        }
+    elif args.grid == "sol_wr80_deep":
+        # macd-ON high-conviction regime. The only WR>80 lead from the coarse
+        # pass (#13: pivot5, macd gate ON, rsi 45/55 -> min WR 80.95) breaks
+        # monotonicity only at 6m. Requiring MACD divergence confluence on top
+        # of RSI divergence filters to fewer, higher-quality entries. Sweep the
+        # gate width, pivot/lookback, SL/TP and atr_period to find the sub-region
+        # where the high-WR trade set is ALSO strictly monotonic 15>12>6>3>1.
+        grid = {
+            "use_atr_stops": [True],
+            "atr_sl_mult": [3.0, 3.5, 4.0, 5.0],
+            "atr_tp_mult": [1.0, 1.5],
+            "use_trend_filter": [False],
+            "leverage": [5],
+            "position_equity_ratio": [0.95],
+            "pivot_window": [3, 4, 5],
+            "divergence_lookback": [40, 50, 60],
+            "rsi_long_max": [40.0, 45.0, 50.0],
+            "rsi_short_min": [50.0, 55.0, 60.0],
+            "atr_period": [10, 14],
+            "rsi_period": [14],
+            "require_macd_divergence": [True],
+        }
+    elif args.grid == "sol_wr80_macd":
+        # MACD-params probe — the one lever every prior SOL sweep pinned at
+        # 12/26/9. macd-ON gives WR 80-100 across all windows but the trade set
+        # always loses in the ~4-6mo-ago segment (6m PnL < 3m PnL -> monotonic
+        # break). Different MACD speed shifts divergence pivots, changing WHICH
+        # trades fall in that segment. Hunt for a fast/slow/signal triple whose
+        # high-WR trade set is net-positive and growing through 3m->6m.
+        grid = {
+            "use_atr_stops": [True],
+            "atr_sl_mult": [3.0, 3.5],
+            "atr_tp_mult": [1.0],
+            "use_trend_filter": [False],
+            "leverage": [5],
+            "position_equity_ratio": [0.95],
+            "pivot_window": [4, 5],
+            "divergence_lookback": [40, 50, 60],
+            "rsi_long_max": [45.0],
+            "rsi_short_min": [55.0, 60.0],
+            "atr_period": [10, 14],
+            "rsi_period": [14],
+            "require_macd_divergence": [True],
+            "macd_fast": [6, 8, 12, 15],
+            "macd_slow": [21, 26, 34],
+            "macd_signal": [9],
+        }
+    elif args.grid == "sol_wr80_pnl":
+        # PnL-maximization within the WR>80 feasible region. Holds the
+        # Loop_20260518_31 unlock (fast MACD 6/21/9 + MACD-div confluence,
+        # pivot5, rsi 45/55) and pushes the PnL levers: wider TP (user hint
+        # #4 — extend reward as long as more PnL), leverage, equity ratio,
+        # plus small SL/lookback/atr_period neighbors. score(wrfloor=80)
+        # only surfaces configs still passing all four constraints, ranked
+        # by 15m PnL.
+        grid = {
+            "use_atr_stops": [True],
+            "use_trend_filter": [False],
+            "rsi_period": [14],
+            "require_macd_divergence": [True],
+            "macd_fast": [6],
+            "macd_slow": [21],
+            "macd_signal": [9],
+            "pivot_window": [5],
+            "rsi_long_max": [45.0],
+            "rsi_short_min": [55.0],
+            "atr_sl_mult": [2.5, 3.0, 3.5],
+            "atr_tp_mult": [1.0, 1.1, 1.2, 1.3, 1.5],
+            "divergence_lookback": [35, 40, 45],
+            "atr_period": [12, 14, 16],
+            "leverage": [5, 6, 7],
+            "position_equity_ratio": [0.95, 1.0],
+        }
+    elif args.grid == "sol_wr80_pnl2":
+        # Entry-edge hunt at FIXED leverage 7 / eq 1.0. Goal: find a stricter,
+        # higher-conviction gate (tighter RSI extremity, MACD-speed neighbors
+        # of the 6/21/9 unlock, pivot/lookback) that buys enough WR headroom
+        # to afford a WIDER take-profit (user hint #4: extend reward) while
+        # still clearing min WR>80 — a more principled PnL path than scaling
+        # leverage deeper into drawdown. score(wrfloor=80) ranks survivors by
+        # 15m PnL; compare against the _1 champion (15m +879%).
+        grid = {
+            "use_atr_stops": [True],
+            "use_trend_filter": [False],
+            "rsi_period": [14],
+            "require_macd_divergence": [True],
+            "macd_fast": [5, 6, 7],
+            "macd_slow": [18, 21, 24],
+            "macd_signal": [9],
+            "pivot_window": [4, 5, 6],
+            "divergence_lookback": [40, 45, 50],
+            "rsi_long_max": [40.0, 45.0],
+            "rsi_short_min": [55.0, 60.0],
+            "atr_sl_mult": [3.0],
+            "atr_tp_mult": [1.0, 1.25, 1.5],
+            "atr_period": [12],
+            "leverage": [7],
+            "position_equity_ratio": [1.0],
+        }
+    elif args.grid == "sol_wr80_pnl3":
+        # Fine entry-edge scan around the Loop_20260519_2 winner
+        # (mf7/ms24/piv6/dlb50), leverage fixed at 7 (drawdown-safe path).
+        # Large WR headroom (min WR 86.8 vs 80 floor) suggests a still-
+        # sharper gate may exist that lifts PnL further. atr_tp_mult held
+        # at 1.0 (conclusively optimal under WR>80 across every gate tested).
+        grid = {
+            "use_atr_stops": [True],
+            "use_trend_filter": [False],
+            "rsi_period": [14],
+            "require_macd_divergence": [True],
+            "macd_fast": [6, 7, 8],
+            "macd_slow": [22, 24, 26, 28],
+            "macd_signal": [9],
+            "pivot_window": [6, 7, 8],
+            "divergence_lookback": [48, 50, 55, 60],
+            "rsi_long_max": [45.0],
+            "rsi_short_min": [55.0],
+            "atr_sl_mult": [2.75, 3.0, 3.25],
+            "atr_tp_mult": [1.0],
+            "atr_period": [10, 12, 14],
+            "leverage": [7],
+            "position_equity_ratio": [1.0],
+        }
+    elif args.grid == "sol_wr80_edge2":
+        # Structurally tighter gate to buy WR headroom for a WIDER take-profit
+        # (user hint #4: extend reward 3/4/5x for more PnL-per-trade without
+        # more leverage). Holds the converged _2/_3 MACD+pivot+lookback edge
+        # and leverage 8; cranks the RSI extremity gate well past the rule
+        # edge (still <=50 / >=50) and sweeps SL/TP geometry + atr_period.
+        # score(wrfloor=80) keeps only configs still passing all four; the
+        # tpm_floor (>=2/mo) guards against the tighter gate starving trades.
+        grid = {
+            "use_atr_stops": [True],
+            "use_trend_filter": [False],
+            "rsi_period": [14],
+            "require_macd_divergence": [True],
+            "macd_fast": [7],
+            "macd_slow": [24],
+            "macd_signal": [9],
+            "pivot_window": [6],
+            "divergence_lookback": [50],
+            "rsi_long_max": [30.0, 35.0, 40.0, 45.0],
+            "rsi_short_min": [55.0, 60.0, 65.0, 70.0],
+            "atr_sl_mult": [2.0, 2.5, 3.0, 4.0],
+            "atr_tp_mult": [1.0, 1.5, 2.0, 3.0, 4.0],
+            "atr_period": [10, 12, 14],
+            "leverage": [8],
+            "position_equity_ratio": [1.0],
+        }
+    elif args.grid == "sol_wr80_struct":
+        # Genuinely new structural levers, never activated for SOL in this
+        # loop: min_rr_ratio + max_sl_distance_pct gates (currently 0/off)
+        # and use_atr_stops=False (support/resistance stop mode — totally
+        # different SL/TP mechanic). Holds the converged _2/_3 entry edge
+        # and leverage 8. Tests whether a different stop/filter mechanic
+        # opens a higher-PnL or wider-TP-tolerant region while keeping WR>80.
+        grid = {
+            "use_trend_filter": [False],
+            "rsi_period": [14],
+            "require_macd_divergence": [True],
+            "macd_fast": [7],
+            "macd_slow": [24],
+            "macd_signal": [9],
+            "pivot_window": [6],
+            "divergence_lookback": [50],
+            "rsi_long_max": [45.0],
+            "rsi_short_min": [55.0],
+            "atr_period": [12],
+            "leverage": [8],
+            "position_equity_ratio": [1.0],
+            "use_atr_stops": [True, False],
+            "atr_sl_mult": [2.0, 3.0, 4.0],
+            "atr_tp_mult": [1.0, 2.0, 3.0],
+            "min_rr_ratio": [0.0, 1.0, 2.0],
+            "max_sl_distance_pct": [0.0, 0.05, 0.08, 0.12],
+        }
+    elif args.grid == "sol_wr80_srtf":
+        # Last untouched lever for SOL: sup_res_timeframes — the multi-TF
+        # support/resistance set that gates entry direction (long needs
+        # support<price<resistance). Different TF subsets build different
+        # S/R levels -> a different (still divergence+extremity) trade set.
+        # Holds the converged _2/_3 edge + leverage 8; lets pivot/lookback
+        # flex slightly so the new S/R interacts with the divergence edge.
+        grid = {
+            "use_atr_stops": [True],
+            "use_trend_filter": [False],
+            "rsi_period": [14],
+            "require_macd_divergence": [True],
+            "macd_fast": [7],
+            "macd_slow": [24],
+            "macd_signal": [9],
+            "rsi_long_max": [45.0],
+            "rsi_short_min": [55.0],
+            "atr_sl_mult": [3.0],
+            "atr_tp_mult": [1.0],
+            "atr_period": [12],
+            "leverage": [8],
+            "position_equity_ratio": [1.0],
+            "pivot_window": [5, 6],
+            "divergence_lookback": [45, 50, 55],
+            "sup_res_timeframes": [
+                ["3h", "6h", "12h", "1d", "1w"],
+                ["6h", "12h", "1d", "1w"],
+                ["3h", "6h", "12h", "1d"],
+                ["12h", "1d", "1w"],
+                ["6h", "12h", "1d"],
+                ["3h", "12h", "1d", "1w"],
+                ["1d", "1w"],
+                ["3h", "6h", "1d", "1w"],
+            ],
+        }
+    elif args.grid == "sol_wr80_srtf2":
+        # Re-sweep the entry edge UNDER the new coarse-S/R regime (the
+        # sup_res_timeframes=[1d,1w] win from _4 invalidated the earlier
+        # edge convergence, which was found with the old 5-TF S/R). Explore
+        # macd/pivot/lookback + a few S/R-TF subsets around [1d,1w] at the
+        # fixed champion SL/TP/atr_period/leverage. Hunt for an even better
+        # basin now that S/R is coarse.
+        grid = {
+            "use_atr_stops": [True],
+            "use_trend_filter": [False],
+            "rsi_period": [14],
+            "require_macd_divergence": [True],
+            "rsi_long_max": [45.0],
+            "rsi_short_min": [55.0],
+            "atr_sl_mult": [3.0],
+            "atr_tp_mult": [1.0],
+            "atr_period": [12],
+            "leverage": [8],
+            "position_equity_ratio": [1.0],
+            "macd_signal": [9],
+            "macd_fast": [6, 7, 8],
+            "macd_slow": [21, 24, 28],
+            "pivot_window": [5, 6, 7],
+            "divergence_lookback": [45, 50, 55],
+            "sup_res_timeframes": [
+                ["1d", "1w"],
+                ["1d"],
+                ["12h", "1d", "1w"],
+            ],
+        }
     else:  # fine
         grid = {
             "use_atr_stops": [True],
@@ -938,7 +1224,7 @@ def main():
         overrides = dict(zip(keys, combo))
         settings = apply_overrides(base_settings, overrides)
         window_results = bf.run_full(settings=settings, frames=frames, months_list=months_list)
-        s, ok, details = score(window_results)
+        s, ok, details = score(window_results, wr_floor=args.wrfloor)
         results_log.append((s, overrides, details))
         if (i + 1) % 10 == 0 or i + 1 == len(combos):
             elapsed = time.time() - start

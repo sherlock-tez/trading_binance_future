@@ -12,6 +12,42 @@ This bot opens BTCUSDC 1h positions on strict confluence:
 
 A trade is valid only when all required conditions agree on the same direction.
 
+### Current BTCUSDC Tuned Profile
+
+`Loop_20260519_6` is the deployable BTCUSDC champion. It keeps the mandatory
+RSI divergence plus the extremity gate and uses a moderate-conviction
+trend-filtered ATR setup tuned so that **every** backtest window is strictly
+WR > 80 (the user's #1 MUST), strict monotonic `15>12>6>3>1`, all-positive:
+
+- `rsi_period=12`, `rsi_long_max=47`, `rsi_short_min=62`
+- `require_macd_divergence=false` (RSI divergence still mandatory; the MACD
+  line never gates entries, so `macd_fast/slow/signal` are inert)
+- `pivot_window=4`, `divergence_lookback=100`
+- `use_trend_filter=true`, `trend_ema_period=225`
+- `use_atr_stops=true`, `atr_period=9`, `atr_sl_mult=1.5`, `atr_tp_mult=4.0`
+  (RR = 2.67)
+- `leverage=25`, `position_equity_ratio=1.0`
+
+Production-path backtest (parity-verified vs the fast harness): 1m +48.5% /
+3m +122.3% / 6m +467.1% / 12m +3370.4% / 15m +15127.7%, win-rate
+100/100/100/100/90.91 (min 90.91 > 80 on every window), strict monotonic,
+24 trades total (1/2/3/7/11), max drawdown 0.5% on 1m–12m and 24.9% on 15m.
+This lineage replaces `Loop_20260513_10`, whose 6m window was exactly 80.00%
+WR and therefore failed the strict `WR > 80` requirement, and roughly
+3.6x's its 15m PnL (`_5` adopted the WR>80 structure at +14210%; `_6`
+refined `atr_period 14->9` for +15128% at lower drawdown).
+
+`rsi_long_max=47` is the key edge: it is the intermediate long-extremity
+threshold that admits the extra high-conviction longs (24 trades vs the
+18-trade over-tight set) without dropping any window to <=80% WR. Two BTCUSDC
+properties bound this profile: (1) trade frequency cannot reach the 2-5/month
+target while holding WR > 80 — loosening pivots/gates for frequency collapses
+WR to 30-45% and blows the account; (2) the reward leg cannot exceed ~4xATR —
+TP at 5-8xATR turns the bounded divergence wins into losses and breaks the
+WR>80 gate. PnL magnitude is leverage(25) x full-equity x compounding; the
+simulator models no liquidation/funding, so the single 15m losing trade is a
+real live tail risk.
+
 ### Current ETHUSDC Tuned Profile
 
 `Loop_20260519_8` keeps the mandatory RSI divergence plus extremity gate and
@@ -90,6 +126,57 @@ drawdown-aware full-pass objective), a BNBUSDC-specific search reusing the
 parity-verified fast engine. Champion lineage: `_21` → `_31` (first all-targets
 pass) → `_32` (DD-aware) → `_33` (leverage ceiling) → `_20260519_1` (edge
 refine, perfect WR) → `_20260519_2` (stricter short gate, +1003% 15m, current).
+
+### Current SOLUSDC Tuned Profile
+
+`Loop_20260519_4` clears the WR>80 requirement while remaining strictly monotonic
+(15m > 12m > 6m > 3m > 1m), all-positive, and inside the trades/month band, with
+PnL maximized. It keeps the mandatory RSI divergence + extremity gate and adds
+MACD-divergence confluence with a fast MACD, on coarse daily/weekly S/R levels:
+
+- `rsi_period=14`, `rsi_long_max=45`, `rsi_short_min=55` (extremity rule preserved)
+- `require_macd_divergence=true`
+- `macd_fast=7`, `macd_slow=24`, `macd_signal=9` (faster than the 12/26/9 default)
+- `pivot_window=6`, `divergence_lookback=50`
+- `sup_res_timeframes=[1d, 1w]` (narrowed from 3h/6h/12h/1d/1w)
+- `use_trend_filter=false`
+- `use_atr_stops=true`, `atr_period=12`, `atr_sl_mult=3.0`, `atr_tp_mult=1.0`
+- `leverage=8`, `position_equity_ratio=1.0`
+
+Production-path backtest (`scripts/btcusdc_optimize.py`, mainnet klines, 12m warmup):
+1m +28.2% WR100 / 3m +130.9% WR94.1 / 6m +268.3% WR90.3 / 12m +1141.7% WR89.2 /
+15m +2073.3% WR90.1; 71 trades over 15m; min WR 89.2% at 12m; 12m/15m max drawdown
+~64% (unchanged vs `_3` — same leverage 8). Narrowing `sup_res_timeframes` to the
+daily/weekly levels widens the valid-entry zone between the nearest support and
+resistance and filters to structurally stronger reversals: +34% more 15m PnL and
++2.5pt higher min win rate at identical leverage and drawdown vs `_3`. Leverage 8
+was chosen by the user from the production-path PnL/drawdown curve (lev 7→10 all
+pass all four constraints; PnL and drawdown scale ~linearly while
+WR/monotonicity/trade-count are leverage-invariant).
+
+Why the fast MACD matters: for SOLUSDC the segment roughly 4-6 months ago is a
+drawdown patch. Every selective WR>80 config tested in the macd-off and standard-MACD
+regimes lost money there, pushing 6m cumulative return below 3m and breaking
+monotonicity. A fast MACD shifts the MACD-divergence pivots so the high-conviction
+trade set is net-positive and growing through that segment, which is what unlocks
+strict monotonicity at WR>80 (the `Loop_20260518_31` discovery). PnL was then scaled
+two ways: (a) leverage 5→7 + equity_ratio 0.95→1.0 (`Loop_20260519_1`, 15m +879%,
+DD ~62%); then (b) sharpening the entry edge — `macd_slow` 21→24, `pivot_window`
+5→6, `divergence_lookback` 45→50 — which produces fewer, higher-conviction trades
+that simultaneously raised 15m PnL to +1164%, lifted min WR to 86.8%, AND lowered
+drawdown to ~57% at the same leverage (`Loop_20260519_2`); a 1296-combo fine scan
+then confirmed `_2`'s edge is the optimum of its neighborhood. Finally (c) leverage
+was raised 7→8 on the converged edge (`Loop_20260519_3`, 15m +1543%, DD ~64%),
+the level chosen by the user from the full lev 7→10 PnL/drawdown curve. Finally
+(d) the last untouched lever — `sup_res_timeframes` — was swept: narrowing it from
+3h/6h/12h/1d/1w to just [1d,1w] lifted 15m PnL to +2073% and min WR to 89.2% at
+unchanged leverage/drawdown (`Loop_20260519_4`). `atr_tp_mult` is held at 1.0
+because every wider take-profit variant tested across multiple gate settings drops
+min win rate below 80, so the user's reward-extension hint is firmly bounded by the
+WR>80 MUST. The original `Loop_20260518_7` (macd-off, ~149 trades, ~74% WR) never
+satisfied WR>80. With the divergence/MACD/pivot/SL-TP edge, leverage, and S/R
+timeframes all explored, further PnL within the WR>80 region is now primarily
+leverage-bounded (drawdown grows ~6pt per leverage step).
 
 ## Indicators
 

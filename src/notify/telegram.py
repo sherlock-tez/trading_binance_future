@@ -1,12 +1,17 @@
 from __future__ import annotations
 
-from typing import Optional
+import html
 
 import requests
 
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
+
+
+def escape_html(value: object) -> str:
+    """Escape dynamic values so they are safe inside Telegram HTML messages."""
+    return html.escape(str(value), quote=False)
 
 
 class TelegramNotifier:
@@ -25,7 +30,7 @@ class TelegramNotifier:
         payload = {
             "chat_id": self.chat_id,
             "text": message,
-            "parse_mode": "Markdown",
+            "parse_mode": "HTML",
             "disable_web_page_preview": True,
         }
         try:
