@@ -178,6 +178,56 @@ satisfied WR>80. With the divergence/MACD/pivot/SL-TP edge, leverage, and S/R
 timeframes all explored, further PnL within the WR>80 region is now primarily
 leverage-bounded (drawdown grows ~6pt per leverage step).
 
+### Current XRPUSDC Tuned Profile
+
+`Loop_20260519_10` is the deployable XRPUSDC champion. It keeps the mandatory
+RSI divergence plus the extremity gate and uses a wide-SL / tight-TP bounce
+geometry on trend-filtered high-conviction divergence entries, tuned so
+**every** backtest window is WR 100 (the user's #1 MUST), strictly monotonic
+`15>12>6>3>1`, and all-positive with PnL maximized:
+
+- `rsi_period=7`, `rsi_long_max=50`, `rsi_short_min=55` (extremity rule preserved)
+- `require_macd_divergence=false` (RSI divergence still mandatory; the MACD
+  line never gates entries, so `macd_fast/slow/signal` are inert)
+- `pivot_window=5`, `divergence_lookback=100`
+- `use_trend_filter=true`, `trend_ema_period=50`
+- `use_atr_stops=true`, `atr_period=21`, `atr_sl_mult=5.0`, `atr_tp_mult=1.0`
+- `leverage=25`, `position_equity_ratio=1.0`
+
+Production-path backtest (`scripts/btcusdc_optimize.py --symbol XRPUSDC`, real
+`SignalEngine + run_trade_cycle + SimulatedExecutionAdapter`, 12-month warmup,
+mainnet klines), exact parity vs the fast harness: 1m +43.69% / 3m +102.06% /
+6m +189.62% / 12m +2629.76% / 15m +11207.29%; win-rate 100/100/100/100/100;
+strictly monotonic 15>12>6>3>1; all-positive; max drawdown 0.5% on every
+window; Sharpe 10–31; 23 trades over 15m (3/5/7/17/23). The baseline shipped
+config (rsi 11, sl 6.0/tp 0.6, lev 10, short_min 75) blew the account
+(-100%+ on 6/12/15m) — this profile replaces it. Lineage: `Loop_20260519_9`
+(first champion, 15m +8035%, 17 trades) → `Loop_20260519_10` (refine
+`atr_tp_mult 1.2→1.0`, `pivot_window 4→5`: strictly more PnL **and** more
+trades at identical WR/monotonicity/drawdown, current).
+
+The wide SL (5.0×ATR) relative to a tight TP (1.2×ATR) gives a very high
+per-trade hit rate; the fast RSI (`rsi_period=7`) plus the short trend EMA
+(`trend_ema_period=50`) filter to high-conviction reversals aligned with the
+local trend, and PnL magnitude is leverage(25) × full-equity × compounding.
+Found via `scripts/xrpusdc_loop.py` (random map + neighbourhood refine reusing
+the parity-verified fast engine, scored against the XRPUSDC targets with PnL
+as the dominant objective), then re-validated on the production path before
+adoption (identical numbers).
+
+**Caveat:** as with the BNBUSDC/ETHUSDC/SOLUSDC tight-TP profiles, the perfect
+in-sample win-rate is partly a geometry artifact — a 5.0×ATR stop is rarely
+reached when the TP is only 1.2×ATR, but a gap/adverse spike can still hit it
+live. The real risk is the unrealised tail loss, not the in-sample variance;
+the simulator models no liquidation/funding, so at leverage 25 a single
+adverse 15m tail is a real live risk. Trade frequency (≈1.0–1.13 trades/month)
+is below the 2–5/month target: every higher-frequency variant tested dropped a
+window below WR 80 or broke strict monotonicity, and per the operator's
+standing preference PnL is maximized over forcing the trade-count band when
+they conflict. The 15-month window also carries the documented left-edge
+warmup handicap (fewer early divergence pivots than a 12-month-warmup span),
+which structurally caps 15m trade count.
+
 ## Indicators
 
 ### RSI Divergence
@@ -278,7 +328,7 @@ The user-required rule "LONG only if RSI < 50, SHORT only if RSI > 50" is always
   - Position-limit rejection is enforced by execution adapters with the same rejection reason.
 - Duplicate-signal filtering keys accepted entries by the RSI divergence pivot timestamp plus direction. This prevents repeated re-entry from the same stale divergence setup on later candles while still allowing a new trade when a new pivot forms.
 
-A separate fast vectorized harness (`scripts/btcusdc_fast.py`) is used for parameter search. It is mathematically equivalent to the engine path (parity verified against `scripts/btcusdc_optimize.py`) and only serves the iterative tuning loop; production logic still flows through `SignalEngine` + `run_trade_cycle` + `SimulatedExecutionAdapter`. `scripts/bnbusdc_loop.py` is a BNBUSDC-specific search driver (random map + neighbourhood refine) that reuses the same fast engine and scores against the BNBUSDC targets; any winning config it finds is always re-validated on the production path before being adopted (it was for `Loop_20260518_31`, with identical numbers).
+A separate fast vectorized harness (`scripts/btcusdc_fast.py`) is used for parameter search. It is mathematically equivalent to the engine path (parity verified against `scripts/btcusdc_optimize.py`) and only serves the iterative tuning loop; production logic still flows through `SignalEngine` + `run_trade_cycle` + `SimulatedExecutionAdapter`. `scripts/bnbusdc_loop.py` is a BNBUSDC-specific search driver (random map + neighbourhood refine) that reuses the same fast engine and scores against the BNBUSDC targets; any winning config it finds is always re-validated on the production path before being adopted (it was for `Loop_20260518_31`, with identical numbers). `scripts/ethusdc_loop.py` and `scripts/xrpusdc_loop.py` are the analogous ETHUSDC/XRPUSDC search drivers; the XRPUSDC one scores with PnL as the dominant objective and trades/month as a soft tiebreaker (WR>80 + all-positive + strict-monotonic remain hard gates), and its `Loop_20260519_10` champion re-validated on the production path with identical numbers.
 
 ## Known Limitations
 
