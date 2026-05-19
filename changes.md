@@ -1,5 +1,18 @@
 # changes.md
 
+## 2026-05-19 — SOLUSDC: RSI-gate probe at _10 — NULL RESULT; R/R≤0.5 feasible region CONVERGED
+
+### Summary
+Confirmatory iteration, not a champion change. The RSI extremity gate (`rsi_long_max`/`rsi_short_min`) was pinned at 45/55 through the entire R/R≤0.5 search (`sol_rr` → `_refine` → `_fine`) — the last unexplored feasible lever. New grid `sol_rr_gate` swept it (long {35,38,40,42,45,48} × short {52,55,58,60,62,65}, within the mandatory LONG<50/SHORT>50 rule) at the `_10` geometry. **Result: `_10`'s own 45/55 gate ranks #1 by a wide margin** (score 33920 vs next 20069; 15m +11194% vs the next gate's +4694%). No gate setting beats `_10`. `solusdc_config.yaml` strategy params **unchanged**; `_10` remains champion.
+
+### Affected Files
+- `scripts/btcusdc_sweep.py` (added `sol_rr_gate` grid + choice). No config / algorithms champion change (comment-only note added).
+
+### Conclusion — feasible region converged
+Under the hard constraint **R/R = atr_sl_mult/atr_tp_mult ≤ 0.5**, the SOLUSDC search has **converged at `Loop_20260519_10`** (sl0.55/tp5.0/atrp9, R/R 0.11). The feasible region is now fully mapped: SL/TP/atr_period geometry (`sol_rr` coarse → `sol_rr_refine` → `sol_rr_fine` between-node: plateau sl 0.55-0.65 / tp 5 / atrp 9-12, optimum `_10`), the RSI extremity gate (this round: 45/55 confirmed optimal), with the proven `_7`-era entry edge held (macd 7/24/9, dlb52, pivot6, [1d,1w] S/R, MACD-div) and leverage/eq pinned. Each refinement round's in-sample-max corner was an overfit trap (rejected by the standing OOS guard); `_10` is the OOS-dominant interior optimum (held-out 24m +6622%, *growing*). Further between-node tuning is overfitting. **Loop shifts to monitoring mode**: re-validate `_10` on data drift only; re-optimize only if regime drift breaks a hard constraint or the user changes a constraint. WR remains structurally ~20-35% (WR>80 unreachable under R/R≤0.5 — accepted tradeoff; do not revert to the forbidden `_7` basin).
+
+---
+
 ## Loop_20260519_10 — SOLUSDC: between-node refinement → 15m +11194%, lowest DD, OOS *grows* (R/R 0.11)
 
 ### Summary

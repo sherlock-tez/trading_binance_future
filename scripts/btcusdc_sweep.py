@@ -109,7 +109,7 @@ def apply_overrides(settings: Settings, overrides: Dict[str, Any]) -> Settings:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--grid", type=str, default="basic", choices=["basic", "wide", "fine", "monotonic", "refine", "bigreward", "strictrsi", "neighbor2", "tprange", "pivots", "macd_gate", "aggressive", "trendloose", "atrshift", "atr_push", "eqratio", "fastatr", "indicators", "moretrades", "moretrades_fine", "moretrades_scan", "bigrr", "loop10_refine", "manytrades", "rsi_period_probe", "macd_probe", "loop11_wide", "eth_tight", "eth_wide", "eth_long_filter", "eth_short_tune", "eth_refine", "eth_macd_loop3", "eth_loop4_refine", "eth_bigtp", "eth_megatp", "eth_leverage", "eth_loosen", "eth_tightpivot", "eth_trend_window", "eth_finetune", "eth_macd_params", "eth_srstops", "eth_unlock", "sol_wr80", "sol_wr80_refine", "sol_wr80_deep", "sol_wr80_macd", "sol_wr80_pnl", "sol_wr80_pnl2", "sol_wr80_pnl3", "sol_wr80_edge2", "sol_wr80_struct", "sol_wr80_srtf", "sol_wr80_srtf2", "sol_wr80_freq", "sol_wr80_geo", "sol_wr80_trend", "sol_wr80_fine", "sol_wr80_fine2", "sol_wr80_fine3", "sol_wr80_fine4", "sol_wr80_reward", "sol_rr", "sol_rr_refine", "sol_rr_fine"])
+    parser.add_argument("--grid", type=str, default="basic", choices=["basic", "wide", "fine", "monotonic", "refine", "bigreward", "strictrsi", "neighbor2", "tprange", "pivots", "macd_gate", "aggressive", "trendloose", "atrshift", "atr_push", "eqratio", "fastatr", "indicators", "moretrades", "moretrades_fine", "moretrades_scan", "bigrr", "loop10_refine", "manytrades", "rsi_period_probe", "macd_probe", "loop11_wide", "eth_tight", "eth_wide", "eth_long_filter", "eth_short_tune", "eth_refine", "eth_macd_loop3", "eth_loop4_refine", "eth_bigtp", "eth_megatp", "eth_leverage", "eth_loosen", "eth_tightpivot", "eth_trend_window", "eth_finetune", "eth_macd_params", "eth_srstops", "eth_unlock", "sol_wr80", "sol_wr80_refine", "sol_wr80_deep", "sol_wr80_macd", "sol_wr80_pnl", "sol_wr80_pnl2", "sol_wr80_pnl3", "sol_wr80_edge2", "sol_wr80_struct", "sol_wr80_srtf", "sol_wr80_srtf2", "sol_wr80_freq", "sol_wr80_geo", "sol_wr80_trend", "sol_wr80_fine", "sol_wr80_fine2", "sol_wr80_fine3", "sol_wr80_fine4", "sol_wr80_reward", "sol_rr", "sol_rr_refine", "sol_rr_fine", "sol_rr_gate"])
     parser.add_argument("--top", type=int, default=15)
     parser.add_argument("--wrfloor", type=float, default=70.0,
                         help="Minimum win-rate floor (HARD) applied to every window.")
@@ -1525,6 +1525,37 @@ def main():
             "atr_period": [9, 10, 11, 12],
             "atr_sl_mult": [0.5, 0.55, 0.6, 0.65, 0.7],
             "atr_tp_mult": [4.5, 5.0, 5.5, 6.0],
+        }
+    elif args.grid == "sol_rr_gate":
+        # Last unexplored feasible lever: the RSI extremity gate. It was
+        # pinned at 45/55 through the ENTIRE R/R<=0.5 search (sol_rr ->
+        # _refine -> _fine); its optimum may have shifted under the new
+        # tight-SL/far-TP geometry. Holds the _10 geometry (sl0.55/tp5.0/
+        # atrp9) and the _7/_8/_9/_10 entry edge; sweeps only the gate.
+        # Bounds respect the MANDATORY rule (LONG only if RSI<50, SHORT only
+        # if RSI>50): rsi_long_max strictly <50, rsi_short_min strictly >50.
+        # R/R fixed at 0.11 (<=0.5). Adopt a new champion only on a strict
+        # production-path 15m gain over _10 (+11194%) that also OOS-validates
+        # (held-out 18/24m, interior, not grid-edge). If none: the feasible
+        # plateau is CONVERGED -> monitoring mode.
+        grid = {
+            "use_atr_stops": [True],
+            "use_trend_filter": [False],
+            "rsi_period": [14],
+            "require_macd_divergence": [True],
+            "macd_fast": [7],
+            "macd_slow": [24],
+            "macd_signal": [9],
+            "pivot_window": [6],
+            "divergence_lookback": [52],
+            "leverage": [8],
+            "position_equity_ratio": [1.0],
+            "sup_res_timeframes": [["1d", "1w"]],
+            "atr_period": [9],
+            "atr_sl_mult": [0.55],
+            "atr_tp_mult": [5.0],
+            "rsi_long_max": [35.0, 38.0, 40.0, 42.0, 45.0, 48.0],
+            "rsi_short_min": [52.0, 55.0, 58.0, 60.0, 62.0, 65.0],
         }
     else:  # fine
         grid = {

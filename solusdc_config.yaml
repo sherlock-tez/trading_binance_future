@@ -40,6 +40,11 @@ strategy:
   # all-positive ✓, 12m/15m max DD 35.2% (vs _9 37.7%, _8 49.6%, _7 ~61%).
   # OOS held-out 18m +5760% / 24m +6622% (GROWS 18->24 = best-in-search
   # generalization); _10 dominates _9 on PnL, drawdown AND OOS stability.
+  # CONVERGED: the R/R<=0.5 feasible region is fully mapped — SL/TP/atrp via
+  # sol_rr/_refine/_fine, and the RSI gate confirmed optimal at 45/55 via
+  # sol_rr_gate (2026-05-19; _10 ranked #1 by a wide margin, no gate beats
+  # it). Monitoring mode: re-validate _10 on data drift only; no more
+  # between-node micro-tuning (overfitting). See changes.md.
   # Equity is LUMPY (few large 5-ATR winners carry a ~27% hit-rate), the
   # 0.55-ATR stop is tight -> expect long losing streaks / high path-variance
   # at leverage 8. R/R cap enforced by construction in the sweep
