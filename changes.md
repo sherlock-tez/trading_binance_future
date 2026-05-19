@@ -1,5 +1,59 @@
 # changes.md
 
+## Loop_20260519_11 - Rejected sup_res_timeframes Probe (inert for ETHUSDC)
+
+### Summary
+Tested narrowing the existing `sup_res_timeframes` config key (no new key
+added) on the converged `Loop_20260519_10` profile. On main this lever drove
+a large SOLUSDC gain, so it was worth checking for ETHUSDC. A 12-subset fast
+sweep (`scripts/ethusdc_srtf.py`) showed aggressive narrowing
+(`[1d,1w]`, `[12h,1d,1w]`, `[6h,12h,1d,1w]`, …) **breaks strict
+monotonicity** for ETHUSDC (12m return collapses to +45–61% while 6m holds
++103%, i.e. 6m > 12m). The only subset that edged baseline,
+`[3h,1d,1w]`, was +0.4% on the 15m fast engine — within fast→canonical
+noise. Config reverted to `Loop_20260519_10`; champion unchanged.
+
+### Affected Files
+- `scripts/ethusdc_srtf.py` (new sup_res_timeframes sweep tool)
+- `changes.md`
+- `backtest_history/Loop_20260519_11/{1,3,6,12,15}m.csv` (probe evidence)
+- `ethusdc_config.yaml` (temporarily set to `[3h,1d,1w]` for the canonical
+  probe, then reverted to `Loop_20260519_10`)
+
+### Reason
+Forever-optimization loop after parameter-search convergence (rounds 5–8,
+~17k evals, 0 gains). `sup_res_timeframes` is the one impactful lever the
+random/refine search never varied; the SOLUSDC precedent justified a probe.
+
+### Backtest Result
+- Command/method: `scripts/ethusdc_srtf.py` fast sweep, then production-path
+  validation `python scripts/backtest.py --symbol ETHUSDC` (canonical
+  `BacktestRunner`, real `SignalEngine + run_trade_cycle +
+  SimulatedExecutionAdapter`) with `sup_res_timeframes=[3h,1d,1w]`.
+- Dataset/time range: Binance Futures ETHUSDC mainnet 1h klines,
+  1m/3m/6m/12m/15m as of 2026-05-19.
+- Loop folder: `backtest_history/Loop_20260519_11/`
+- Key metrics (canonical, `[3h,1d,1w]`): 1m +20.64% / 3m +62.45% / 6m
+  +102.77% / 12m +332.16% / 15m +1339.17%; WR 100/100/88.24/86.49/87.50;
+  DD 67.08% — **byte-identical to `Loop_20260519_10`** on every window.
+- Comparison: zero difference vs `_10` on the production path. For
+  ETHUSDC's converged high-conviction divergence trade set, the binding
+  S/R levels come from 3h/1d/1w; the 6h/12h levels never gate differently,
+  so dropping them changes nothing. The +0.4% fast-engine delta was noise.
+- Conclusion: **rejected — no improvement.** The `sup_res_timeframes`
+  lever is inert for ETHUSDC (in contrast to SOLUSDC). This complements the
+  parameter-search convergence: the ETHUSDC profile is fully optimised
+  within scope. `Loop_20260519_10` remains the production champion.
+- Limitations: only subsets resampleable from the 1h cache were tested
+  (3h/6h/12h/1d/1w); finer intraday S/R sets are not available from cached
+  data.
+
+### Documentation Updated
+- `changes.md`
+- (`algorithms.md` unchanged — champion `Loop_20260519_10` still current.)
+
+---
+
 ## Loop_20260519_10 - ETHUSDC leverage 15->17 + equity 0.98 (15m +1339.17%, dominates Loop_9)
 
 ### Summary
