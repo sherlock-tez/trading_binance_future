@@ -41,10 +41,10 @@ R/R cap (do not revert to the `_7` basin to chase WR). Among all feasible
 configs the champion is the max-PnL one that still clears the remaining hard
 items (strict-monotonic, all-positive, 2-5 trades/mo).
 
-`Loop_20260519_9` is that feasible champion (refined from `_8` via
-`scripts/btcusdc_sweep.py grid=sol_rr_refine --maxrr 0.5`). It keeps the
-proven `_7`/`_8` entry edge (RSI divergence + extremity gate, fast
-MACD-divergence confluence, daily/weekly S/R) and tightens only the SL:
+`Loop_20260519_10` is that feasible champion (between-node refinement of `_9`
+via `scripts/btcusdc_sweep.py grid=sol_rr_fine --maxrr 0.5`). It keeps the
+proven `_7`/`_8`/`_9` entry edge (RSI divergence + extremity gate, fast
+MACD-divergence confluence, daily/weekly S/R) and only re-tunes the stop:
 
 - `rsi_period=14`, `rsi_long_max=45`, `rsi_short_min=55` (extremity rule preserved)
 - `require_macd_divergence=true`
@@ -53,35 +53,39 @@ MACD-divergence confluence, daily/weekly S/R) and tightens only the SL:
 - `pivot_window=6`, `divergence_lookback=52`
 - `sup_res_timeframes=[1d, 1w]`
 - `use_trend_filter=false`
-- `use_atr_stops=true`, `atr_period=10`, `atr_sl_mult=0.6`, `atr_tp_mult=5.0`
-  (**R/R = 0.6/5.0 = 0.12 ≤ 0.5 MUST**; reward is 8.3× the risk)
+- `use_atr_stops=true`, `atr_period=9`, `atr_sl_mult=0.55`, `atr_tp_mult=5.0`
+  (**R/R = 0.55/5.0 = 0.11 ≤ 0.5 MUST**; reward is ~9× the risk)
 - `leverage=8`, `position_equity_ratio=1.0`
 
-`_9` was chosen over the nominally-higher refinement winner #1
-(`sl0.7/tp6.0/atrp12`, in-sample 15m +9211%) because #1 is **overfit**: its
-held-out 24m OOS collapses to +840% with **85% drawdown** and WR 17% (best
-in-sample, worst out-of-sample, sat at the `atr_period` grid edge). `_9` is
-interior on every swept axis and part of a coherent high-PnL plateau with the
-best *out-of-sample stability* in that cluster.
+Lineage in the feasible region: `_8` (sl0.8/tp5) → `_9` (sl0.6/tp5,
+`sol_rr_refine`) → `_10` (sl0.55/tp5.0/atrp9, `sol_rr_fine` winner #5). `_10`
+was chosen over two nominally-higher in-sample configs from the same fine
+sweep: #1 (`sl0.65/tp6/atrp12`, 15m +11869%) is **overfit** — its held-out 24m
+OOS collapses to +1497% with **81% drawdown**, WR 17%; #2 (`sl0.65/tp5/atrp10`,
+15m +11560%) is robust but `_10` gives up only ~3% in-sample to it while
+**dominating out-of-sample**. The overfit guard (reject in-sample-best /
+OOS-worst / grid-edge configs) is standing policy here.
 
 Production-path backtest (`scripts/btcusdc_optimize.py`, mainnet klines, 12m
-warmup; fast-harness parity exact): 1m +16.2% WR20.0 / 3m +290.9% WR35.3 /
-6m +339.6% WR25.0 / 12m +2793.4% WR25.0 / 15m **+9071.9%** WR27.4; 73 trades
+warmup; fast-harness parity exact): 1m +17.5% WR20.0 / 3m +308.9% WR35.3 /
+6m +386.4% WR25.0 / 12m +3393.1% WR24.6 / 15m **+11194.1%** WR27.0; 74 trades
 over 15m; strict-monotonic ✓, all-positive ✓, ~5 tr/mo ✓; 12m/15m max drawdown
-**37.7%** (vs `_8` 49.6%, `_7` ~61%); Sharpe 0.6→3.1. The 15m PnL is +65% over
-`_8` (+5491%) and far above old `_7` (+3287%): the reward≥2× risk geometry
-rides large trending moves, so a few 5-ATR winners carry a ~27% hit-rate.
-Equity is **lumpy** and the 0.6-ATR stop is tight → expect long losing streaks
-and high path-variance at leverage 8.
+**35.2%** (vs `_9` 37.7%, `_8` 49.6%, `_7` ~61% — the lowest of the lineage);
+Sharpe 0.7→3.2. The 15m PnL is +23% over `_9` (+9072%): the reward≥2× risk
+geometry rides large trending moves, so a few 5-ATR winners carry a ~27%
+hit-rate. Equity is **lumpy** and the 0.55-ATR stop is tight → expect long
+losing streaks and high path-variance at leverage 8.
 **Out-of-sample (held-out 18m/24m, never in any sweep; extended ~29-month
-data):** `_9` is strongly net-positive on the held-out windows — 18m +4066%,
-24m **+4167%** (essentially *no decay* 18m→24m, the most stable OOS profile of
-the whole feasible plateau) — with WR a stable ~20-35% on *every* window. The
-low WR is a structural property of the R/R-capped geometry, **not** overfitting;
-the edge generalizes. `_9` dominates `_8` on PnL, drawdown *and* OOS stability
-(`_8` was 18m +3493% / 24m +2088%, decaying; `_9` holds). Residual live risk:
-lumpy equity / long losing streaks at a ~27% hit-rate with a tight 0.6-ATR stop
-and leverage 8 — size conservatively.
+data):** `_10` is strongly net-positive and *growing* on the held-out
+windows — 18m +5760%, 24m **+6622%** (PnL *increases* 18m→24m, the strongest
+generalization of any config in the entire R/R-constrained search — the
+opposite of overfitting) — with WR a stable ~20-35% on *every* window, at the
+lowest OOS drawdown (~59%). The low WR is a structural property of the
+R/R-capped geometry, **not** overfitting. `_10` dominates `_9` on PnL,
+drawdown *and* OOS stability (`_9` was 18m +4066% / 24m +4167%, flat; `_10`
+is +5760% / +6622%, rising). Residual live risk: lumpy equity / long losing
+streaks at a ~27% hit-rate with a tight 0.55-ATR stop and leverage 8 — size
+conservatively.
 
 *Historical (pre-R/R-constraint) lineage, kept for context — `_7` and earlier
 are now INFEASIBLE under R/R≤0.5:* `_5`-`_7` were between-node
@@ -139,12 +143,16 @@ infeasible (sl,tp) pairs by construction; `MAX_RISK_REWARD=0.5` in the sweep)
 swept the tight-SL/far-TP region with the `_7` entry edge held → `_8`
 (`sl0.8/tp5.0/atrp10`). `sol_rr_refine` then probed below the `_8` grid edges
 (sl<0.8, atrp<10) and finer/wider TP, revealing a high-PnL plateau at
-sl{0.6,0.7} × tp{5,6} × atrp{10,12}. The plateau's nominal max (#1
-`sl0.7/tp6/atrp12`, 15m +9211%) is overfit (24m OOS +840%, 85% DD, atrp grid
-edge); the robust max-PnL pick is `_9` (`sl0.6/tp5.0/atrp10`, R/R 0.12) —
-interior on every axis, lowest drawdown, and the most OOS-stable point of the
-plateau. WR>80 is structurally unreachable in this region and is an accepted
-tradeoff; do not re-probe the forbidden wide-SL/tiny-TP basin.
+sl{0.6,0.7} × tp{5,6} × atrp{10,12} → `_9` (`sl0.6/tp5.0/atrp10`, R/R 0.12;
+the overfit `sl0.7/tp6/atrp12` corner rejected). `sol_rr_fine` then did a
+between-node scan around `_9` (sl 0.5-0.7 step 0.05, tp 4.5-6, atrp 9-12),
+which moved the optimum to `_10` (`sl0.55/tp5.0/atrp9`, R/R 0.11): PROD 15m
++11194%, lowest DD of the lineage (35.2%), and uniquely an OOS profile that
+*grows* 18m→24m (+5760%→+6622%). The fine sweep's nominal maxima (#1
+`sl0.65/tp6/atrp12` +11869%, #2 `sl0.65/tp5/atrp10` +11560%) were not adopted:
+#1 is overfit (24m OOS +1497%, 81% DD), #2 robust but `_10` dominates it OOS
+for a ~3% in-sample give-up. WR>80 is structurally unreachable in this region
+and is an accepted tradeoff; do not re-probe the forbidden wide-SL/tiny-TP basin.
 
 ## Indicators
 

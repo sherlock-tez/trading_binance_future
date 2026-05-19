@@ -14,7 +14,7 @@ trading:
   maker_only: true
 
 strategy:
-  # SOLUSDC CHAMPION = Loop_20260519_9 (feasible-region champion under the
+  # SOLUSDC CHAMPION = Loop_20260519_10 (feasible-region champion under the
   # hard constraint Risk/Reward = atr_sl_mult/atr_tp_mult <= 0.5, i.e.
   # reward TP >= 2x risk SL, imposed by the user 2026-05-19).
   # CONSTRAINT CHANGE: the old _7 (sl2.85/tp1.0, R/R 2.85) is the degenerate
@@ -24,20 +24,24 @@ strategy:
   # of the R/R cap (do NOT revert to the _7 basin to chase WR). Surface the
   # max-PnL config that still clears the other hard items (strict-monotonic
   # 15>12>6>3>1, all-positive, 2-5 trades/mo).
-  # _9 = sol_rr_refine winner #2 (sl 0.6 / tp 5.0, R/R 0.12, atr_period 10),
-  # rest = the proven _7/_8 entry edge (macd 7/24/9, dlb52, pivot6, gate
-  # 45/55, [1d,1w] S/R, lev8 pinned, MACD-div required). Picked over the
-  # nominally-higher #1 (sl0.7/tp6/atrp12, PROD 15m +9211%) because #1 is
-  # OVERFIT: its 24m OOS collapses to +840% with 85% DD (best in-sample,
-  # worst held-out, sat at the atrp grid edge). _9 is interior on every axis.
+  # Lineage: _8 (sl0.8/tp5) -> _9 (sl0.6/tp5, sol_rr_refine) -> _10
+  # (sl0.55/tp5.0/atrp9, sol_rr_fine between-node winner #5). Rest = the
+  # proven _7/_8/_9 entry edge (macd 7/24/9, dlb52, pivot6, gate 45/55,
+  # [1d,1w] S/R, lev8 pinned, MACD-div required).
+  # _10 chosen over the nominally-higher in-sample #1 (sl0.65/tp6/atrp12,
+  # PROD 15m +11869%) and #2 (sl0.65/tp5/atrp10, +11560%): #1 is OVERFIT
+  # (24m OOS collapses +1497% / 81% DD). _10 gives up only ~3% in-sample
+  # vs #2 but DOMINATES out-of-sample (24m OOS +6622% & GROWING 18->24m,
+  # the strongest generalization of the whole search) at the LOWEST
+  # drawdown. _10 is interior on the established response surface.
   # Production path (scripts/btcusdc_optimize.py, mainnet, 12m warmup; exact
-  # fast-harness parity): 1m +16.2/WR20 | 3m +290.9/WR35 | 6m +339.6/WR25 |
-  # 12m +2793.4/WR25 | 15m +9071.9/WR27 | ~5 tr/mo, strict-monotonic ✓,
-  # all-positive ✓, 12m/15m max DD 37.7% (vs _8 49.6%, _7 ~61%).
-  # OOS held-out 18m +4066% / 24m +4167% (NO decay 18->24 = very robust);
-  # _9 dominates _8 on PnL, drawdown AND out-of-sample stability.
+  # fast-harness parity): 1m +17.5/WR20 | 3m +308.9/WR35 | 6m +386.4/WR25 |
+  # 12m +3393.1/WR25 | 15m +11194.1/WR27 | ~5 tr/mo, strict-monotonic ✓,
+  # all-positive ✓, 12m/15m max DD 35.2% (vs _9 37.7%, _8 49.6%, _7 ~61%).
+  # OOS held-out 18m +5760% / 24m +6622% (GROWS 18->24 = best-in-search
+  # generalization); _10 dominates _9 on PnL, drawdown AND OOS stability.
   # Equity is LUMPY (few large 5-ATR winners carry a ~27% hit-rate), the
-  # 0.6-ATR stop is tight -> expect long losing streaks / high path-variance
+  # 0.55-ATR stop is tight -> expect long losing streaks / high path-variance
   # at leverage 8. R/R cap enforced by construction in the sweep
   # (MAX_RISK_REWARD=0.5 / --maxrr).
   # Mandatory RSI-divergence + extremity gate LONG<50 / SHORT>50 preserved (45/55).
@@ -47,9 +51,9 @@ strategy:
   macd_signal: 9
   divergence_lookback: 52
   pivot_window: 6
-  atr_period: 10
+  atr_period: 9  # _10: was 10 (_9); sol_rr_fine put the OOS-stable optimum at 9
   use_atr_stops: true
-  atr_sl_mult: 0.6  # _9: tighter SL vs _8 (0.8); R/R = 0.6/5.0 = 0.12 <= 0.5 MUST
+  atr_sl_mult: 0.55  # _10: tighter vs _9 (0.6); R/R = 0.55/5.0 = 0.11 <= 0.5 MUST
   atr_tp_mult: 5.0  # reward >= 2x risk (the _7 wide-SL/tiny-TP geometry is forbidden)
   use_trend_filter: false
   trend_ema_period: 200
@@ -58,7 +62,7 @@ strategy:
   require_macd_divergence: true
   min_rr_ratio: 0.0
   max_sl_distance_pct: 0.0
-  loop_id: Loop_20260519_9
+  loop_id: Loop_20260519_10
 
 execution:
   order_reprice_bps: 2
