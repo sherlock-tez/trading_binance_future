@@ -93,7 +93,7 @@ def apply_overrides(settings: Settings, overrides: Dict[str, Any]) -> Settings:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--grid", type=str, default="basic", choices=["basic", "wide", "fine", "monotonic", "refine", "bigreward", "strictrsi", "neighbor2", "tprange", "pivots", "macd_gate", "aggressive", "trendloose", "atrshift", "atr_push", "eqratio", "fastatr", "indicators", "moretrades", "moretrades_fine", "moretrades_scan", "bigrr", "loop10_refine", "manytrades", "rsi_period_probe", "macd_probe", "loop11_wide", "eth_tight", "eth_wide", "eth_long_filter", "eth_short_tune", "eth_refine", "eth_macd_loop3", "eth_loop4_refine", "eth_bigtp", "eth_megatp", "eth_leverage", "eth_loosen", "eth_tightpivot", "eth_trend_window", "eth_finetune", "eth_macd_params", "eth_srstops", "eth_unlock", "sol_wr80", "sol_wr80_refine", "sol_wr80_deep", "sol_wr80_macd", "sol_wr80_pnl", "sol_wr80_pnl2", "sol_wr80_pnl3", "sol_wr80_edge2", "sol_wr80_struct", "sol_wr80_srtf"])
+    parser.add_argument("--grid", type=str, default="basic", choices=["basic", "wide", "fine", "monotonic", "refine", "bigreward", "strictrsi", "neighbor2", "tprange", "pivots", "macd_gate", "aggressive", "trendloose", "atrshift", "atr_push", "eqratio", "fastatr", "indicators", "moretrades", "moretrades_fine", "moretrades_scan", "bigrr", "loop10_refine", "manytrades", "rsi_period_probe", "macd_probe", "loop11_wide", "eth_tight", "eth_wide", "eth_long_filter", "eth_short_tune", "eth_refine", "eth_macd_loop3", "eth_loop4_refine", "eth_bigtp", "eth_megatp", "eth_leverage", "eth_loosen", "eth_tightpivot", "eth_trend_window", "eth_finetune", "eth_macd_params", "eth_srstops", "eth_unlock", "sol_wr80", "sol_wr80_refine", "sol_wr80_deep", "sol_wr80_macd", "sol_wr80_pnl", "sol_wr80_pnl2", "sol_wr80_pnl3", "sol_wr80_edge2", "sol_wr80_struct", "sol_wr80_srtf", "sol_wr80_srtf2"])
     parser.add_argument("--top", type=int, default=15)
     parser.add_argument("--wrfloor", type=float, default=70.0,
                         help="Minimum win-rate floor (HARD) applied to every window.")
@@ -1168,6 +1168,36 @@ def main():
                 ["3h", "12h", "1d", "1w"],
                 ["1d", "1w"],
                 ["3h", "6h", "1d", "1w"],
+            ],
+        }
+    elif args.grid == "sol_wr80_srtf2":
+        # Re-sweep the entry edge UNDER the new coarse-S/R regime (the
+        # sup_res_timeframes=[1d,1w] win from _4 invalidated the earlier
+        # edge convergence, which was found with the old 5-TF S/R). Explore
+        # macd/pivot/lookback + a few S/R-TF subsets around [1d,1w] at the
+        # fixed champion SL/TP/atr_period/leverage. Hunt for an even better
+        # basin now that S/R is coarse.
+        grid = {
+            "use_atr_stops": [True],
+            "use_trend_filter": [False],
+            "rsi_period": [14],
+            "require_macd_divergence": [True],
+            "rsi_long_max": [45.0],
+            "rsi_short_min": [55.0],
+            "atr_sl_mult": [3.0],
+            "atr_tp_mult": [1.0],
+            "atr_period": [12],
+            "leverage": [8],
+            "position_equity_ratio": [1.0],
+            "macd_signal": [9],
+            "macd_fast": [6, 7, 8],
+            "macd_slow": [21, 24, 28],
+            "pivot_window": [5, 6, 7],
+            "divergence_lookback": [45, 50, 55],
+            "sup_res_timeframes": [
+                ["1d", "1w"],
+                ["1d"],
+                ["12h", "1d", "1w"],
             ],
         }
     else:  # fine
