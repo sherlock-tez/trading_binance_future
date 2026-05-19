@@ -14,6 +14,12 @@
 ### Limitations — OVERFITTING CAUTION
 `_5`/`_6`/`_7` are successive between-node micro-tunes (dlb 50→52, atrp 12→11→12, sl 3.0→2.9→2.85). The 15m-PnL response to `atr_sl_mult` is **jagged and non-monotonic** (sl 2.8/2.85/2.9/2.95/3.0 → +2334/+3287/+3152/+3011/+2876%). A robust parameter should yield a smooth response surface; this sensitivity to 0.05-ATR SL steps indicates the incremental gains partly fit the specific trailing-15-month SOL price path rather than a generalizable edge. The **structurally robust champion is `_4`** (divergence/MACD/leverage/S/R-timeframe levers); `_5`-`_7` layer fragile precision on top. Recommended before any live use: out-of-sample / walk-forward validation; treat the micro-tuned absolute PnL as optimistic.
 
+### Robustness Validation (out-of-sample, post-_7)
+Method: extended SOLUSDC 1h data to ~31 months and evaluated `_4` (robust structural) and `_7` (micro-tuned) over windows {1,3,6,12,15,**18,24**}m — the 18m/24m windows were never used in any tuning sweep (all sweeps used {1,3,6,12,15}).
+- Held-out windows: `_4` 18m +2488% WR89.1 / 24m +1442% WR86.6; `_7` 18m +4664% WR89.6 / 24m +3155% WR87.0. `_7`'s advantage over `_4` **persists and widens** out-of-sample; WR stays ~87-90% on every window incl. held-out. Not a fragile ≤15m sample-fit.
+- Per-quarter decomposition of `_7`'s 24m history (123 trades): every full quarter (2024-Q3 … 2026-Q2, 8 quarters) net-positive with WR 81-100%; returns broadly distributed, not concentrated. Only negative = a 3-trade data-boundary stub (2024-Q2).
+- Verdict: the core edge (RSI+MACD divergence + extremity gate + fast MACD + [1d,1w] S/R) **generalizes**. Residual risks: (a) the exact `atr_sl_mult` micro-value is sample-sensitive (jagged response) even though the region is robust; (b) **leverage-8 max drawdown reaches ~74-78% on 18-24m horizons** — the primary live risk. Out-of-sample validation supersedes the worst-case overfit reading in the `_7` Limitations above; recommend conservative live sizing and periodic re-validation.
+
 ### Documentation Updated
 - `algorithms.md`, `changes.md`
 

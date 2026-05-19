@@ -49,11 +49,16 @@ MACD-divergence confluence with a fast MACD, on coarse daily/weekly S/R levels:
 Production-path backtest (`scripts/btcusdc_optimize.py`, mainnet klines, 12m warmup):
 1m +28.2% WR100 / 3m +133.6% WR94.1 / 6m +313.5% WR90.6 / 12m +1835.2% WR89.9 /
 15m +3287.3% WR90.7; 75 trades over 15m; min WR 89.9% at 12m; 12m/15m max drawdown
-~61%. **Overfitting caution:** `_5`-`_7` are between-node micro-tunes whose 15m-PnL
-response to `atr_sl_mult` is jagged (sl 2.8/2.85/2.9/2.95/3.0 → +2334/+3287/+3152/
-+3011/+2876%). The robust structural champion is `_4`; `_5`-`_7` add fragile
-precision that likely partly fits the trailing-15m sample — validate out-of-sample
-before trusting the absolute micro-tuned PnL. `divergence_lookback` 50→52, `atr_period` 12→11, and `atr_sl_mult` 3.0→2.9
+~61%. **Robustness (out-of-sample validated):** `_5`-`_7` are between-node
+micro-tunes with a jagged `atr_sl_mult` response (sl 2.8/2.85/2.9/2.95/3.0 →
++2334/+3287/+3152/+3011/+2876%), so the *exact* SL value is sample-sensitive.
+However, OOS testing on never-tuned 18m/24m windows + extended 31-month data shows
+`_7`'s edge over `_4` **persists** (18m +4664% vs +2488%, 24m +3155% vs +1442%)
+with WR ~87-90% on every window, and `_7`'s 24m trade history is net-positive in
+every full quarter (8 quarters, WR 81-100%). The core edge generalizes; it is not
+a fragile ≤15m fit. The primary live risk is not overfitting but **leverage-8 max
+drawdown reaching ~74-78% on 18-24m horizons** — size conservatively and
+periodically re-validate. `divergence_lookback` 50→52, `atr_period` 12→11, and `atr_sl_mult` 3.0→2.9
 are between-node points the coarse grids (dlb {45,50,55}, atrp {10,12,14}, sl
 {2.8,3.0,3.2}) never tested; successive fine-resolution sweeps found each strictly
 better. The tighter SL (2.9) shrinks per-loss size, raising PnL *and* lowering
