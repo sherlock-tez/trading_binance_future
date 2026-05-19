@@ -93,7 +93,7 @@ def apply_overrides(settings: Settings, overrides: Dict[str, Any]) -> Settings:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--grid", type=str, default="basic", choices=["basic", "wide", "fine", "monotonic", "refine", "bigreward", "strictrsi", "neighbor2", "tprange", "pivots", "macd_gate", "aggressive", "trendloose", "atrshift", "atr_push", "eqratio", "fastatr", "indicators", "moretrades", "moretrades_fine", "moretrades_scan", "bigrr", "loop10_refine", "manytrades", "rsi_period_probe", "macd_probe", "loop11_wide", "eth_tight", "eth_wide", "eth_long_filter", "eth_short_tune", "eth_refine", "eth_macd_loop3", "eth_loop4_refine", "eth_bigtp", "eth_megatp", "eth_leverage", "eth_loosen", "eth_tightpivot", "eth_trend_window", "eth_finetune", "eth_macd_params", "eth_srstops", "eth_unlock", "sol_wr80", "sol_wr80_refine", "sol_wr80_deep", "sol_wr80_macd", "sol_wr80_pnl", "sol_wr80_pnl2", "sol_wr80_pnl3", "sol_wr80_edge2", "sol_wr80_struct", "sol_wr80_srtf", "sol_wr80_srtf2", "sol_wr80_freq", "sol_wr80_geo", "sol_wr80_trend"])
+    parser.add_argument("--grid", type=str, default="basic", choices=["basic", "wide", "fine", "monotonic", "refine", "bigreward", "strictrsi", "neighbor2", "tprange", "pivots", "macd_gate", "aggressive", "trendloose", "atrshift", "atr_push", "eqratio", "fastatr", "indicators", "moretrades", "moretrades_fine", "moretrades_scan", "bigrr", "loop10_refine", "manytrades", "rsi_period_probe", "macd_probe", "loop11_wide", "eth_tight", "eth_wide", "eth_long_filter", "eth_short_tune", "eth_refine", "eth_macd_loop3", "eth_loop4_refine", "eth_bigtp", "eth_megatp", "eth_leverage", "eth_loosen", "eth_tightpivot", "eth_trend_window", "eth_finetune", "eth_macd_params", "eth_srstops", "eth_unlock", "sol_wr80", "sol_wr80_refine", "sol_wr80_deep", "sol_wr80_macd", "sol_wr80_pnl", "sol_wr80_pnl2", "sol_wr80_pnl3", "sol_wr80_edge2", "sol_wr80_struct", "sol_wr80_srtf", "sol_wr80_srtf2", "sol_wr80_freq", "sol_wr80_geo", "sol_wr80_trend", "sol_wr80_fine"])
     parser.add_argument("--top", type=int, default=15)
     parser.add_argument("--wrfloor", type=float, default=70.0,
                         help="Minimum win-rate floor (HARD) applied to every window.")
@@ -1285,6 +1285,33 @@ def main():
             "use_trend_filter": [True, False],
             "trend_ema_period": [50, 100, 150, 200, 250],
             "atr_tp_mult": [1.0, 1.5, 2.0, 3.0],
+        }
+    elif args.grid == "sol_wr80_fine":
+        # Fine-resolution optimality check tightly around Loop_20260519_4.
+        # All prior SOL grids used coarse steps (macd_slow {21,24,28},
+        # lookback {45,50,55}, atr_period {10,12,14}, sl {2.5,3,3.5}), so _4
+        # is only confirmed as the best COARSE node. This probes between
+        # nodes: does a finer macd_slow / lookback / atr_period / sl exist
+        # that beats _4? Holds the rest of _4 (pivot6, rsi45/55, tp1.0,
+        # [1d,1w], lev8, macdReq True). Adopt only on a strict prod-path gain.
+        grid = {
+            "use_atr_stops": [True],
+            "use_trend_filter": [False],
+            "rsi_period": [14],
+            "require_macd_divergence": [True],
+            "macd_signal": [9],
+            "pivot_window": [6],
+            "rsi_long_max": [45.0],
+            "rsi_short_min": [55.0],
+            "atr_tp_mult": [1.0],
+            "leverage": [8],
+            "position_equity_ratio": [1.0],
+            "sup_res_timeframes": [["1d", "1w"]],
+            "macd_fast": [6, 7, 8],
+            "macd_slow": [22, 23, 24, 25, 26],
+            "divergence_lookback": [48, 49, 50, 51, 52],
+            "atr_period": [11, 12, 13],
+            "atr_sl_mult": [2.8, 3.0, 3.2],
         }
     else:  # fine
         grid = {

@@ -31,7 +31,7 @@ no additional high-conviction trade in the oldest 12-to-15-month segment.
 
 ### Current SOLUSDC Tuned Profile
 
-`Loop_20260519_4` clears the WR>80 requirement while remaining strictly monotonic
+`Loop_20260519_5` clears the WR>80 requirement while remaining strictly monotonic
 (15m > 12m > 6m > 3m > 1m), all-positive, and inside the trades/month band, with
 PnL maximized. It keeps the mandatory RSI divergence + extremity gate and adds
 MACD-divergence confluence with a fast MACD, on coarse daily/weekly S/R levels:
@@ -39,16 +39,19 @@ MACD-divergence confluence with a fast MACD, on coarse daily/weekly S/R levels:
 - `rsi_period=14`, `rsi_long_max=45`, `rsi_short_min=55` (extremity rule preserved)
 - `require_macd_divergence=true`
 - `macd_fast=7`, `macd_slow=24`, `macd_signal=9` (faster than the 12/26/9 default)
-- `pivot_window=6`, `divergence_lookback=50`
+- `pivot_window=6`, `divergence_lookback=52`
 - `sup_res_timeframes=[1d, 1w]` (narrowed from 3h/6h/12h/1d/1w)
 - `use_trend_filter=false`
-- `use_atr_stops=true`, `atr_period=12`, `atr_sl_mult=3.0`, `atr_tp_mult=1.0`
+- `use_atr_stops=true`, `atr_period=11`, `atr_sl_mult=3.0`, `atr_tp_mult=1.0`
 - `leverage=8`, `position_equity_ratio=1.0`
 
 Production-path backtest (`scripts/btcusdc_optimize.py`, mainnet klines, 12m warmup):
-1m +28.2% WR100 / 3m +130.9% WR94.1 / 6m +268.3% WR90.3 / 12m +1141.7% WR89.2 /
-15m +2073.3% WR90.1; 71 trades over 15m; min WR 89.2% at 12m; 12m/15m max drawdown
-~64% (unchanged vs `_3` — same leverage 8). Narrowing `sup_res_timeframes` to the
+1m +28.0% WR100 / 3m +132.0% WR94.1 / 6m +300.0% WR90.6 / 12m +1597.7% WR89.9 /
+15m +2875.7% WR90.7; 75 trades over 15m; min WR 89.9% at 12m; 12m/15m max drawdown
+~64% (unchanged vs `_4` — same leverage 8). `divergence_lookback` 50→52 and
+`atr_period` 12→11 are between-node points the coarse grids (dlb {45,50,55},
+atrp {10,12,14}) never tested; a fine-resolution sweep found them strictly better
+than `_4`: +39% more 15m PnL and +0.6pt min WR at identical leverage/drawdown. Narrowing `sup_res_timeframes` to the
 daily/weekly levels widens the valid-entry zone between the nearest support and
 resistance and filters to structurally stronger reversals: +34% more 15m PnL and
 +2.5pt higher min win rate at identical leverage and drawdown vs `_3`. Leverage 8
@@ -72,13 +75,15 @@ was raised 7→8 on the converged edge (`Loop_20260519_3`, 15m +1543%, DD ~64%),
 the level chosen by the user from the full lev 7→10 PnL/drawdown curve. Finally
 (d) the last untouched lever — `sup_res_timeframes` — was swept: narrowing it from
 3h/6h/12h/1d/1w to just [1d,1w] lifted 15m PnL to +2073% and min WR to 89.2% at
-unchanged leverage/drawdown (`Loop_20260519_4`). `atr_tp_mult` is held at 1.0
-because every wider take-profit variant tested across multiple gate settings drops
-min win rate below 80, so the user's reward-extension hint is firmly bounded by the
-WR>80 MUST. The original `Loop_20260518_7` (macd-off, ~149 trades, ~74% WR) never
-satisfied WR>80. With the divergence/MACD/pivot/SL-TP edge, leverage, and S/R
-timeframes all explored, further PnL within the WR>80 region is now primarily
-leverage-bounded (drawdown grows ~6pt per leverage step).
+unchanged leverage/drawdown (`Loop_20260519_4`). Then (e) a fine-resolution sweep
+between the coarse grid nodes found `divergence_lookback` 50→52 + `atr_period`
+12→11 strictly better still: 15m +2876%, min WR 89.9%, identical drawdown
+(`Loop_20260519_5`). `atr_tp_mult` is held at 1.0 because every wider take-profit
+variant tested across multiple gate settings drops min win rate below 80, so the
+user's reward-extension hint is firmly bounded by the WR>80 MUST. The original
+`Loop_20260518_7` (macd-off, ~149 trades, ~74% WR) never satisfied WR>80. Coarse-
+grid lever exploration is complete; remaining gains are between-node fine-tuning
+(small) or leverage (drawdown-bounded, ~6pt per step).
 
 ## Indicators
 

@@ -1,5 +1,33 @@
 # changes.md
 
+## Loop_20260519_5 - SOLUSDC: fine-grid between-node tune (dlb 50->52, atrp 12->11) — 15m +2876%
+
+### Summary
+`solusdc_config.yaml`: two between-node refinements vs `Loop_20260519_4` — `divergence_lookback` 50→52, `atr_period` 12→11. All other params identical (fast MACD 7/24/9, pivot 6, rsi 45/55, sl3/tp1.0, sup_res [1d,1w], leverage 8). No new config keys (existing keys, value change). Mandatory rule preserved (RSI + MACD divergence; extremity gate 45/55 within LONG<50 / SHORT>50).
+
+### Affected Files
+- `solusdc_config.yaml`
+- `algorithms.md`
+- `changes.md`
+- `scripts/btcusdc_sweep.py` (added `sol_wr80_fine` grid + choice)
+
+### Reason
+Every prior SOL sweep used coarse discrete steps (`divergence_lookback ∈ {45,50,55}`, `atr_period ∈ {10,12,14}`), so `_4` was only confirmed as the best *coarse grid node*, not the true local optimum. A fine-resolution sweep (`sol_wr80_fine`, 675 combos: macd_fast 6-8 × macd_slow 22-26 × dlb 48-52 × atrp 11-13 × sl 2.8-3.2, all else = `_4`) found the between-node point `dlb=52 / atrp=11` strictly dominates `_4`.
+
+### Backtest Result
+- Command/method: search `SWEEP_SYMBOL=SOLUSDC python scripts/btcusdc_sweep.py --grid sol_wr80_fine --wrfloor 80.0`; validation `SWEEP_SYMBOL=SOLUSDC python scripts/btcusdc_optimize.py --windows 1,3,6,12,15` (production path: `SignalEngine.generate_signal` + `run_trade_cycle` + `SimulatedExecutionAdapter`).
+- Dataset/time range: Binance mainnet SOLUSDC 1h klines, 12-month warmup, windows [1,3,6,12,15] months ending 2026-05-19 UTC.
+- Loop folder: `backtest_history/Loop_20260519_5/`.
+- Key metrics (production path): 1m +28.04% WR100.0 (5 tr, DD0.2%) | 3m +131.98% WR94.12 (17, DD18.5%) | 6m +299.98% WR90.62 (32, DD35.7%) | 12m +1597.72% WR89.86 (69, DD63.9%) | 15m +2875.67% WR90.67 (75, DD63.9%). Strict-monotonic ✓, all-positive ✓, min WR 89.86% > 80 ✓, trades 5.0-5.8/mo ✓. Fast-harness search matched the production path exactly.
+- Comparison with previous Loop: vs `_4` (15m +2073.32%, min WR 89.23%, DD ~64%) — 15m PnL +39%, min WR +0.6pt, drawdown unchanged (same leverage 8). Strict improvement at no added risk.
+- Limitations: between-node gain is sensitive to the trailing-15m SOL structure; fine-grid optimum may shift as the data window advances. Funding/ADL/liquidation simplified in simulation.
+
+### Documentation Updated
+- `algorithms.md`
+- `changes.md`
+
+---
+
 ## Loop_20260519_4 - SOLUSDC: narrow sup_res_timeframes to [1d,1w] — 15m +2073%, min WR 89.2%
 
 ### Summary
