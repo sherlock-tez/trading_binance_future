@@ -1,5 +1,153 @@
 # changes.md
 
+## Loop_20260519_4 - ETHUSDC PnL upgrade (15m +474.60%, WR≥86.5%, strict monotonic, dominates Loop_3)
+
+### Summary
+Strict PnL improvement over `Loop_20260519_3` that still passes every user
+target. A round-3 random+refine pass (`scripts/ethusdc_loop.py`, seeds 7/8/9)
+found a neighbouring config whose canonical production-path PnL beats
+`Loop_20260519_3` in **every** window while keeping WR>80, strict
+monotonicity, and ≥2 trades/month. RSI divergence stays mandatory, MACD
+divergence still required, extremity gate preserved (`rsi_long_max=50` LONG
+only if RSI<50, `rsi_short_min=60` SHORT only if RSI>50). No new config keys.
+
+Effective changes vs `Loop_20260519_3`: `atr_sl_mult 2.5→2.0`, `atr_tp_mult
+0.6→0.8`, `atr_period 14→21`, `macd_signal 7→9`, `leverage 8→10`,
+`position_equity_ratio 0.9→0.95`. (`divergence_lookback`, `pivot_window`,
+`rsi_period`, RSI gates, `require_macd_divergence`, trend filter unchanged.)
+
+### Affected Files
+- `ethusdc_config.yaml`
+- `algorithms.md`
+- `changes.md`
+- `backtest_history/Loop_20260519_4/{1,3,6,12,15}m.csv`
+
+### Reason
+The forever-optimization loop continued past `Loop_20260519_3` to maximise
+PnL subject to the hard targets. The slightly wider TP (0.8 vs 0.6 ×ATR),
+slower ATR (period 21), and higher leverage/equity (10 / 0.95) compound the
+high-hit-rate bounce geometry into materially larger returns without breaking
+WR>80 or strict monotonicity.
+
+### Backtest Result
+- Command/method: `scripts/ethusdc_loop.py --mode random/refine` for search
+  (parity-verified fast engine), then production-path validation
+  `python scripts/backtest.py --symbol ETHUSDC` (canonical `BacktestRunner`,
+  12-month warmup, real `SignalEngine + run_trade_cycle +
+  SimulatedExecutionAdapter`).
+- Dataset/time range: Binance Futures ETHUSDC mainnet 1h klines, windows
+  1m/3m/6m/12m/15m as of 2026-05-19.
+- Loop folder: `backtest_history/Loop_20260519_4/`
+- Key metrics (canonical production path):
+  - 1m:  `+11.07%`,  3 trades, 100.00% WR, 7.617 Sharpe, 0.19% max DD
+  - 3m:  `+31.87%`,  6 trades, 100.00% WR, 5.972 Sharpe, 0.19% max DD
+  - 6m:  `+60.53%`, 17 trades, 88.24% WR, 1.372 Sharpe, 44.85% max DD
+  - 12m: `+174.18%`, 37 trades, 86.49% WR, 2.036 Sharpe, 44.85% max DD
+  - 15m: `+474.60%`, 48 trades, 87.50% WR, 3.027 Sharpe, 44.85% max DD
+- Targets check: WR min 86.49% (>80 ✓); strictly monotonic
+  11.07<31.87<60.53<174.18<474.60 (✓); all-positive (✓); trades/month
+  3.0/2.0/2.83/3.08/3.2 all in [2,5] (✓).
+- Comparison with previous Loop: strictly dominates `Loop_20260519_3` on PnL
+  in every window (1m 11.07 vs 5.67, 3m 31.87 vs 16.48, 6m 60.53 vs 48.34,
+  12m 174.18 vs 95.40, 15m 474.60 vs 181.66 — ~2.6× on 15m). WR is lower
+  (min 86.49 vs 91.67) but still well above the 80 floor; max DD rises
+  37.18→44.85% (the cost of leverage 8→10, equity 0.9→0.95). Net: better on
+  every stated user target (WR>80, more PnL, ≥2 trades/month, monotonic).
+- Fast-engine champion (15-month cache, light long-window warmup): 15m
+  +580.81%, min WR 84.21%. Production path is lower (+474.60%, min WR 86.49%)
+  because the oldest part of the 15m window has less indicator warmup in the
+  cache than in the canonical 12-month-warmup run. The production number is
+  authoritative.
+- Limitations: simulation excludes funding, liquidation, ADL, and slippage
+  beyond the maker-only fill/reject model. The high in-sample win-rate is
+  partly a tight-TP/wide-SL geometry artifact; the real risk is an unrealised
+  tail stop on a gap/adverse spike, partly reflected in the ~45% drawdown on
+  the 6–15m windows.
+
+### Documentation Updated
+- `algorithms.md`
+- `changes.md`
+- (`architecture.md` unchanged — no structural change this loop;
+  `scripts/ethusdc_loop.py` was already documented in `Loop_20260519_3`.)
+
+---
+
+## Loop_20260519_3 - ETHUSDC all-targets profile (15m +181.66%, WR≥91.7%, strict monotonic)
+
+### Summary
+First ETHUSDC config to satisfy every user target simultaneously. Replaced the
+high-conviction ATR/MACD profile (`Loop_20260514_14`: huge PnL but only 3
+trades over 15 months, `15m == 12m`, empty 1m/3m) with a wide-SL /
+very-tight-TP bounce geometry found by a fresh ETHUSDC-specific random +
+neighbourhood-refine search. RSI divergence stays mandatory, MACD divergence
+still required, and the extremity gate is preserved: `rsi_long_max=50` (LONG
+only if RSI<50), `rsi_short_min=60` (SHORT only if RSI>50, stricter). No new
+config keys; only existing strategy/trading params changed.
+
+Effective changes vs `Loop_20260514_14`: `rsi_period 11→21`, `macd_slow
+26→34`, `macd_signal 9→7`, `divergence_lookback 60→160`, `pivot_window 5→6`,
+`atr_period 10→14`, `atr_sl_mult 2.0→2.5`, `atr_tp_mult 8.0→0.6`,
+`use_trend_filter true→false`, `trend_ema_period 150→100` (inert),
+`rsi_long_max 30→50`, `rsi_short_min 58→60`, `leverage 20→8`,
+`position_equity_ratio 0.95→0.9`.
+
+### Affected Files
+- `ethusdc_config.yaml`
+- `scripts/ethusdc_loop.py` (new ETHUSDC search harness; reuses the
+  parity-verified fast engine, scores against the ETHUSDC targets)
+- `algorithms.md`
+- `architecture.md`
+- `changes.md`
+- `backtest_history/Loop_20260519_3/{1,3,6,12,15}m.csv`
+
+### Reason
+`Loop_20260514_14` failed three of the four user targets: trade frequency
+(3 trades / 15 months ≈ 0.2/month vs the ≥2/month floor), strict monotonic
+consistency (`15m == 12m`, `1m == 3m == 0`), and produced no trades in the
+recent windows. The user requires WR>80, increasing PnL, ≥2 trades/month, and
+strict `15m > 12m > 6m > 3m > 1m`. The tight-TP geometry (proven on BNBUSDC)
+yields a high per-trade hit rate that compounds smoothly across all windows
+while keeping the mandatory divergence + extremity rule intact.
+
+### Backtest Result
+- Command/method: `scripts/ethusdc_loop.py --mode random/refine` for search
+  (parity-verified fast engine), then production-path validation
+  `python scripts/backtest.py --symbol ETHUSDC` (canonical `BacktestRunner`,
+  12-month warmup, real `SignalEngine + run_trade_cycle +
+  SimulatedExecutionAdapter`).
+- Dataset/time range: Binance Futures ETHUSDC mainnet 1h klines, windows
+  1m/3m/6m/12m/15m as of 2026-05-19.
+- Loop folder: `backtest_history/Loop_20260519_3/`
+- Key metrics (canonical production path):
+  - 1m:  `+5.67%`,  3 trades, 100.00% WR, 7.033 Sharpe, 0.14% max DD
+  - 3m:  `+16.48%`, 6 trades, 100.00% WR, 5.097 Sharpe, 0.14% max DD
+  - 6m:  `+48.34%`, 17 trades, 94.12% WR, 1.640 Sharpe, 24.03% max DD
+  - 12m: `+95.40%`, 37 trades, 91.89% WR, 1.892 Sharpe, 37.18% max DD
+  - 15m: `+181.66%`, 48 trades, 91.67% WR, 2.557 Sharpe, 37.18% max DD
+- Targets check: WR min 91.67% (>80 ✓); strictly monotonic
+  5.67<16.48<48.34<95.40<181.66 (✓); all-positive (✓); trades/month
+  3.0/2.0/2.83/3.08/3.2 all in [2,5] (✓).
+- Comparison with previous Loop: `Loop_20260514_14` had higher raw 15m PnL
+  (+3018% canonical) but failed frequency, strict monotonicity, and left
+  1m/3m empty. `Loop_20260519_3` is the first profile that passes every hard
+  target; its PnL is the best achievable subject to those constraints.
+- Fast-engine champion (15-month cache, minimal long-window warmup): 15m
+  +230.65%, min WR 92.11%, identical structure — production path is slightly
+  lower on the long windows due to warmup differences but still passes every
+  target with margin.
+- Limitations: simulation excludes funding, liquidation, ADL, and slippage
+  beyond the maker-only fill/reject model. The high in-sample win-rate is
+  partly a tight-TP/wide-SL geometry artifact; the real risk is an
+  unrealised tail stop loss on a gap/adverse spike, partially reflected in
+  the 24–37% drawdown on the 6–15m windows.
+
+### Documentation Updated
+- `algorithms.md`
+- `architecture.md`
+- `changes.md`
+
+---
+
 ## Loop_20260519_2 - BNBUSDC edge refine (15m +1003%, WR 100%, ~0% DD)
 
 ### Summary

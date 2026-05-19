@@ -11,52 +11,55 @@ trading:
     - 12h
     - 1d
     - 1w
-  # ETH Loop_10 keeps leverage at 20 and restores full capital deployment. Canonical
-  # backtest shows this improves PnL versus the 0.95 sizing without changing signals.
-  leverage: 20
+  # ETH Loop_20260519_4: leverage 8->10 + equity 0.9->0.95. The wide-SL /
+  # tight-TP bounce geometry below produces a very high per-trade hit rate, so
+  # this moderate leverage compounds to large PnL while every window stays
+  # WR>80, strictly monotonic, and >=2 trades/month.
+  leverage: 10
   max_open_positions: 1
   position_equity_ratio: 0.95
   maker_only: true
 
 strategy:
-  # ETH Loop_5: refined around Loop_4 winner. rsi_period 9→11 (slightly slower),
-  # tighter SL (2.5→2.0) + wider TP (3.0→4.0) gives RR=2.0 (vs L4's 1.2). Same 5
-  # signals fire but each captures a larger move. 15m PnL doubles: +181% → +399%.
-  rsi_period: 11
+  # ETH Loop_20260519_4: random+refine search (scripts/ethusdc_loop.py, parity
+  # verified fast engine) for the all-targets ETHUSDC profile. RSI divergence
+  # stays mandatory, MACD divergence still required, extremity gate kept
+  # (rsi_long_max<=50 / rsi_short_min>=50). Slower RSI (->21) filters to the
+  # highest-conviction reversals.
+  rsi_period: 21
   macd_fast: 12
-  macd_slow: 26
+  macd_slow: 34
   macd_signal: 9
-  divergence_lookback: 60
-  pivot_window: 5
-  # Volatility-aware stops via ATR (replaces support/resistance buffer sizing).
-  # ETH Loop_10 shortens ATR memory to 10 so stops/targets respond faster to the
-  # current volatility regime while keeping the same 4R reward profile.
-  atr_period: 10
+  # Long divergence memory (->160) so a divergence only fires off the most
+  # significant prior pivot, lifting win-rate on every window.
+  divergence_lookback: 160
+  pivot_window: 6
+  # Volatility-aware stops via ATR. Loop_20260519_4 uses atr_period 21 and a
+  # wide-SL / tight-TP geometry: SL=2.0*ATR rarely reached while TP=0.8*ATR is
+  # hit quickly, giving a high per-trade win rate. PnL comes from a high hit
+  # rate compounding, not from a large reward multiple.
+  atr_period: 21
   use_atr_stops: true
-  # ETH Loop_7: TP 7.0→8.0 (RR jumps 3.50→4.00). Sweep confirmed 8.0 is the global
-  # sweet spot — at TP=9 the largest winner reverses before hitting target, collapsing
-  # WR to 66.67% with sharp PnL loss. 8.0 captures the full ETH directional excursion.
   atr_sl_mult: 2.0
-  atr_tp_mult: 8.0
-  # Trend filter on signal timeframe: LONG only when price > EMA, SHORT only when price < EMA.
-  use_trend_filter: true
-  trend_ema_period: 150
-  # RSI extremity gate. Mandatory rule: LONG <50 / SHORT >50. Loop_3 tightens further:
-  # rsi_long_max=35 (only LONG on deep RSI oversold) + rsi_short_min=62 (slightly
-  # looser short, captures more profitable shorts than 65).
-  rsi_long_max: 30.0
-  rsi_short_min: 58.0
-  # ETH Loop_4: require MACD divergence ALONGSIDE the mandatory RSI divergence.
-  # This is an ADDITIONAL filter (stricter than mandatory rule), not a replacement —
-  # the mandatory RSI-divergence rule still holds, we just demand confirmation.
-  # Cuts trade count from 17 to 5 but every survivor is a high-conviction signal.
+  atr_tp_mult: 0.8
+  # Trend filter disabled for ETHUSDC: the divergence + extremity + S/R
+  # confluence already gates direction; the EMA filter only removed
+  # qualifying high-WR setups. trend_ema_period kept but inert.
+  use_trend_filter: false
+  trend_ema_period: 100
+  # RSI extremity gate. Mandatory rule preserved: LONG only if RSI < 50
+  # (rsi_long_max=50), SHORT only if RSI > 50 (rsi_short_min=60 is stricter,
+  # still satisfies the rule).
+  rsi_long_max: 50.0
+  rsi_short_min: 60.0
+  # MACD divergence still required ALONGSIDE the mandatory RSI divergence.
   require_macd_divergence: true
   # Reward/risk + max-SL-distance gates (currently inactive; preserved for future tuning).
   min_rr_ratio: 0.0
   max_sl_distance_pct: 0.0
-  # Loop identifier. Loop_20260514_14 keeps Loop_10 parameters but runs with
-  # pivot-timestamp duplicate filtering in the shared trade cycle.
-  loop_id: Loop_20260514_14
+  # Loop identifier. Loop_20260519_4 is the all-targets ETHUSDC profile
+  # (WR>80 every window, strict monotonic 15>12>6>3>1, >=2 trades/month).
+  loop_id: Loop_20260519_4
 
 execution:
   order_reprice_bps: 2
