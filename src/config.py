@@ -60,6 +60,13 @@ class Settings:
     loop_id: str = "Loop_20260513_1"
     backtest_history_dir: str = "backtest_history"
 
+    # Websocket resilience tuning (env-overridable for remote diagnosis).
+    ws_stream_path_mode: str = "legacy"
+    ws_staleness_timeout: float = 90.0
+    ws_rest_fallback_after: int = 3
+    ws_rest_poll_seconds: float = 30.0
+    ws_recover_probe_seconds: float = 300.0
+
 
 class ConfigError(ValueError):
     pass
@@ -100,6 +107,17 @@ def _as_int_list(value: Any, *, default: List[int] | None = None) -> List[int]:
     if isinstance(value, str):
         return [int(item.strip()) for item in value.split(",") if item.strip()]
     raise ConfigError(f"Expected list or csv string for int list, got: {type(value)}")
+
+
+def _env_or_cfg(env_key: str, cfg: dict[str, Any], cfg_key: str, default: Any) -> Any:
+    """Resolve a tunable as env var first, then YAML section value, then default."""
+    raw = os.getenv(env_key)
+    if raw is not None and raw.strip() != "":
+        return raw.strip()
+    value = cfg.get(cfg_key)
+    if value is not None:
+        return value
+    return default
 
 
 def _read_yaml_config(config_path: Path) -> dict[str, Any]:
@@ -204,6 +222,21 @@ def load_settings(symbol: str | None = None) -> Settings:
         require_macd_divergence=_parse_bool(strategy_cfg.get("require_macd_divergence"), default=True),
         loop_id=str(strategy_cfg.get("loop_id", "Loop_20260513_1")).strip(),
         backtest_history_dir=str(backtest_cfg.get("history_dir", "backtest_history")).strip(),
+        ws_stream_path_mode=str(
+            _env_or_cfg("WS_STREAM_PATH_MODE", runtime_cfg, "ws_stream_path_mode", "legacy")
+        ).strip().lower(),
+        ws_staleness_timeout=float(
+            _env_or_cfg("WS_STALENESS_TIMEOUT", runtime_cfg, "ws_staleness_timeout", 90.0)
+        ),
+        ws_rest_fallback_after=int(
+            _env_or_cfg("WS_REST_FALLBACK_AFTER", runtime_cfg, "ws_rest_fallback_after", 3)
+        ),
+        ws_rest_poll_seconds=float(
+            _env_or_cfg("WS_REST_POLL_SECONDS", runtime_cfg, "ws_rest_poll_seconds", 30.0)
+        ),
+        ws_recover_probe_seconds=float(
+            _env_or_cfg("WS_RECOVER_PROBE_SECONDS", runtime_cfg, "ws_recover_probe_seconds", 300.0)
+        ),
     )
 
     if settings.leverage <= 0:
@@ -212,5 +245,17 @@ def load_settings(symbol: str | None = None) -> Settings:
         raise ConfigError("POSITION_EQUITY_RATIO must be in (0, 1]")
     if settings.max_open_positions <= 0:
         raise ConfigError("MAX_OPEN_POSITIONS must be > 0")
+    if settings.ws_stream_path_mode not in {"legacy", "market", "raw"}:
+        raise ConfigError(
+            "WS_STREAM_PATH_MODE must be one of: legacy, market, raw"
+        )
+    if settings.ws_staleness_timeout <= 0:
+        raise ConfigError("WS_STALENESS_TIMEOUT must be > 0")
+    if settings.ws_rest_fallback_after <= 0:
+        raise ConfigError("WS_REST_FALLBACK_AFTER must be > 0")
+    if settings.ws_rest_poll_seconds <= 0:
+        raise ConfigError("WS_REST_POLL_SECONDS must be > 0")
+    if settings.ws_recover_probe_seconds <= 0:
+        raise ConfigError("WS_RECOVER_PROBE_SECONDS must be > 0")
 
     return settings
