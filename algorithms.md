@@ -50,20 +50,47 @@ real live tail risk.
 
 ### Current ETHUSDC Tuned Profile
 
-`Loop_20260514_14` keeps the mandatory RSI divergence plus extremity gate and uses
-the high-conviction ATR/MACD mode:
+`Loop_20260519_8` keeps the mandatory RSI divergence plus extremity gate and
+the required MACD divergence, and uses a wide-SL / tight-TP bounce geometry on
+those high-conviction divergence entries:
 
-- `rsi_period=11`, `rsi_long_max=30`, `rsi_short_min=58`
-- `require_macd_divergence=true`
-- `pivot_window=5`, `divergence_lookback=60`
-- `use_trend_filter=true`, `trend_ema_period=150`
-- `use_atr_stops=true`, `atr_period=10`, `atr_sl_mult=2.0`, `atr_tp_mult=8.0`
-- `leverage=20`, `position_equity_ratio=1.0`
+- `rsi_period=21`, `rsi_long_max=50`, `rsi_short_min=60`
+- `require_macd_divergence=true` (RSI divergence still mandatory)
+- `pivot_window=6`, `divergence_lookback=160`
+- `use_trend_filter=false`, `trend_ema_period=100` (inactive)
+- `use_atr_stops=true`, `atr_period=21`, `atr_sl_mult=2.0`, `atr_tp_mult=0.8`
+- `macd_fast=12`, `macd_slow=34`, `macd_signal=9`
+- `leverage=10`, `position_equity_ratio=0.95`
 
-This profile favors win rate, PnL, and drawdown quality over signal frequency. The
-latest canonical ETHUSDC backtest improved 15-month return and win rate versus
-`Loop_20260514_9`, but it still produces no trade in the latest 1-month window and
-no additional high-conviction trade in the oldest 12-to-15-month segment.
+Production-path canonical backtest (`scripts/backtest.py --symbol ETHUSDC`,
+12-month warmup, real `SignalEngine + run_trade_cycle +
+SimulatedExecutionAdapter`): 1m +11.07% / 3m +31.87% / 6m +60.53% / 12m
++174.18% / 15m +474.60%; win-rate 100/100/88.2/86.5/87.5% (min 86.49%);
+strictly monotonic 15>12>6>3>1; all-positive; 2.0–3.2 trades/month; Sharpe
+1.4–7.6; max drawdown 0.19% on 1m/3m rising to 44.85% on 6/12/15m. This
+strictly dominates `Loop_20260519_7` on PnL in every window (e.g. 15m
++474.60% vs +181.66%, ~2.6×) while still satisfying every target (WR>80 on
+every window, strict monotonic consistency, ≥2 trades/month, all-positive).
+
+The tight TP (0.8×ATR) relative to a wide SL (2.0×ATR) gives a high per-trade
+hit rate; the slower RSI (`rsi_period=21`) plus long divergence memory
+(`divergence_lookback=160`) filter to the highest-conviction reversals. Found
+via `scripts/ethusdc_loop.py` (random map + neighbourhood refine,
+ETHUSDC-specific reuse of the parity-verified fast engine), then re-validated
+on the production path before adoption. Lineage: `Loop_20260519_7`
+(first all-targets pass, 15m +181.66%) → `Loop_20260519_8` (round-3 refine,
+15m +474.60%, current).
+
+**Caveat:** as with the BNBUSDC tight-TP profile, the high in-sample win-rate
+is partly a geometry artifact — a 2.0×ATR stop is rarely reached when the TP
+is only 0.8×ATR, but a gap/adverse spike can still hit it live. The real risk
+is the unrealised tail loss, not the in-sample variance; the ~45% drawdown on
+the 6–15m windows already reflects some of those stop hits and is the price
+of the higher leverage (10) and equity ratio (0.95) that drive the larger
+PnL. The fast-engine search reported 15m +580.81%; the production path is
+lower (+474.60%) because the oldest part of the 15-month window has less
+indicator warmup in the 15-month cache than in the 12-month-warmup canonical
+run — the production number is the authoritative one.
 
 ### Current BNBUSDC Tuned Profile
 

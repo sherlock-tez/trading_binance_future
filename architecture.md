@@ -20,7 +20,7 @@ A shared strategy core is used by both live trading and backtest simulation.
 - Loads non-secret runtime and strategy parameters from YAML in the project root.
 - Per-symbol files: `btcusdc_config.yaml`, `btcusdt_config.yaml`, `ethusdc_config.yaml`, `ethusdt_config.yaml`. Each carries its own `symbols`, strategy params, and backtest settings so symbols can be tuned independently.
 - `load_settings(symbol)` resolves `{symbol}_config.yaml` (case-insensitive). Missing per-symbol files raise `ConfigError` instead of silently falling back. `load_settings()` with no symbol reads the legacy `config.yaml`.
-- Entry-point scripts (`scripts/backtest.py`, `scripts/live.py`) accept `--symbol`. Symbol-specific harnesses (`scripts/btcusdc_*.py`) load `btcusdc_config.yaml` directly.
+- Entry-point scripts (`scripts/backtest.py`, `scripts/live.py`) accept `--symbol`. Symbol-specific harnesses (`scripts/btcusdc_*.py`) are symbol-parametric via the `SWEEP_SYMBOL` env var. Per-symbol search drivers (`scripts/bnbusdc_loop.py`, `scripts/ethusdc_loop.py`) reuse the parity-verified fast engine for random + neighbourhood-refine parameter search against that symbol's targets; any winning config is always re-validated on the production path before adoption.
 - Validates leverage, maker mode, windows, and that `symbols` is non-empty.
 
 ### Data Layer
