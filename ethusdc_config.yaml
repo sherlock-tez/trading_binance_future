@@ -57,9 +57,9 @@ strategy:
   # Reward/risk + max-SL-distance gates (currently inactive; preserved for future tuning).
   min_rr_ratio: 0.0
   max_sl_distance_pct: 0.0
-  # Loop identifier. Loop_20260519_10 probes leverage 17 + equity 0.98 + atr 28 vs Loop_20260519_9
+  # Loop identifier. Loop_20260519_13 = leverage 17 + equity 0.98 (ETHUSDC champion; renumbered from _10 to avoid main collision)
   # (WR>80 every window, strict monotonic 15>12>6>3>1, >=2 trades/month).
-  loop_id: Loop_20260519_10
+  loop_id: Loop_20260519_13
 
 execution:
   order_reprice_bps: 2

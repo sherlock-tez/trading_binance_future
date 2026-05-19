@@ -50,7 +50,7 @@ real live tail risk.
 
 ### Current ETHUSDC Tuned Profile
 
-`Loop_20260519_10` keeps the mandatory RSI divergence plus extremity gate and
+`Loop_20260519_13` keeps the mandatory RSI divergence plus extremity gate and
 the required MACD divergence, and uses a wide-SL / tight-TP bounce geometry on
 those high-conviction divergence entries:
 
@@ -68,7 +68,7 @@ SimulatedExecutionAdapter`): 1m +20.64% / 3m +62.45% / 6m +102.77% / 12m
 +332.16% / 15m +1339.17%; win-rate 100/100/88.2/86.5/87.5% (min 86.49%);
 strictly monotonic 15>12>6>3>1; all-positive; 2.0–3.2 trades/month; max
 drawdown 0.33% on 1m/3m rising to 67.08% on 6/12/15m. The trade set and
-win-rate are byte-identical to `Loop_20260519_9` (same 3/6/17/37/48 trades,
+win-rate are byte-identical to `Loop_20260519_12` (same 3/6/17/37/48 trades,
 same WR), so `atr_period 21→28` and `macd_signal 9→7` are inert on this data;
 the entire PnL gain over `_9` (15m +1339.17% vs +955.57%, +40%) is
 `leverage 15→17` + `position_equity_ratio 0.95→0.98`. It strictly dominates
@@ -81,8 +81,8 @@ via `scripts/ethusdc_loop.py` (random map + neighbourhood refine,
 ETHUSDC-specific reuse of the parity-verified fast engine), then re-validated
 on the production path before adoption. Lineage: `Loop_20260519_7`
 (first all-targets pass, 15m +181.66%) → `Loop_20260519_8` (round-3 refine,
-15m +474.60%) → `Loop_20260519_9` (leverage 10→15, 15m +955.57%) →
-`Loop_20260519_10` (leverage 15→17 + equity 0.95→0.98, 15m +1339.17%,
+15m +474.60%) → `Loop_20260519_12` (leverage 10→15, 15m +955.57%) →
+`Loop_20260519_13` (leverage 15→17 + equity 0.95→0.98, 15m +1339.17%,
 current). **The trading algorithm itself converged at `_8`; `_9`/`_10` are
 pure leverage/equity risk-scaling — the entry/exit/geometry is unchanged and
 six independent search rounds found no further algorithmic edge in the
