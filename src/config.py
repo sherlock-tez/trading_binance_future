@@ -60,6 +60,9 @@ class Settings:
     loop_id: str = "Loop_20260513_1"
     backtest_history_dir: str = "backtest_history"
 
+    # Market-data source: "websocket" (default) or "rest" (poll only, no WS).
+    market_data_mode: str = "websocket"
+
     # Websocket resilience tuning (env-overridable for remote diagnosis).
     ws_stream_path_mode: str = "legacy"
     ws_staleness_timeout: float = 90.0
@@ -222,6 +225,9 @@ def load_settings(symbol: str | None = None) -> Settings:
         require_macd_divergence=_parse_bool(strategy_cfg.get("require_macd_divergence"), default=True),
         loop_id=str(strategy_cfg.get("loop_id", "Loop_20260513_1")).strip(),
         backtest_history_dir=str(backtest_cfg.get("history_dir", "backtest_history")).strip(),
+        market_data_mode=str(
+            _env_or_cfg("MARKET_DATA_MODE", runtime_cfg, "market_data_mode", "websocket")
+        ).strip().lower(),
         ws_stream_path_mode=str(
             _env_or_cfg("WS_STREAM_PATH_MODE", runtime_cfg, "ws_stream_path_mode", "legacy")
         ).strip().lower(),
@@ -245,6 +251,8 @@ def load_settings(symbol: str | None = None) -> Settings:
         raise ConfigError("POSITION_EQUITY_RATIO must be in (0, 1]")
     if settings.max_open_positions <= 0:
         raise ConfigError("MAX_OPEN_POSITIONS must be > 0")
+    if settings.market_data_mode not in {"websocket", "rest"}:
+        raise ConfigError("MARKET_DATA_MODE must be one of: websocket, rest")
     if settings.ws_stream_path_mode not in {"legacy", "market", "raw"}:
         raise ConfigError(
             "WS_STREAM_PATH_MODE must be one of: legacy, market, raw"

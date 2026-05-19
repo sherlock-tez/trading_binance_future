@@ -270,6 +270,49 @@ def test_rest_fallback_emits_and_dedupes(monkeypatch):
     assert ev.close_price == 1.6
 
 
+def test_rest_only_mode_never_opens_websocket(monkeypatch):
+    svc = _service()
+    closes: list[CandleEvent] = []
+
+    def _no_ws(*_a, **_k):
+        raise AssertionError("websocket must not be opened in rest mode")
+
+    async def _no_probe(*_a, **_k):
+        raise AssertionError("probe must not run in rest-only mode")
+
+    frame = pd.DataFrame(
+        {
+            "open_time": [10, 20, 30],
+            "open": [1.0, 1.0, 1.0],
+            "high": [2.0, 2.0, 2.0],
+            "low": [0.5, 0.5, 0.5],
+            "close": [1.5, 1.6, 1.7],
+            "volume": [10.0, 11.0, 12.0],
+            "close_time": [19, 29, 39],  # closed candle = row[-2] -> close_time 29
+        }
+    )
+    monkeypatch.setattr(bf.websockets, "connect", _no_ws)
+    monkeypatch.setattr(svc, "_probe_ws", _no_probe)
+    monkeypatch.setattr(svc, "fetch_klines_frame", lambda *a, **k: frame)
+    _patch_sleep(monkeypatch, stop_after=2)
+
+    async def run():
+        with pytest.raises(_StopLoop):
+            await svc.stream_closed_klines(
+                ["SOLUSDC"], "1m", lambda e: closes.append(e),
+                on_error=lambda m: None,
+                mode="rest",
+                rest_poll_seconds=0.0,
+                recover_probe_seconds=0.0,
+            )
+
+    asyncio.run(run())
+    # REST emitted the closed candle exactly once (deduped on the 2nd poll),
+    # and neither websockets.connect nor _probe_ws was ever called.
+    assert len(closes) == 1
+    assert closes[0].close_time == 29
+
+
 # --------------------------------------------------------------- config knobs
 
 def test_settings_ws_env_override(monkeypatch):
@@ -284,5 +327,17 @@ def test_settings_ws_env_override(monkeypatch):
 
 def test_settings_invalid_ws_mode_raises(monkeypatch):
     monkeypatch.setenv("WS_STREAM_PATH_MODE", "bogus")
+    with pytest.raises(ConfigError):
+        load_settings()
+
+
+def test_settings_market_data_mode_env(monkeypatch):
+    monkeypatch.setenv("MARKET_DATA_MODE", "rest")
+    s = load_settings()
+    assert s.market_data_mode == "rest"
+
+
+def test_settings_invalid_market_data_mode_raises(monkeypatch):
+    monkeypatch.setenv("MARKET_DATA_MODE", "bogus")
     with pytest.raises(ConfigError):
         load_settings()

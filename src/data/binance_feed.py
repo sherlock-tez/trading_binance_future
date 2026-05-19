@@ -229,6 +229,7 @@ class BinanceMarketDataService:
         on_close: Callable[[CandleEvent], Any],
         *,
         on_error: Optional[Callable[[str], Any]] = None,
+        mode: str = "websocket",
         staleness_timeout: float = STREAM_STALENESS_TIMEOUT,
         stream_path_mode: str = "legacy",
         rest_fallback_after: int = 3,
@@ -280,6 +281,26 @@ class BinanceMarketDataService:
             result = on_close(event)
             if asyncio.iscoroutine(result):
                 await result
+
+        if mode == "rest":
+            logger.info(
+                "Market data mode: REST polling only (websocket disabled); "
+                "polling %s every %.0fs",
+                ",".join(symbols),
+                rest_poll_seconds,
+            )
+            await self._poll_closed_klines(
+                symbols,
+                timeframe,
+                on_close,
+                _emit_failure,
+                last_close_time,
+                ws_url,
+                rest_poll_seconds,
+                recover_probe_seconds,
+                probe_for_recovery=False,
+            )
+            return
 
         backoff = RECONNECT_BACKOFF_BASE
         consecutive_stalls = 0
@@ -400,12 +421,16 @@ class BinanceMarketDataService:
         ws_url: str,
         poll_seconds: float,
         probe_seconds: float,
+        *,
+        probe_for_recovery: bool = True,
     ) -> None:
-        """REST-poll closed klines until the websocket recovers.
+        """REST-poll closed klines.
 
         Emits each newly-closed candle through the same `on_close` path,
-        deduped via the shared `last_close_time` map. Returns when a
-        websocket probe succeeds (caller resumes websocket mode).
+        deduped via the shared `last_close_time` map. When
+        `probe_for_recovery` is True (fallback use) it returns once a
+        websocket probe succeeds so the caller resumes websocket mode;
+        when False (REST-only mode) it polls forever and never probes.
         """
         logger.warning(
             "REST fallback engaged: polling %s every %.0fs (ws probe every %.0fs)",
@@ -458,7 +483,7 @@ class BinanceMarketDataService:
                 if asyncio.iscoroutine(result):
                     await result
 
-            if time.monotonic() - last_probe >= probe_seconds:
+            if probe_for_recovery and time.monotonic() - last_probe >= probe_seconds:
                 last_probe = time.monotonic()
                 if await self._probe_ws(ws_url):
                     logger.info("Websocket probe succeeded; leaving REST fallback")

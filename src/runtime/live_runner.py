@@ -272,6 +272,7 @@ class LiveTradingRunner:
                 self.settings.signal_timeframe,
                 self._on_closed_candle,
                 on_error=self._alert_stream,
+                mode=self.settings.market_data_mode,
                 staleness_timeout=self.settings.ws_staleness_timeout,
                 stream_path_mode=self.settings.ws_stream_path_mode,
                 rest_fallback_after=self.settings.ws_rest_fallback_after,
