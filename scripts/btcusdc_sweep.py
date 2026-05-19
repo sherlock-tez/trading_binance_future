@@ -93,7 +93,7 @@ def apply_overrides(settings: Settings, overrides: Dict[str, Any]) -> Settings:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--grid", type=str, default="basic", choices=["basic", "wide", "fine", "monotonic", "refine", "bigreward", "strictrsi", "neighbor2", "tprange", "pivots", "macd_gate", "aggressive", "trendloose", "atrshift", "atr_push", "eqratio", "fastatr", "indicators", "moretrades", "moretrades_fine", "moretrades_scan", "bigrr", "loop10_refine", "manytrades", "rsi_period_probe", "macd_probe", "loop11_wide", "eth_tight", "eth_wide", "eth_long_filter", "eth_short_tune", "eth_refine", "eth_macd_loop3", "eth_loop4_refine", "eth_bigtp", "eth_megatp", "eth_leverage", "eth_loosen", "eth_tightpivot", "eth_trend_window", "eth_finetune", "eth_macd_params", "eth_srstops", "eth_unlock", "sol_wr80", "sol_wr80_refine", "sol_wr80_deep", "sol_wr80_macd", "sol_wr80_pnl", "sol_wr80_pnl2", "sol_wr80_pnl3"])
+    parser.add_argument("--grid", type=str, default="basic", choices=["basic", "wide", "fine", "monotonic", "refine", "bigreward", "strictrsi", "neighbor2", "tprange", "pivots", "macd_gate", "aggressive", "trendloose", "atrshift", "atr_push", "eqratio", "fastatr", "indicators", "moretrades", "moretrades_fine", "moretrades_scan", "bigrr", "loop10_refine", "manytrades", "rsi_period_probe", "macd_probe", "loop11_wide", "eth_tight", "eth_wide", "eth_long_filter", "eth_short_tune", "eth_refine", "eth_macd_loop3", "eth_loop4_refine", "eth_bigtp", "eth_megatp", "eth_leverage", "eth_loosen", "eth_tightpivot", "eth_trend_window", "eth_finetune", "eth_macd_params", "eth_srstops", "eth_unlock", "sol_wr80", "sol_wr80_refine", "sol_wr80_deep", "sol_wr80_macd", "sol_wr80_pnl", "sol_wr80_pnl2", "sol_wr80_pnl3", "sol_wr80_edge2", "sol_wr80_struct"])
     parser.add_argument("--top", type=int, default=15)
     parser.add_argument("--wrfloor", type=float, default=70.0,
                         help="Minimum win-rate floor (HARD) applied to every window.")
@@ -1081,6 +1081,59 @@ def main():
             "atr_period": [10, 12, 14],
             "leverage": [7],
             "position_equity_ratio": [1.0],
+        }
+    elif args.grid == "sol_wr80_edge2":
+        # Structurally tighter gate to buy WR headroom for a WIDER take-profit
+        # (user hint #4: extend reward 3/4/5x for more PnL-per-trade without
+        # more leverage). Holds the converged _2/_3 MACD+pivot+lookback edge
+        # and leverage 8; cranks the RSI extremity gate well past the rule
+        # edge (still <=50 / >=50) and sweeps SL/TP geometry + atr_period.
+        # score(wrfloor=80) keeps only configs still passing all four; the
+        # tpm_floor (>=2/mo) guards against the tighter gate starving trades.
+        grid = {
+            "use_atr_stops": [True],
+            "use_trend_filter": [False],
+            "rsi_period": [14],
+            "require_macd_divergence": [True],
+            "macd_fast": [7],
+            "macd_slow": [24],
+            "macd_signal": [9],
+            "pivot_window": [6],
+            "divergence_lookback": [50],
+            "rsi_long_max": [30.0, 35.0, 40.0, 45.0],
+            "rsi_short_min": [55.0, 60.0, 65.0, 70.0],
+            "atr_sl_mult": [2.0, 2.5, 3.0, 4.0],
+            "atr_tp_mult": [1.0, 1.5, 2.0, 3.0, 4.0],
+            "atr_period": [10, 12, 14],
+            "leverage": [8],
+            "position_equity_ratio": [1.0],
+        }
+    elif args.grid == "sol_wr80_struct":
+        # Genuinely new structural levers, never activated for SOL in this
+        # loop: min_rr_ratio + max_sl_distance_pct gates (currently 0/off)
+        # and use_atr_stops=False (support/resistance stop mode — totally
+        # different SL/TP mechanic). Holds the converged _2/_3 entry edge
+        # and leverage 8. Tests whether a different stop/filter mechanic
+        # opens a higher-PnL or wider-TP-tolerant region while keeping WR>80.
+        grid = {
+            "use_trend_filter": [False],
+            "rsi_period": [14],
+            "require_macd_divergence": [True],
+            "macd_fast": [7],
+            "macd_slow": [24],
+            "macd_signal": [9],
+            "pivot_window": [6],
+            "divergence_lookback": [50],
+            "rsi_long_max": [45.0],
+            "rsi_short_min": [55.0],
+            "atr_period": [12],
+            "leverage": [8],
+            "position_equity_ratio": [1.0],
+            "use_atr_stops": [True, False],
+            "atr_sl_mult": [2.0, 3.0, 4.0],
+            "atr_tp_mult": [1.0, 2.0, 3.0],
+            "min_rr_ratio": [0.0, 1.0, 2.0],
+            "max_sl_distance_pct": [0.0, 0.05, 0.08, 0.12],
         }
     else:  # fine
         grid = {
