@@ -11,11 +11,11 @@ trading:
     - 12h
     - 1d
     - 1w
-  # ETH Loop_20260519_8: leverage 8->10 + equity 0.9->0.95. The wide-SL /
-  # tight-TP bounce geometry below produces a very high per-trade hit rate, so
-  # this moderate leverage compounds to large PnL while every window stays
-  # WR>80, strictly monotonic, and >=2 trades/month.
-  leverage: 10
+  # ETH Loop_20260519_9 (probe): leverage 10->15 on the Loop_20260519_8
+  # geometry. Only leverage changes; the wide-SL / tight-TP bounce geometry
+  # below keeps the high per-trade hit rate. Higher leverage compounds more
+  # PnL at higher drawdown — validated on the production path before adoption.
+  leverage: 15
   max_open_positions: 1
   position_equity_ratio: 0.95
   maker_only: true
@@ -57,9 +57,9 @@ strategy:
   # Reward/risk + max-SL-distance gates (currently inactive; preserved for future tuning).
   min_rr_ratio: 0.0
   max_sl_distance_pct: 0.0
-  # Loop identifier. Loop_20260519_8 is the all-targets ETHUSDC profile
+  # Loop identifier. Loop_20260519_9 probes leverage 15 vs Loop_20260519_8
   # (WR>80 every window, strict monotonic 15>12>6>3>1, >=2 trades/month).
-  loop_id: Loop_20260519_8
+  loop_id: Loop_20260519_9
 
 execution:
   order_reprice_bps: 2
