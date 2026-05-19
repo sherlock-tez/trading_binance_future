@@ -1,5 +1,33 @@
 # changes.md
 
+## Loop_20260519_4 - SOLUSDC: narrow sup_res_timeframes to [1d,1w] — 15m +2073%, min WR 89.2%
+
+### Summary
+`solusdc_config.yaml`: single-lever change vs `Loop_20260519_3` — `sup_res_timeframes` `[3h,6h,12h,1d,1w]` → `[1d,1w]`. All other params identical (fast MACD 7/24/9, pivot 6, div_lb 50, rsi 45/55, sl3/tp1.0, atr_period 12, leverage 8). No new config keys (existing key, value change). Mandatory rule preserved (RSI + MACD divergence; extremity gate 45/55 within LONG<50 / SHORT>50).
+
+### Affected Files
+- `solusdc_config.yaml`
+- `algorithms.md`
+- `changes.md`
+- `scripts/btcusdc_sweep.py` (added `sol_wr80_srtf` grid + choice)
+
+### Reason
+After the entry edge / TP / leverage / structural levers converged on `_3`, `sup_res_timeframes` was the one untouched lever — it gates entry direction (long requires support < price < resistance). A 48-combo sweep (`sol_wr80_srtf`, `--wrfloor 80`) over 8 TF subsets crossed with small pivot/lookback flex found that narrowing S/R to the daily/weekly levels widens the valid-entry band and filters to structurally stronger reversals: a strict improvement on PnL and win rate at identical leverage/drawdown.
+
+### Backtest Result
+- Command/method: search `SWEEP_SYMBOL=SOLUSDC python scripts/btcusdc_sweep.py --grid sol_wr80_srtf --wrfloor 80.0`; validation `SWEEP_SYMBOL=SOLUSDC python scripts/btcusdc_optimize.py --windows 1,3,6,12,15` (production path: `SignalEngine.generate_signal` + `run_trade_cycle` + `SimulatedExecutionAdapter`).
+- Dataset/time range: Binance mainnet SOLUSDC 1h klines, 12-month warmup, windows [1,3,6,12,15] months ending 2026-05-19 UTC.
+- Loop folder: `backtest_history/Loop_20260519_4/`.
+- Key metrics (production path): 1m +28.20% WR100.0 (5 tr, DD0.2%) | 3m +130.91% WR94.12 (17, DD19.1%) | 6m +268.34% WR90.32 (31, DD35.8%) | 12m +1141.67% WR89.23 (65, DD63.8%) | 15m +2073.32% WR90.14 (71, DD63.8%). Strict-monotonic ✓, all-positive ✓, min WR 89.23% > 80 ✓, trades 4.7-5.7/mo ✓. Fast-harness search matched the production path exactly.
+- Comparison with previous Loop: vs `_3` (15m +1542.97%, min WR 86.76%, DD ~64%) — 15m PnL +34%, min WR +2.5pt, drawdown unchanged (same leverage 8). Strict improvement on every axis at no added risk.
+- Limitations: single best basin in the TF-subset sweep; coarser S/R has fewer levels so is more sensitive to the trailing-15m SOL structure. Funding/ADL/liquidation simplified in simulation.
+
+### Documentation Updated
+- `algorithms.md`
+- `changes.md`
+
+---
+
 ## Loop_20260519_3 - SOLUSDC: leverage 7->8 on converged edge — 15m +1543% (user-selected risk)
 
 ### Summary
