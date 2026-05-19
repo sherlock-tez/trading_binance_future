@@ -208,6 +208,7 @@ class BinanceMarketDataService:
                     logger.info("Connected websocket: %s", ws_url)
                     async for message in ws:
                         payload = json.loads(message)
+                        print("Received WebSocket message:", payload)
                         kline_payload = payload.get("data", {}).get("k", {})
                         if not kline_payload:
                             continue
