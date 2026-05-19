@@ -93,7 +93,7 @@ def apply_overrides(settings: Settings, overrides: Dict[str, Any]) -> Settings:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--grid", type=str, default="basic", choices=["basic", "wide", "fine", "monotonic", "refine", "bigreward", "strictrsi", "neighbor2", "tprange", "pivots", "macd_gate", "aggressive", "trendloose", "atrshift", "atr_push", "eqratio", "fastatr", "indicators", "moretrades", "moretrades_fine", "moretrades_scan", "bigrr", "loop10_refine", "manytrades", "rsi_period_probe", "macd_probe", "loop11_wide", "eth_tight", "eth_wide", "eth_long_filter", "eth_short_tune", "eth_refine", "eth_macd_loop3", "eth_loop4_refine", "eth_bigtp", "eth_megatp", "eth_leverage", "eth_loosen", "eth_tightpivot", "eth_trend_window", "eth_finetune", "eth_macd_params", "eth_srstops", "eth_unlock", "sol_wr80", "sol_wr80_refine", "sol_wr80_deep", "sol_wr80_macd", "sol_wr80_pnl", "sol_wr80_pnl2", "sol_wr80_pnl3", "sol_wr80_edge2", "sol_wr80_struct", "sol_wr80_srtf", "sol_wr80_srtf2", "sol_wr80_freq"])
+    parser.add_argument("--grid", type=str, default="basic", choices=["basic", "wide", "fine", "monotonic", "refine", "bigreward", "strictrsi", "neighbor2", "tprange", "pivots", "macd_gate", "aggressive", "trendloose", "atrshift", "atr_push", "eqratio", "fastatr", "indicators", "moretrades", "moretrades_fine", "moretrades_scan", "bigrr", "loop10_refine", "manytrades", "rsi_period_probe", "macd_probe", "loop11_wide", "eth_tight", "eth_wide", "eth_long_filter", "eth_short_tune", "eth_refine", "eth_macd_loop3", "eth_loop4_refine", "eth_bigtp", "eth_megatp", "eth_leverage", "eth_loosen", "eth_tightpivot", "eth_trend_window", "eth_finetune", "eth_macd_params", "eth_srstops", "eth_unlock", "sol_wr80", "sol_wr80_refine", "sol_wr80_deep", "sol_wr80_macd", "sol_wr80_pnl", "sol_wr80_pnl2", "sol_wr80_pnl3", "sol_wr80_edge2", "sol_wr80_struct", "sol_wr80_srtf", "sol_wr80_srtf2", "sol_wr80_freq", "sol_wr80_geo", "sol_wr80_trend"])
     parser.add_argument("--top", type=int, default=15)
     parser.add_argument("--wrfloor", type=float, default=70.0,
                         help="Minimum win-rate floor (HARD) applied to every window.")
@@ -1229,6 +1229,62 @@ def main():
                 ["12h", "1d", "1w"],
                 ["1d"],
             ],
+        }
+    elif args.grid == "sol_wr80_geo":
+        # Coupled SL x TP x atr_period geometry sweep UNDER the new [1d,1w]
+        # S/R regime (_4). Every prior wide-TP test (user hint #4: extend
+        # reward 3/4/5x) used the OLD 5-TF S/R or pinned sl=3.0 — never the
+        # coarse-S/R trade set jointly with a wider SL. If the [1d,1w]-filtered
+        # trades are high-conviction enough, a wide-SL/wider-TP geometry may
+        # now hold WR>80 with more PnL. Holds the converged macd/pivot/lookback
+        # edge + leverage 8. Adopt only on a strict PnL gain over _4.
+        grid = {
+            "use_atr_stops": [True],
+            "use_trend_filter": [False],
+            "rsi_period": [14],
+            "require_macd_divergence": [True],
+            "macd_fast": [7],
+            "macd_slow": [24],
+            "macd_signal": [9],
+            "pivot_window": [6],
+            "divergence_lookback": [50],
+            "rsi_long_max": [45.0],
+            "rsi_short_min": [55.0],
+            "leverage": [8],
+            "position_equity_ratio": [1.0],
+            "sup_res_timeframes": [["1d", "1w"]],
+            "atr_sl_mult": [3.0, 4.0, 5.0, 6.0],
+            "atr_tp_mult": [1.0, 1.5, 2.0, 3.0, 4.0],
+            "atr_period": [10, 12, 14, 21],
+        }
+    elif args.grid == "sol_wr80_trend":
+        # The ONE structural lever never tested for SOL: use_trend_filter
+        # (1h trend-EMA gate — LONG only above EMA, SHORT only below). Every
+        # SOL sweep pinned it false; the ETHUSDC champion uses it true. It
+        # removes counter-trend entries, which may lift WR headroom enough to
+        # finally admit a wider take-profit (hint #4). Holds the converged _4
+        # edge + [1d,1w] S/R + leverage 8; sweeps trend_ema_period x TP, with
+        # a use_trend_filter=False control row. Adopt only on a strict PnL
+        # gain over _4 that still passes all four.
+        grid = {
+            "use_atr_stops": [True],
+            "rsi_period": [14],
+            "require_macd_divergence": [True],
+            "macd_fast": [7],
+            "macd_slow": [24],
+            "macd_signal": [9],
+            "pivot_window": [6],
+            "divergence_lookback": [50],
+            "rsi_long_max": [45.0],
+            "rsi_short_min": [55.0],
+            "atr_sl_mult": [3.0],
+            "atr_period": [12],
+            "leverage": [8],
+            "position_equity_ratio": [1.0],
+            "sup_res_timeframes": [["1d", "1w"]],
+            "use_trend_filter": [True, False],
+            "trend_ema_period": [50, 100, 150, 200, 250],
+            "atr_tp_mult": [1.0, 1.5, 2.0, 3.0],
         }
     else:  # fine
         grid = {
