@@ -11,30 +11,30 @@ trading:
     - 12h
     - 1d
     - 1w
-  leverage: 20
+  leverage: 25
   max_open_positions: 1
-  position_equity_ratio: 0.95
+  position_equity_ratio: 1.0
   maker_only: true
 
 strategy:
   rsi_period: 12
   macd_fast: 12
-  macd_slow: 26
+  macd_slow: 34
   macd_signal: 9
-  divergence_lookback: 80
+  divergence_lookback: 100
   pivot_window: 4
   # Volatility-aware stops via ATR (replaces support/resistance buffer sizing).
-  atr_period: 14
+  atr_period: 9
   use_atr_stops: true
-  atr_sl_mult: 1.8
+  atr_sl_mult: 1.5
   atr_tp_mult: 4.0
   # Trend filter on signal timeframe: LONG only when price > EMA, SHORT only when price < EMA.
   use_trend_filter: true
-  trend_ema_period: 200
+  trend_ema_period: 225
   # RSI extremity gate (stricter than the legacy "LONG<50, SHORT>50" rule on the SHORT side).
   # The original rule must hold; stricter values still satisfy it.
-  rsi_long_max: 50.0
-  rsi_short_min: 60.0
+  rsi_long_max: 47.0
+  rsi_short_min: 62.0
   # RSI divergence alone (mandatory rule) — MACD divergence not required, unlocks more trades.
   require_macd_divergence: false
   # Reward/risk + max-SL-distance gates (currently inactive; preserved for future tuning).
@@ -43,7 +43,7 @@ strategy:
   # Loop identifier. Format: Loop_{YYYYMMDD}_{iter}. Bump on every algorithm/config
   # change (see AGENTS.md "Loop Naming Convention") so previous trade-history files
   # are preserved for comparison.
-  loop_id: Loop_20260513_10
+  loop_id: Loop_20260519_4
 
 execution:
   order_reprice_bps: 2
