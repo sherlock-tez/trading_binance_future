@@ -93,7 +93,7 @@ def apply_overrides(settings: Settings, overrides: Dict[str, Any]) -> Settings:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--grid", type=str, default="basic", choices=["basic", "wide", "fine", "monotonic", "refine", "bigreward", "strictrsi", "neighbor2", "tprange", "pivots", "macd_gate", "aggressive", "trendloose", "atrshift", "atr_push", "eqratio", "fastatr", "indicators", "moretrades", "moretrades_fine", "moretrades_scan", "bigrr", "loop10_refine", "manytrades", "rsi_period_probe", "macd_probe", "loop11_wide", "eth_tight", "eth_wide", "eth_long_filter", "eth_short_tune", "eth_refine", "eth_macd_loop3", "eth_loop4_refine", "eth_bigtp", "eth_megatp", "eth_leverage", "eth_loosen", "eth_tightpivot", "eth_trend_window", "eth_finetune", "eth_macd_params", "eth_srstops", "eth_unlock", "sol_wr80", "sol_wr80_refine", "sol_wr80_deep", "sol_wr80_macd", "sol_wr80_pnl", "sol_wr80_pnl2", "sol_wr80_pnl3", "sol_wr80_edge2", "sol_wr80_struct", "sol_wr80_srtf", "sol_wr80_srtf2", "sol_wr80_freq", "sol_wr80_geo", "sol_wr80_trend", "sol_wr80_fine", "sol_wr80_fine2", "sol_wr80_fine3", "sol_wr80_fine4"])
+    parser.add_argument("--grid", type=str, default="basic", choices=["basic", "wide", "fine", "monotonic", "refine", "bigreward", "strictrsi", "neighbor2", "tprange", "pivots", "macd_gate", "aggressive", "trendloose", "atrshift", "atr_push", "eqratio", "fastatr", "indicators", "moretrades", "moretrades_fine", "moretrades_scan", "bigrr", "loop10_refine", "manytrades", "rsi_period_probe", "macd_probe", "loop11_wide", "eth_tight", "eth_wide", "eth_long_filter", "eth_short_tune", "eth_refine", "eth_macd_loop3", "eth_loop4_refine", "eth_bigtp", "eth_megatp", "eth_leverage", "eth_loosen", "eth_tightpivot", "eth_trend_window", "eth_finetune", "eth_macd_params", "eth_srstops", "eth_unlock", "sol_wr80", "sol_wr80_refine", "sol_wr80_deep", "sol_wr80_macd", "sol_wr80_pnl", "sol_wr80_pnl2", "sol_wr80_pnl3", "sol_wr80_edge2", "sol_wr80_struct", "sol_wr80_srtf", "sol_wr80_srtf2", "sol_wr80_freq", "sol_wr80_geo", "sol_wr80_trend", "sol_wr80_fine", "sol_wr80_fine2", "sol_wr80_fine3", "sol_wr80_fine4", "sol_wr80_reward"])
     parser.add_argument("--top", type=int, default=15)
     parser.add_argument("--wrfloor", type=float, default=70.0,
                         help="Minimum win-rate floor (HARD) applied to every window.")
@@ -1385,6 +1385,36 @@ def main():
             "atr_sl_mult": [2.85, 2.9, 2.95],
             "divergence_lookback": [51, 52, 53],
             "atr_period": [10, 11, 12],
+        }
+    elif args.grid == "sol_wr80_reward":
+        # Reward-extension probe AT the refined _7 node (dlb52, atrp12,
+        # sl2.85, macd 7/24/9, pivot6) — never tested here; prior wider-TP
+        # sweeps (edge2/struct) were anchored at the older dlb50/coarse-SL
+        # node. Hypothesis: a stricter RSI extremity gate buys enough WR
+        # headroom to afford a WIDER take-profit (user hint #4) while still
+        # clearing min WR>80. SL co-adapts (a wider TP usually wants a
+        # different SL). score(wrfloor=80) surfaces only all-constraint
+        # survivors ranked by 15m PnL; tpm_floor guards the tighter gate
+        # against starving the 1m window. Adopt only on a strict prod-path
+        # gain over _7 (15m +3287.3, minWR 89.86) that also OOS-validates.
+        grid = {
+            "use_atr_stops": [True],
+            "use_trend_filter": [False],
+            "rsi_period": [14],
+            "require_macd_divergence": [True],
+            "macd_fast": [7],
+            "macd_slow": [24],
+            "macd_signal": [9],
+            "pivot_window": [6],
+            "divergence_lookback": [52],
+            "atr_period": [12],
+            "leverage": [8],
+            "position_equity_ratio": [1.0],
+            "sup_res_timeframes": [["1d", "1w"]],
+            "rsi_long_max": [38.0, 42.0, 45.0],
+            "rsi_short_min": [55.0, 58.0, 62.0],
+            "atr_sl_mult": [2.6, 2.85, 3.2],
+            "atr_tp_mult": [1.0, 1.25, 1.5, 2.0, 3.0],
         }
     else:  # fine
         grid = {

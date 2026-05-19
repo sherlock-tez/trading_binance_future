@@ -1,5 +1,21 @@
 # changes.md
 
+## 2026-05-19 — SOLUSDC: reward-extension probe at the _7 node — NULL RESULT (no champion change)
+
+### Summary
+Confirmatory iteration, not a champion change. Re-validated `Loop_20260519_7` on fresh `--refresh` data (production path) — reproduces **exactly** (1m +28.2/WR100, 3m +133.6/WR94.1, 6m +313.5/WR90.6, 12m +1835.2/WR89.9, 15m +3287.3/WR90.7; strict-monotonic, minWR 89.86 > 80, ~5 tr/mo). No data drift. `solusdc_config.yaml` strategy params **unchanged**; `_7` remains champion.
+
+### Affected Files
+- `scripts/btcusdc_sweep.py` (added `sol_wr80_reward` grid + choice). No config / algorithms change.
+
+### Reason / Backtest
+Prior wider-TP sweeps (`sol_wr80_edge2`: TP {1.0–4.0}×RSI gate {30–70}×SL {2.0–4.0}; `sol_wr80_struct`: S/R-stop + min_rr) were anchored at the **older dlb=50/coarse-SL node**, never at `_7`'s refined node (dlb52, atrp12, sl2.85, macd 7/24/9, pivot6). `sol_wr80_reward` (135 combos) re-tested the reward-extension hypothesis there: `atr_tp_mult` {1.0,1.25,1.5,2.0,3.0} × `atr_sl_mult` {2.6,2.85,3.2} × RSI gate {38/42/45 long, 55/58/62 short}, all 4 hard constraints. **Result: `_7` itself (tp1.0/sl2.85/gate45-55) ranks #1 by a wide margin (score 17143 vs next 15163).** Every wider-TP and every stricter-gate variant yields strictly lower 15m PnL while still WR>80 — the reward-extension wall is *structural* (high-WR quick-target edge; widening TP trades away the win-rate that drives compounding). Confirms the documented `atr_tp_mult=1.0` conclusion now also holds at the refined `_7` node.
+
+### Conclusion
+SOLUSDC search has **converged at `_7`**. Its entire config surface (MACD f/s/sig, dlb, pivot, atr_period, SL, TP, RSI gate, rsi_period, S/R timeframes, trend filter, S/R-stop mode, min_rr/max_sl gates; leverage & eq pinned) has been swept with `_7` repeatedly the constrained optimum. Reward extension is firmly bounded by the WR>80 MUST. Further between-node `atr_sl_mult` micro-tuning is overfitting (jagged response, see `_7` Limitations below). Loop continues in **monitoring mode**: re-validate on data drift only; re-optimize only if regime drift breaks a constraint.
+
+---
+
 ## Loop_20260519_7 - SOLUSDC: finest SL tune (sl 2.9->2.85, atrp 11->12) — 15m +3287%, OVERFIT CAUTION
 
 ### Summary

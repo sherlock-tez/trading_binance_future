@@ -43,8 +43,11 @@ strategy:
   # macd_signal confirmed inert (divergence uses the MACD line, not signal).
   # atr_tp_mult held at 1.0: every wider-TP variant tested across many gates
   # drops min WR below 80, so the reward-extension hint is firmly bounded by
-  # the WR>80 MUST. Mandatory RSI-divergence + extremity gate LONG<50 /
-  # SHORT>50 preserved (45/55).
+  # the WR>80 MUST. Re-confirmed 2026-05-19 AT this refined node via
+  # sol_wr80_reward (135 combos: tp{1-3} x sl{2.6,2.85,3.2} x gate{38-45/55-62}):
+  # _7 ranks #1 by a wide margin; every wider-TP / stricter-gate variant has
+  # strictly lower 15m PnL. SOLUSDC search converged at _7 — monitoring mode.
+  # Mandatory RSI-divergence + extremity gate LONG<50 / SHORT>50 preserved (45/55).
   rsi_period: 14
   macd_fast: 7
   macd_slow: 24
