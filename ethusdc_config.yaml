@@ -11,13 +11,13 @@ trading:
     - 12h
     - 1d
     - 1w
-  # ETH Loop_20260519_9 (probe): leverage 10->15 on the Loop_20260519_8
-  # geometry. Only leverage changes; the wide-SL / tight-TP bounce geometry
-  # below keeps the high per-trade hit rate. Higher leverage compounds more
-  # PnL at higher drawdown — validated on the production path before adoption.
-  leverage: 15
+  # ETH Loop_20260519_10 (probe): leverage 15->17 + equity 0.95->0.98 on the
+  # converged Loop_20260519_9 geometry. Pure risk scaling — same trade set,
+  # same WR; more PnL at higher drawdown. Validated on the production path
+  # before adoption.
+  leverage: 17
   max_open_positions: 1
-  position_equity_ratio: 0.95
+  position_equity_ratio: 0.98
   maker_only: true
 
 strategy:
@@ -29,7 +29,7 @@ strategy:
   rsi_period: 21
   macd_fast: 12
   macd_slow: 34
-  macd_signal: 9
+  macd_signal: 7
   # Long divergence memory (->160) so a divergence only fires off the most
   # significant prior pivot, lifting win-rate on every window.
   divergence_lookback: 160
@@ -38,7 +38,7 @@ strategy:
   # wide-SL / tight-TP geometry: SL=2.0*ATR rarely reached while TP=0.8*ATR is
   # hit quickly, giving a high per-trade win rate. PnL comes from a high hit
   # rate compounding, not from a large reward multiple.
-  atr_period: 21
+  atr_period: 28
   use_atr_stops: true
   atr_sl_mult: 2.0
   atr_tp_mult: 0.8
@@ -57,9 +57,9 @@ strategy:
   # Reward/risk + max-SL-distance gates (currently inactive; preserved for future tuning).
   min_rr_ratio: 0.0
   max_sl_distance_pct: 0.0
-  # Loop identifier. Loop_20260519_9 probes leverage 15 vs Loop_20260519_8
+  # Loop identifier. Loop_20260519_10 probes leverage 17 + equity 0.98 + atr 28 vs Loop_20260519_9
   # (WR>80 every window, strict monotonic 15>12>6>3>1, >=2 trades/month).
-  loop_id: Loop_20260519_9
+  loop_id: Loop_20260519_10
 
 execution:
   order_reprice_bps: 2

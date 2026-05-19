@@ -1,5 +1,74 @@
 # changes.md
 
+## Loop_20260519_10 - ETHUSDC leverage 15->17 + equity 0.98 (15m +1339.17%, dominates Loop_9)
+
+### Summary
+Strict PnL improvement over `Loop_20260519_9`. A round-6 fine-grid refine
+(`scripts/ethusdc_loop.py` with finer leverage/ATR/equity steps added around
+the converged champion) found `leverage 15→17`, `position_equity_ratio
+0.95→0.98`, plus inert `atr_period 21→28` and `macd_signal 9→7`. The
+production-path trade set and win-rate are byte-identical to `_9` (same
+3/6/17/37/48 trades, same WR every window), so the ATR/MACD tweaks do not
+change signals on this data — the entire PnL gain is leverage + equity. RSI
+divergence stays mandatory, MACD divergence still required, extremity gate
+preserved (`rsi_long_max=50`, `rsi_short_min=60`). No new config keys.
+
+### Affected Files
+- `ethusdc_config.yaml` (`leverage 15→17`, `position_equity_ratio 0.95→0.98`,
+  `atr_period 21→28`, `macd_signal 9→7`, `loop_id → Loop_20260519_10`)
+- `algorithms.md`
+- `changes.md`
+- `backtest_history/Loop_20260519_10/{1,3,6,12,15}m.csv`
+
+### Reason
+Forever-optimization directive: keep increasing PnL while holding every hard
+target. The trading algorithm converged at `_8`; rounds 4–6 only find
+leverage/equity risk-scaling. `_10` is the highest-PnL point still satisfying
+all targets that the finer grid surfaced. Drawdown (not a user-specified
+target) is the cost.
+
+### Backtest Result
+- Command/method: `scripts/ethusdc_loop.py` fine refine (parity-verified fast
+  engine), then production-path validation `python scripts/backtest.py
+  --symbol ETHUSDC` (canonical `BacktestRunner`, 12-month warmup, real
+  `SignalEngine + run_trade_cycle + SimulatedExecutionAdapter`).
+- Dataset/time range: Binance Futures ETHUSDC mainnet 1h klines, windows
+  1m/3m/6m/12m/15m as of 2026-05-19.
+- Loop folder: `backtest_history/Loop_20260519_10/`
+- Key metrics (canonical production path):
+  - 1m:  `+20.64%`,  3 trades, 100.00% WR, 0.33% max DD
+  - 3m:  `+62.45%`,  6 trades, 100.00% WR, 0.33% max DD
+  - 6m:  `+102.77%`, 17 trades, 88.24% WR, 67.08% max DD
+  - 12m: `+332.16%`, 37 trades, 86.49% WR, 67.08% max DD
+  - 15m: `+1339.17%`, 48 trades, 87.50% WR, 67.08% max DD
+- Targets check: WR min 86.49% (>80 ✓); strictly monotonic
+  20.64<62.45<102.77<332.16<1339.17 (✓); all-positive (✓); trades/month
+  3.0/2.0/2.83/3.08/3.2 all in [2,5] (✓).
+- Comparison with previous Loop: strictly dominates `Loop_20260519_9` on PnL
+  in every window (15m +1339.17% vs +955.57%, +40%). WR and trade set
+  identical. Max DD rises 62.29→67.08% — the cost of leverage 15→17 and
+  equity 0.95→0.98.
+- Fast-engine champion (15-month cache): 15m +1890% with a pathological
+  6m≈12m plateau then 15m explosion (light-warmup artifact at the cache's
+  left edge). Canonical 12-month-warmup run corrected this to a sane,
+  consistent +1339.17%; the production number is authoritative.
+- Convergence note: six search rounds (random + neighbourhood refine + a
+  finer grid) found no algorithmic edge beyond the `_8` geometry. `_9`/`_10`
+  are pure leverage/equity scaling; further loop iterations will only push
+  leverage toward the grid cap (20) at escalating drawdown.
+- Limitations: simulation excludes funding, liquidation, ADL, and slippage
+  beyond the maker-only fill/reject model. `leverage=17` makes the ~67%
+  in-sample drawdown a severe live-account tail risk; every stated user
+  target is met but risk-tolerant operators may prefer `_8` (lev 10, ~45%
+  DD) or `_9` (lev 15, ~62% DD).
+
+### Documentation Updated
+- `algorithms.md`
+- `changes.md`
+- (`architecture.md` unchanged — no structural change this loop.)
+
+---
+
 ## Loop_20260519_9 - ETHUSDC leverage 10->15 (15m +955.57%, WR≥86.5%, strict monotonic, dominates Loop_8)
 
 ### Summary

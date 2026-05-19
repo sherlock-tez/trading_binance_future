@@ -50,7 +50,7 @@ real live tail risk.
 
 ### Current ETHUSDC Tuned Profile
 
-`Loop_20260519_9` keeps the mandatory RSI divergence plus extremity gate and
+`Loop_20260519_10` keeps the mandatory RSI divergence plus extremity gate and
 the required MACD divergence, and uses a wide-SL / tight-TP bounce geometry on
 those high-conviction divergence entries:
 
@@ -58,20 +58,21 @@ those high-conviction divergence entries:
 - `require_macd_divergence=true` (RSI divergence still mandatory)
 - `pivot_window=6`, `divergence_lookback=160`
 - `use_trend_filter=false`, `trend_ema_period=100` (inactive)
-- `use_atr_stops=true`, `atr_period=21`, `atr_sl_mult=2.0`, `atr_tp_mult=0.8`
-- `macd_fast=12`, `macd_slow=34`, `macd_signal=9`
-- `leverage=15`, `position_equity_ratio=0.95`
+- `use_atr_stops=true`, `atr_period=28`, `atr_sl_mult=2.0`, `atr_tp_mult=0.8`
+- `macd_fast=12`, `macd_slow=34`, `macd_signal=7`
+- `leverage=17`, `position_equity_ratio=0.98`
 
 Production-path canonical backtest (`scripts/backtest.py --symbol ETHUSDC`,
 12-month warmup, real `SignalEngine + run_trade_cycle +
-SimulatedExecutionAdapter`): 1m +16.89% / 3m +50.61% / 6m +81.28% / 12m
-+263.30% / 15m +955.57%; win-rate 100/100/88.2/86.5/87.5% (min 86.49%);
+SimulatedExecutionAdapter`): 1m +20.64% / 3m +62.45% / 6m +102.77% / 12m
++332.16% / 15m +1339.17%; win-rate 100/100/88.2/86.5/87.5% (min 86.49%);
 strictly monotonic 15>12>6>3>1; all-positive; 2.0–3.2 trades/month; max
-drawdown 0.29% on 1m/3m rising to 62.29% on 6/12/15m. This is identical to
-`Loop_20260519_8` except `leverage 10→15`; it strictly dominates `_8` on PnL
-in every window (e.g. 15m +955.57% vs +474.60%, ~2.0×) at the same WR, same
-trade set, and same strict-monotonic consistency — leverage only scales
-position notional, so which trades win/lose is unchanged.
+drawdown 0.33% on 1m/3m rising to 67.08% on 6/12/15m. The trade set and
+win-rate are byte-identical to `Loop_20260519_9` (same 3/6/17/37/48 trades,
+same WR), so `atr_period 21→28` and `macd_signal 9→7` are inert on this data;
+the entire PnL gain over `_9` (15m +1339.17% vs +955.57%, +40%) is
+`leverage 15→17` + `position_equity_ratio 0.95→0.98`. It strictly dominates
+`_9` on PnL in every window at the same WR and strict-monotonic consistency.
 
 The tight TP (0.8×ATR) relative to a wide SL (2.0×ATR) gives a high per-trade
 hit rate; the slower RSI (`rsi_period=21`) plus long divergence memory
@@ -80,20 +81,27 @@ via `scripts/ethusdc_loop.py` (random map + neighbourhood refine,
 ETHUSDC-specific reuse of the parity-verified fast engine), then re-validated
 on the production path before adoption. Lineage: `Loop_20260519_7`
 (first all-targets pass, 15m +181.66%) → `Loop_20260519_8` (round-3 refine,
-15m +474.60%) → `Loop_20260519_9` (leverage 10→15, 15m +955.57%, current).
+15m +474.60%) → `Loop_20260519_9` (leverage 10→15, 15m +955.57%) →
+`Loop_20260519_10` (leverage 15→17 + equity 0.95→0.98, 15m +1339.17%,
+current). **The trading algorithm itself converged at `_8`; `_9`/`_10` are
+pure leverage/equity risk-scaling — the entry/exit/geometry is unchanged and
+six independent search rounds found no further algorithmic edge in the
+parameter space.**
 
 **Caveat:** as with the BNBUSDC tight-TP profile, the high in-sample win-rate
 is partly a geometry artifact — a 2.0×ATR stop is rarely reached when the TP
 is only 0.8×ATR, but a gap/adverse spike can still hit it live. The real risk
-is the unrealised tail loss, not the in-sample variance. **`leverage=15` is
-aggressive:** the in-sample max drawdown is ~62% on the 6–15m windows (vs
-~45% for `_8` at leverage 10), so a single adverse tail at this leverage is a
-material live-account risk even though every stated target (WR>80, strict
-monotonic, ≥2 trades/month, all-positive, higher PnL) is satisfied. The
-fast-engine search reported 15m +1278% with a pathological 12m→15m jump (an
-artifact of light warmup at the cache's left edge); the production path
-corrected this to a sane, consistent +955.57% — the production number is the
-authoritative one.
+is the unrealised tail loss, not the in-sample variance. **`leverage=17`
+(equity 0.98) is very aggressive:** the in-sample max drawdown is ~67% on the
+6–15m windows (vs ~62% for `_9` at leverage 15, ~45% for `_8` at leverage
+10). Every stated target (WR>80, strict monotonic, ≥2 trades/month,
+all-positive, higher PnL) is satisfied, but a single adverse tail at this
+leverage is a severe live-account risk; risk-tolerant operators may prefer
+`_8` (leverage 10, ~45% DD) or `_9` (leverage 15, ~62% DD) for a smaller
+tail. The fast-engine search reported 15m +1890% with a pathological 6m≈12m
+plateau then a 15m explosion (an artifact of light warmup at the cache's left
+edge); the production path corrected this to a sane, consistent +1339.17% —
+the production number is the authoritative one.
 
 ### Current BNBUSDC Tuned Profile
 
