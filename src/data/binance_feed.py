@@ -30,7 +30,8 @@ RECONNECT_BACKOFF_BASE = 1.0
 RECONNECT_BACKOFF_CAP = 60.0
 MAX_CONNECTION_SECONDS = 23 * 3600   # rotate before Binance's 24h hard cap
 ALERT_THROTTLE_SECONDS = 300.0       # min gap between repeated failure alerts
-REST_ALIGN_BUFFER_MS = 3000          # wake this long after a candle closes
+REST_ALIGN_BUFFER_MS = 500           # first wake this long after a candle closes
+REST_ALIGN_RETRY_MS = 250            # retry this fast if Binance hasn't finalized
 
 
 def _build_ws_url(base: str, combined: str, mode: str, is_testnet: bool) -> str:
@@ -434,10 +435,11 @@ class BinanceMarketDataService:
         align_to_close = not probe_for_recovery
         if align_to_close:
             logger.warning(
-                "REST polling %s, aligned to %s candle close (+%.0fs buffer)",
+                "REST polling %s, aligned to %s candle close (+%.0fms buffer, %.0fms retry)",
                 ",".join(symbols),
                 timeframe,
-                REST_ALIGN_BUFFER_MS / 1000.0,
+                REST_ALIGN_BUFFER_MS,
+                REST_ALIGN_RETRY_MS,
             )
         else:
             logger.warning(
@@ -512,7 +514,7 @@ class BinanceMarketDataService:
 
             if align_to_close and round_ok and next_close_ms is not None:
                 wake_ms = next_close_ms + 1 + REST_ALIGN_BUFFER_MS
-                delay = max(wake_ms / 1000.0 - time.time(), 1.0)
+                delay = max(wake_ms / 1000.0 - time.time(), REST_ALIGN_RETRY_MS / 1000.0)
                 wake_utc = datetime.fromtimestamp(
                     wake_ms / 1000.0, timezone.utc
                 ).strftime("%Y-%m-%d %H:%M:%S UTC")
