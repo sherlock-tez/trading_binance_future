@@ -111,8 +111,20 @@ def score(window_results) -> Tuple[float, bool, Dict[str, Any]]:
         if tpm_ok:
             s += 500.0                   # small bonus for clearing 2/mo band
         s -= max_dd * 100.0              # mild PnL-leaning drawdown penalty
+    elif wr80 and all_positive:
+        # Tier A2: WR>80 + all-positive, strict-monotonic NOT required.
+        # Operator-accepted under the RR<=0.5 regime where strict-monotonicity
+        # was proven infeasible. PnL-dominant, ranked above the legacy
+        # strict-monotonic tier so a low-WR monotonic config can't overwrite
+        # a high-WR non-monotonic one in this regime.
+        s = 1e10 + last_ret * 1000.0 + avg_ret * 200.0 + (min_wr - 80.0) * 50.0
+        s += min(min_tpm, 5.0) * 100.0
+        if tpm_ok:
+            s += 500.0
+        s -= max_dd * 100.0
     elif all_positive and strict_monotonic:
-        # Tier B: consistency + positivity met, WR<=80. Push WR toward 80 first.
+        # Tier B: strict-monotonic + positivity but WR<=80. Demoted below
+        # Tier A2 because the operator dropped strict-monotonicity as a MUST.
         s = 1e9 + min_wr * 1e6 + last_ret * 100.0 + avg_ret * 10.0
     else:
         # Tier C: partial credit so near-misses surface for the next loop.
