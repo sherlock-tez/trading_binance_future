@@ -222,17 +222,18 @@ class LiveTradingRunner:
             processed_signals=self._processed_signals,
         )
 
-        self.notifier.send(
-            "\n".join(
-                [
-                    f"🔍 <b>Signal Scan</b> — <b>{escape_html(symbol)}</b>",
-                    f"🧭 Decision: <b>{escape_html(outcome.diagnostics.decision)}</b>",
-                    f"📊 RSI: <code>{outcome.diagnostics.rsi_value:.2f}</code>",
-                    f"🟩 Support: <code>{escape_html(outcome.diagnostics.nearest_support)}</code>",
-                    f"🟥 Resistance: <code>{escape_html(outcome.diagnostics.nearest_resistance)}</code>",
-                ]
+        if outcome.diagnostics.decision != "no_signal":
+            self.notifier.send(
+                "\n".join(
+                    [
+                        f"🔍 <b>Signal Scan</b> — <b>{escape_html(symbol)}</b>",
+                        f"🧭 Decision: <b>{escape_html(outcome.diagnostics.decision)}</b>",
+                        f"📊 RSI: <code>{outcome.diagnostics.rsi_value:.2f}</code>",
+                        f"🟩 Support: <code>{escape_html(outcome.diagnostics.nearest_support)}</code>",
+                        f"🟥 Resistance: <code>{escape_html(outcome.diagnostics.nearest_resistance)}</code>",
+                    ]
+                )
             )
-        )
 
         if outcome.plan is None:
             return
