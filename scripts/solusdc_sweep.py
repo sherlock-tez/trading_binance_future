@@ -423,6 +423,146 @@ def _grid_wr80_freq_v2() -> Dict[str, List[Any]]:
     }
 
 
+def _grid_wr80_v4_loose_trend() -> Dict[str, List[Any]]:
+    """At _4 anchor, can a LOOSER trend filter (EMA 250/300, more setups
+    pass) work IF combined with tighter RSI gates / longer dlb? The
+    wr80_v4_trend_rsi probe showed trend_ema=300 gives 13 trades but
+    WR 76.92%. Goal: rescue WR > 80 with tighter entry selectivity.
+    """
+    return {
+        "use_atr_stops": [True],
+        "use_trend_filter": [True],
+        "require_macd_divergence": [True],
+        "rsi_period": [14],
+        "macd_fast": [7],
+        "macd_slow": [24],
+        "macd_signal": [9],
+        "leverage": [8],
+        "position_equity_ratio": [1.0],
+        "atr_period": [3],
+        "pivot_window": [5],
+        "divergence_lookback": [80, 100, 120, 150],
+        "rsi_long_max": [40.0, 42.0, 45.0, 47.0],
+        "rsi_short_min": [60.0, 65.0, 68.0, 70.0],
+        "trend_ema_period": [250, 300],
+        "atr_sl_mult": [1.0],
+        "atr_tp_mult": [2.0],
+        "sup_res_timeframes": [["1d", "1w"]],
+    }
+
+
+def _grid_wr80_v4_trend_rsi() -> Dict[str, List[Any]]:
+    """Final convergence probe at _4 anchor: trend_ema_period extremes
+    [50, 100, 150, 200, 250, 300] x rsi_period [7, 10, 14, 21]. All other
+    dims pinned at _4.
+    """
+    return {
+        "use_atr_stops": [True],
+        "use_trend_filter": [True],
+        "require_macd_divergence": [True],
+        "rsi_period": [7, 10, 14, 21],
+        "macd_fast": [7],
+        "macd_slow": [24],
+        "macd_signal": [9],
+        "leverage": [8],
+        "position_equity_ratio": [1.0],
+        "atr_period": [3],
+        "pivot_window": [5],
+        "divergence_lookback": [80],
+        "rsi_long_max": [47.0],
+        "rsi_short_min": [65.0],
+        "trend_ema_period": [50, 100, 150, 200, 250, 300],
+        "atr_sl_mult": [1.0],
+        "atr_tp_mult": [2.0],
+        "sup_res_timeframes": [["1d", "1w"]],
+    }
+
+
+def _grid_wr80_v4_sltp() -> Dict[str, List[Any]]:
+    """At the _4 anchor (pivot=5, rsi_short=65, atr_p=3, etc), probe SL/TP
+    ratios that haven't been tested. R/R<=0.5 filter applied by sweep.
+    """
+    return {
+        "use_atr_stops": [True],
+        "use_trend_filter": [True],
+        "require_macd_divergence": [True],
+        "rsi_period": [14],
+        "macd_fast": [7],
+        "macd_slow": [24],
+        "macd_signal": [9],
+        "leverage": [8],
+        "position_equity_ratio": [1.0],
+        "atr_period": [3],
+        "pivot_window": [5],
+        "divergence_lookback": [80],
+        "rsi_long_max": [47.0],
+        "rsi_short_min": [65.0],
+        "trend_ema_period": [200],
+        "atr_sl_mult": [0.5, 0.7, 0.8, 1.0, 1.2, 1.5, 2.0],
+        "atr_tp_mult": [1.0, 1.4, 1.6, 2.0, 2.4, 3.0, 4.0],
+        "sup_res_timeframes": [["1d", "1w"]],
+    }
+
+
+def _grid_wr80_v4_macd() -> Dict[str, List[Any]]:
+    """At the _4 anchor, probe MACD parameter variations. SOL's proven
+    7/24/9 might not be the optimum at this new geometry.
+    """
+    return {
+        "use_atr_stops": [True],
+        "use_trend_filter": [True],
+        "require_macd_divergence": [True],
+        "rsi_period": [14],
+        "macd_fast": [5, 7, 9, 12],
+        "macd_slow": [21, 24, 26, 30],
+        "macd_signal": [7, 9, 11],
+        "leverage": [8],
+        "position_equity_ratio": [1.0],
+        "atr_period": [3],
+        "pivot_window": [5],
+        "divergence_lookback": [80],
+        "rsi_long_max": [47.0],
+        "rsi_short_min": [65.0],
+        "trend_ema_period": [200],
+        "atr_sl_mult": [1.0],
+        "atr_tp_mult": [2.0],
+        "sup_res_timeframes": [["1d", "1w"]],
+    }
+
+
+def _grid_wr80_v4_cross() -> Dict[str, List[Any]]:
+    """Cross-check at the new _4 anchor (pivot=5, rsi_short=65, atr_p=3).
+    Re-test gradient + push gates further to see if there's more upside.
+
+    Probes:
+      - atr_period [2, 3, 4]: does the gradient still peak at 3 at the new gates?
+      - pivot_window [4, 5, 6]: does pivot=4 work at new anchor (was thin at _3)?
+      - divergence_lookback [60, 70, 80]: fine probe around _4's 80
+      - rsi_long_max [47, 48, 49]: push closer to LONG<50 boundary
+      - rsi_short_min [60, 65, 70]: push closer to SHORT>50 extremes (70 NEW)
+    """
+    return {
+        "use_atr_stops": [True],
+        "use_trend_filter": [True],
+        "require_macd_divergence": [True],
+        "rsi_period": [14],
+        "macd_fast": [7],
+        "macd_slow": [24],
+        "macd_signal": [9],
+        "leverage": [8],
+        "position_equity_ratio": [1.0],
+        "atr_period": [2, 3, 4],
+        "pivot_window": [4, 5, 6],
+        "divergence_lookback": [60, 70, 80],
+        "rsi_long_max": [47.0, 48.0, 49.0],
+        "rsi_short_min": [60.0, 65.0, 70.0],
+        "trend_ema_period": [200],
+        "atr_sl_mult": [1.0],
+        "atr_tp_mult": [2.0],
+        "sup_res_timeframes": [["1d", "1w"]],
+    }
+
+
 def _grid_wr80_atr3_cross() -> Dict[str, List[Any]]:
     """Cross-check at the new atr_period=3 anchor (Loop_20260520_3).
     Probes whether dim interactions change at the smaller ATR window.
@@ -465,6 +605,11 @@ GRIDS = {
     "wr80_freq_v2": _grid_wr80_freq_v2,
     "wr80_atr_fine": _grid_wr80_atr_fine,
     "wr80_atr3_cross": _grid_wr80_atr3_cross,
+    "wr80_v4_cross": _grid_wr80_v4_cross,
+    "wr80_v4_sltp": _grid_wr80_v4_sltp,
+    "wr80_v4_macd": _grid_wr80_v4_macd,
+    "wr80_v4_trend_rsi": _grid_wr80_v4_trend_rsi,
+    "wr80_v4_loose_trend": _grid_wr80_v4_loose_trend,
 }
 
 
