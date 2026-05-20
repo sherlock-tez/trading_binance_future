@@ -201,7 +201,9 @@ class LiveTradingRunner:
     async def _process_closed_candle(self, event: CandleEvent) -> None:
         symbol = event.symbol
         all_timeframes = [self.settings.signal_timeframe] + self.settings.sup_res_timeframes
-        frames = self.data_service.refresh_symbol_timeframes(symbol, all_timeframes, limit=600)
+        frames = await self.data_service.refresh_symbol_timeframes_async(
+            symbol, all_timeframes, limit=self.settings.frame_lookback
+        )
 
         signal_frame = frames[self.settings.signal_timeframe]
         higher = {
@@ -220,17 +222,18 @@ class LiveTradingRunner:
             processed_signals=self._processed_signals,
         )
 
-        self.notifier.send(
-            "\n".join(
-                [
-                    f"🔍 <b>Signal Scan</b> — <b>{escape_html(symbol)}</b>",
-                    f"🧭 Decision: <b>{escape_html(outcome.diagnostics.decision)}</b>",
-                    f"📊 RSI: <code>{outcome.diagnostics.rsi_value:.2f}</code>",
-                    f"🟩 Support: <code>{escape_html(outcome.diagnostics.nearest_support)}</code>",
-                    f"🟥 Resistance: <code>{escape_html(outcome.diagnostics.nearest_resistance)}</code>",
-                ]
+        if outcome.diagnostics.decision != "no_signal":
+            self.notifier.send(
+                "\n".join(
+                    [
+                        f"🔍 <b>Signal Scan</b> — <b>{escape_html(symbol)}</b>",
+                        f"🧭 Decision: <b>{escape_html(outcome.diagnostics.decision)}</b>",
+                        f"📊 RSI: <code>{outcome.diagnostics.rsi_value:.2f}</code>",
+                        f"🟩 Support: <code>{escape_html(outcome.diagnostics.nearest_support)}</code>",
+                        f"🟥 Resistance: <code>{escape_html(outcome.diagnostics.nearest_resistance)}</code>",
+                    ]
+                )
             )
-        )
 
         if outcome.plan is None:
             return
@@ -264,7 +267,9 @@ class LiveTradingRunner:
 
         self._send_lifecycle_status("STARTING")
         try:
-            self.data_service.warmup(self.settings.symbols, all_timeframes, limit=600)
+            self.data_service.warmup(
+                self.settings.symbols, all_timeframes, limit=self.settings.frame_lookback
+            )
 
             self.notifier.send("🚀 <i>Live runner started in maker-only mode</i>")
             await self.data_service.stream_closed_klines(

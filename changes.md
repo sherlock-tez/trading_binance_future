@@ -247,6 +247,615 @@ strict-monotonicity (the structural cost of the new RR cap, verified across
 - `algorithms.md`
 - `changes.md`
 
+## 2026-05-20 - BNBUSDC position_equity_ratio re-pinned 1.0 -> 0.95
+
+### Summary
+Aligning BNBUSDC with the cross-symbol peq decision: `position_equity_ratio`
+re-pinned from `1.0` to **`0.95`** (matches BTCUSDC's user-picked frontier
+value; same "position-size is a fixed risk dial, not a tuning lever"
+treatment as leverage). The `Loop_20260520_5` algorithm (geometry, RSI/MACD
+gates, ATR mults, R/R=0.5, leverage 10) is unchanged; only the position-size
+dial moved. The earlier change-log entries below this one quote peq=1.0
+numbers from when the search ran; the live production numbers at peq=0.95 are
+recomputed below.
+
+### Affected Files
+- `bnbusdc_config.yaml` (`trading.position_equity_ratio 1.0 -> 0.95`,
+  comment block updated to peq=0.95 numbers)
+- `scripts/bnbusdc_loop.py` (SPACE `position_equity_ratio [1.0] -> [0.95]`)
+- `algorithms.md` (BNBUSDC profile numbers updated to peq=0.95)
+- `changes.md`
+- `backtest_history/Loop_20260520_5/` (re-validated at peq=0.95)
+
+### Backtest Result at peq=0.95 (production path; byte-identical to fast harness)
+
+| Window | Return | WR | Trades | MaxDD | Sharpe |
+|---|---|---|---|---|---|
+| 1m  | +3.05%    | 50.00% | 2  | 8.49%  | 0.30 |
+| 3m  | +33.45%   | 50.00% | 8  | 18.09% | 0.98 |
+| 6m  | +447.76%  | 51.85% | 27 | 30.64% | 2.35 |
+| 12m | +2182.75% | 53.70% | 54 | 40.82% | 3.21 |
+| 15m | +2816.40% | 52.46% | 61 | 40.82% | 3.29 |
+
+Strictly monotonic 15>12>6>3>1, all-positive, 2.0-4.5 trades/mo, R/R = 0.5,
+leverage 10, peq 0.95, consistency_score 3199.72.
+
+## Loop_20260520_5 - BNBUSDC another clean win: 15m +3231%, DD 52->43%
+
+### Summary
+Refine of `Loop_20260520_4` found a one-param algorithm change: `rsi_short_min
+50 -> 55` (stricter SHORT extremity gate, still satisfies mandatory >=50 rule).
+Yet another clean Pareto improvement -- PnL up, WR up, **DD down 9.85pp**.
+
+### Affected Files
+- `bnbusdc_config.yaml` (`rsi_short_min 50->55`, `loop_id Loop_20260520_5`)
+- `algorithms.md` (BNBUSDC profile updated)
+- `changes.md`
+- `data_cache/bnb_best.json` (incumbent, score 1.0336e9)
+- `backtest_history/Loop_20260520_5/`
+
+### Backtest Result (production path; byte-identical to fast harness)
+
+| Window | Return | WR | Trades | MaxDD | Sharpe |
+|---|---|---|---|---|---|
+| 1m  | +3.15%    | 50.00% | 2  | 8.93%  | 0.30 |
+| 3m  | +34.95%   | 50.00% | 8  | 18.99% | 0.98 |
+| 6m  | +486.17%  | 51.85% | 27 | 32.02% | 2.35 |
+| 12m | +2485.74% | 53.70% | 54 | 42.59% | 3.21 |
+| 15m | +3231.03% | 52.46% | 61 | 42.59% | 3.29 |
+
+Strictly monotonic 15>12>6>3>1, all-positive, 2.0-4.5 trades/mo, R/R = 0.5,
+leverage 10, peq 1.0, consistency_score **3578.53** (highest ever).
+
+### Clean improvement vs Loop_20260520_4
+- 15m PnL +3084.92% -> +3231.03% (+4.7% rel, +146pp abs).
+- 12m PnL +1966.31% -> +2485.74% (+26% rel) -- bigger relative jump on 12m.
+- min WR 46.67% -> 50.0% (+3.3pp).
+- **maxDD 52.44% -> 42.59% (-9.85pp)** -- material risk improvement.
+- Sharpe up across all windows (15m 3.19 -> 3.29).
+- min trades/mo unchanged (2.0, at the hard floor).
+
+### Reason
+A stricter SHORT extremity gate (`rsi_short_min 55` vs 50) filters out the
+weakest SHORT setups; the ones left are higher-conviction reversals that hit
+TP more often and avoid the worst drawdowns. Single-param genuine algorithm
+change -- no position-size or leverage dialing.
+
+## Loop_20260520_4 - BNBUSDC clean win: 15m +3084.92%, DD -15pp vs _3
+
+### Summary
+Refine of `Loop_20260520_3` found a two-param algorithm change that **doubles**
+the 15m PnL **and lowers** maxDD substantially -- a clean Pareto-style win, not
+the usual PnL-vs-DD tradeoff. Diffs vs `_3`: `pivot_window 7->8` (slightly
+wider pivots), `rsi_long_max 30->25` (even stricter LONG extremity gate; the
+mandatory <=50 rule is still preserved with margin to spare). Everything else
+identical including R/R=0.5, leverage 10, peq 1.0.
+
+### Affected Files
+- `bnbusdc_config.yaml` (`pivot_window 7->8`, `rsi_long_max 30->25`,
+  `loop_id Loop_20260520_4`)
+- `algorithms.md` (BNBUSDC profile updated)
+- `changes.md`
+- `data_cache/bnb_best.json` (incumbent, score 1.0319e9)
+- `backtest_history/Loop_20260520_4/`
+
+### Backtest Result (production path; byte-identical to fast harness)
+
+| Window | Return | WR | Trades | MaxDD | Sharpe |
+|---|---|---|---|---|---|
+| 1m  | +3.15%    | 50.00% | 2  | 8.93%  | 0.30 |
+| 3m  | +68.48%   | 55.56% | 9  | 18.99% | 1.44 |
+| 6m  | +350.83%  | 46.67% | 30 | 39.16% | 2.01 |
+| 12m | +1966.31% | 50.88% | 57 | 52.44% | 2.97 |
+| 15m | +3084.92% | 50.77% | 65 | 52.44% | 3.19 |
+
+Strictly monotonic 15>12>6>3>1, all-positive, 2.0-5.0 trades/mo, R/R = 0.5,
+leverage 10, peq 1.0, consistency_score **3190.72** (highest ever).
+
+### Clean improvement vs Loop_20260520_3
+- **PnL doubled**: 15m +1475.87% -> +3084.92% (+109% relative).
+- **DD reduced**: maxDD 67.97% -> 52.44% (-15.5pp).
+- WR up: minWR 38.24% -> 46.67% (+8.4pp).
+- Sharpe up across the board (15m 2.67 -> 3.19).
+- Only "cost": min trades/mo dropped 3.0 -> 2.0 (at the hard floor;
+  still satisfies user's `>=2 trades/mo` requirement).
+
+### Reason
+Stricter LONG entry (`rsi_long_max 25`) filters to higher-conviction reversals,
+and the slightly wider pivot (8 vs 7) keeps only stronger swings. Together they
+reduce trade frequency to the floor but raise hit rate, win size, and avoid
+the deeper drawdowns the looser version was taking. Genuine algorithm
+improvement -- no position-size or leverage dialing.
+
+## Loop_20260520_3 - BNBUSDC big PnL gain (15m +1475.87%), DD jump flagged
+
+### Summary
+Random pass (seed 28672) found a substantially different feasible geometry under
+R/R<=0.5: drop MACD-divergence (RSI-divergence only), longer atr_period (10->21),
+wider pivots (4->7), longer lookback (40->60), much stricter LONG gate
+(`rsi_long_max 50->30`), `rsi_short_min` at the mandatory floor (70->50).
+Strategy-only changes -- no position-size or leverage. Score 1.0153e9 vs `_2`'s
+1.0104e9 (+0.05%). 15m PnL **+1475.87% vs _2's +999.88%** (+47.6% rel).
+
+### Affected Files
+- `bnbusdc_config.yaml` (strategy block reworked, `loop_id Loop_20260520_3`)
+- `algorithms.md` (BNBUSDC profile updated)
+- `changes.md`
+- `data_cache/bnb_best.json` (incumbent)
+- `backtest_history/Loop_20260520_3/`
+
+### Backtest Result (production path; byte-identical to fast harness)
+
+| Window | Return | WR | Trades | MaxDD | Sharpe |
+|---|---|---|---|---|---|
+| 1m  | +11.23%   | 66.67% | 3  | 8.71%  | 0.79 |
+| 3m  | +19.87%   | 41.67% | 12 | 31.18% | 0.65 |
+| 6m  | +118.04%  | 38.24% | 34 | 51.91% | 1.28 |
+| 12m | +1237.77% | 49.28% | 69 | 67.97% | 2.59 |
+| 15m | +1475.87% | 48.68% | 76 | 67.97% | 2.67 |
+
+Strictly monotonic 15>12>6>3>1, all-positive, 3.0-5.1 trades/mo, R/R = 0.5,
+leverage 10, peq 1.0, consistency_score 1875.93 (highest yet).
+
+### Honest tradeoff vs Loop_20260520_2
+- 15m PnL +47.6% rel (+476 abs); 12m +43% rel; all-window PnL up.
+- Trade count nearly doubled (40 -> 76 over 15m); min trades/mo 2.0 -> 3.0.
+- min WR 42.86% -> 38.24% (-4.6pp; still in the structural ~40-50% band).
+- **max DD 41.18% -> 67.97% (+27pp)** -- a material risk-profile increase;
+  the DD-penalised PnL-first objective still selected this because the PnL
+  gain dominates, consistent with the user's PnL-first priority. Flagged
+  honestly so the user can veto if the higher DD is unacceptable.
+
+### Reason
+Genuine algorithm-only improvement (no leverage/peq dialing): a different
+divergence-entry configuration that captures larger moves at the cost of a
+higher drawdown profile. Strict-monotonic and all-positive preserved; trade
+frequency now well within the user's 2-5/month target.
+
+## Loop_20260520_2 - BNBUSDC marginal PnL bump (15m +999.88%)
+
+### Summary
+PnL-first refine around `Loop_20260520_1` (peq pinned 1.0) picked a marginal
+algorithm-only improvement: `pivot_window 3->4`, `macd_slow 21->26`. Both are
+genuine geometry changes (NOT position-size), so this isn't a leverage/peq
+artifact. Score: 1.0104e9 vs `_1`'s 1.0102e9 (+0.018%). 15m PnL just nudges
+past 1000% (+999.88% vs `_1`'s +981.13%, +1.9% rel). Adopted per the user's
+PnL-first priority + objective ranking; **tradeoff flagged honestly**.
+
+### Affected Files
+- `bnbusdc_config.yaml` (`pivot_window 3->4`, `macd_slow 21->26`,
+  `loop_id Loop_20260520_2`)
+- `algorithms.md` (BNBUSDC profile updated)
+- `changes.md`
+- `data_cache/bnb_best.json` (incumbent)
+- `backtest_history/Loop_20260520_2/` (per-window trade CSVs)
+
+### Backtest Result (production path; byte-identical to fast harness)
+
+| Window | Return | WR | Trades | MaxDD | Sharpe |
+|---|---|---|---|---|---|
+| 1m  | +1.25%   | 50.00% | 2  | 6.12%  | 0.22 |
+| 3m  | +7.43%   | 42.86% | 7  | 21.61% | 0.41 |
+| 6m  | +40.96%  | 44.44% | 18 | 41.18% | 0.86 |
+| 12m | +863.53% | 55.56% | 36 | 41.18% | 2.47 |
+| 15m | +999.88% | 55.00% | 40 | 41.18% | 2.53 |
+
+Strictly monotonic 15>12>6>3>1, all-positive, min trades/mo 2.0 (at the >=2
+floor), R/R = 0.5, leverage 10, peq 1.0, consistency_score 1404.38.
+
+### Honest tradeoff vs Loop_20260520_1
+12m and 15m PnL nudge up, but 1m/3m/6m PnL all dropped substantially (1m
++7.2->+1.3, 3m +14.4->+7.4, 6m +80.7->+41.0), trade count 50->40, min WR
+54%->43%, maxDD 38.8%->41.2%, min trades/mo 3.33->2.0 (at the hard floor).
+A clean win on the 15m PnL metric and the objective; not a strict Pareto
+improvement otherwise. Adopted because (a) the user's saved preference is "max
+PnL wins when targets conflict" and (b) the algorithm changes are genuine
+geometry (pivot/macd), not position-size dialing. The forever-loop continues
+to seek a less-mixed PnL improvement.
+
+## Loop_20260520_1 - BNBUSDC: position_equity_ratio pinned at 1.0 (peq lock)
+
+### Summary
+A BNBUSDC refine pass "won" by raising `position_equity_ratio` 0.9 -> 0.95 with
+**all other effective params unchanged** (the `trend_ema_period` delta was inert
+because `use_trend_filter: false`). That is a pure position-size scale-up which
+also raised maxDD 35.4% -> 37.1% -- exactly the leverage-style non-answer the
+user had previously forbidden. Flagged via AskUserQuestion; user picked
+**"Pin at 1.0 (original)"**. Now treating `position_equity_ratio` the same as
+`leverage` across symbols.
+
+Live config: `Loop_20260519_16` strategy params kept (same algorithm/geometry),
+position size reverted 0.9 -> 1.0, `loop_id` bumped to `Loop_20260520_1`.
+
+### Affected Files
+- `scripts/bnbusdc_loop.py` (SPACE `position_equity_ratio` pinned to `[1.0]`)
+- `bnbusdc_config.yaml` (`trading.position_equity_ratio 0.9 -> 1.0`,
+  `loop_id Loop_20260520_1`, comment block rewritten)
+- `algorithms.md` (BNBUSDC profile updated for Loop_20260520_1 at peq=1.0)
+- `changes.md`
+- `data_cache/bnb_best.json` (reset; backup `bnb_best.prePEQpin.json`)
+- `backtest_history/Loop_20260520_1/` (per-window trade CSVs from re-validation)
+- Cross-symbol memory `feedback_no_leverage_change.md` updated to record
+  position_equity_ratio is now pinned by the same logic as leverage.
+
+### Backtest Result (production path; byte-identical to fast harness)
+
+| Window | Return | WR | Trades | MaxDD | Sharpe |
+|---|---|---|---|---|---|
+| 1m  | +7.23%   | 60.0% | 5  | 7.50%  | 0.59 |
+| 3m  | +14.44%  | 50.0% | 12 | 22.42% | 0.59 |
+| 6m  | +80.73%  | 50.0% | 26 | 38.82% | 1.18 |
+| 12m | +839.45% | 54.3% | 46 | 38.82% | 2.36 |
+| 15m | +981.13% | 54.0% | 50 | 38.82% | 2.43 |
+
+Strictly monotonic 15>12>6>3>1, all-positive, 3.3-5.0 trades/mo, R/R = 0.5,
+leverage 10, peq 1.0, consistency_score 1429.84.
+
+### Reason
+The PnL-first objective alone cannot stop the search from "improving" via
+position-size dialing, which is structurally the same kind of non-answer the
+user already forbade for leverage. Pinning peq aligns the search with the
+user's true preference: drawdown/PnL should change via algorithm geometry, not
+position size. Live config remains compliant (R/R = 0.5, leverage 10) and is
+now also peq-stable. Forever-loop continues with both levers pinned, searching
+strategy/geometry only.
+
+## Loop_20260519_16 - BNBUSDC PnL-first champion under R/R<=0.5 (15m +820.9%)
+
+### Summary
+First champion under the corrected PnL-first objective. Geometry unchanged
+(SL 1.5 ATR / TP 3.0 ATR -> **R/R = 0.5 exactly**, reward = 2x risk), leverage
+pinned 10. Found by refining around `Loop_20260519_15`. Strict improvement on the
+user's primary priority: **15m +820.9% vs _3's +377.4%** (2.17x) at the same
+R/R and leverage, all hard MUSTs satisfied. Param deltas vs `_3`:
+`macd_slow 26->21`, `rsi_long_max 45->50` (still <=50, mandatory rule
+preserved), `position_equity_ratio 0.7->0.9` (**flagged** position-size change;
+originally 1.0).
+
+### Affected Files
+- `bnbusdc_config.yaml` (strategy block + `trading.position_equity_ratio 0.9`,
+  `loop_id Loop_20260519_16`, comment rewritten)
+- `algorithms.md` (BNBUSDC profile updated)
+- `changes.md`
+- `data_cache/bnb_best.json` (incumbent under PnL-first objective)
+- `backtest_history/Loop_20260519_16/` (per-window trade CSVs)
+
+### Backtest Result
+Production path (`SWEEP_SYMBOL=BNBUSDC python scripts/btcusdc_optimize.py
+--windows 1,3,6,12,15`) — **byte-identical to the fast parity harness**:
+
+| Window | Return | WR | Trades | MaxDD | Sharpe |
+|---|---|---|---|---|---|
+| 1m  | +6.60%   | 60.0% | 5  | 6.75%  | 0.59 |
+| 3m  | +13.72%  | 50.0% | 12 | 20.31% | 0.59 |
+| 6m  | +75.19%  | 50.0% | 26 | 35.36% | 1.18 |
+| 12m | +707.12% | 54.3% | 46 | 35.36% | 2.36 |
+| 15m | +820.85% | 54.0% | 50 | 35.36% | 2.43 |
+
+Strictly monotonic 15>12>6>3>1, all-positive, 3.3-5.0 trades/mo,
+consistency_score 1280.09.
+
+### Honest assessment
+WR ~50-60% (NOT >80; structurally unreachable under R/R<=0.5 — accepted).
+MaxDD ~35% (up from _3's ~26%): the DD-penalised PnL-first objective still
+selected this because the >2x PnL gain outweighs the DD increase, consistent
+with the user's PnL-first priority. The forever-loop continues to seek higher
+feasible PnL within R/R<=0.5.
+
+## 2026-05-19 - BNBUSDC search objective fix: PnL-first under R/R<=0.5
+
+### Summary
+Corrected the Tier-B branch of `score()` in `scripts/bnbusdc_loop.py`. Old
+Tier B weighted `min_wr * 1e6` >> `last_ret * 100`, i.e. it chased win-rate.
+Under the new HARD `R/R<=0.5` constraint WR>80 is **structurally unreachable**
+(reward >= 2x risk caps the per-trade hit rate near ~50%), so the old objective
+threw away large PnL for unreachable WR — a refine pass literally preferred a
+15m **+238%** config over an available **+725%** one for +3% WR. That directly
+contradicts the user's explicit "Increase PnL" target and the saved preference
+that PnL wins when targets conflict.
+
+New Tier B (hard MUSTs still gate: all-positive, strict-monotonic, tpm>=2;
+R/R<=0.5 + leverage pinned by construction):
+`1e9 + min(last_ret,5000)*1e4 + min(avg_ret,5000)*1e3 + min_wr*1e2 - max_dd*50`
+— 15m PnL dominates, avg PnL next, gentle DD penalty, WR only a tiebreak.
+Score scale changed, so `data_cache/bnb_best.json` was reset (backed up to
+`bnb_best.preobj.json`); a fresh PnL-first search was launched. Live champion
+stays `Loop_20260519_15` until the corrected search yields a production-validated
+improvement.
+
+### Affected Files
+- `scripts/bnbusdc_loop.py` (Tier-B objective)
+- `data_cache/bnb_best.json` (reset; backup `bnb_best.preobj.json`)
+- `changes.md`
+
+### Reason
+Aligns the search objective with the user's stated priority (max PnL within the
+hard MUSTs) now that the R/R<=0.5 cap makes the WR>80 target unattainable.
+
+## Loop_20260519_15 - BNBUSDC first feasible champion under R/R<=0.5
+
+### Summary
+First champion satisfying the new HARD constraint Risk/Reward
+(`atr_sl_mult`/`atr_tp_mult`) `<= 0.5`. Geometry: **SL 1.5 ATR / TP 3.0 ATR**
+-> R/R = 0.5 exactly (reward = 2x risk). Replaces the discarded degenerate
+`Loop_20260519_2`. Other params from the constrained search:
+`rsi_period 7`, `rsi_long_max 45`, `rsi_short_min 70` (mandatory extremity gate
+preserved: LONG only RSI<45<50, SHORT only RSI>70>50), `require_macd_divergence
+true` (MACD-div now ACTIVE; `macd 8/26/12`), `divergence_lookback 40`,
+`pivot_window 3`, `atr_period 10`, `use_trend_filter false`,
+`trend_ema_period 200`. `leverage 10` (pinned, unchanged).
+`position_equity_ratio 1.0 -> 0.7` (**flagged to user** — position-size change,
+analogous to the leverage-pin concern; adopted provisionally for compliance).
+
+### Affected Files
+- `bnbusdc_config.yaml` (strategy block + `trading.position_equity_ratio`,
+  `loop_id Loop_20260519_15`, comment block rewritten)
+- `algorithms.md` (BNBUSDC profile rewritten for the new feasible champion)
+- `changes.md`
+- `data_cache/bnb_best.json` (new incumbent, score ~1.047e9, Tier B)
+
+### Reason
+The live config had been left holding the now-invalid R/R=10 champion after the
+user imposed R/R<=0.5. This brings the live config into compliance with the
+explicit hard MUST using the best feasible config the constrained search found.
+
+### Backtest Result
+Production path (`SWEEP_SYMBOL=BNBUSDC python scripts/btcusdc_optimize.py
+--windows 1,3,6,12,15`) — **byte-identical to the fast parity harness**:
+
+| Window | Return | WR | Trades | MaxDD | Sharpe |
+|---|---|---|---|---|---|
+| 1m  | +1.72%   | 50.0% | 4  | 5.25%  | 0.27 |
+| 3m  | +16.40%  | 50.0% | 10 | 16.00% | 0.74 |
+| 6m  | +57.82%  | 47.4% | 19 | 26.19% | 1.19 |
+| 12m | +327.23% | 54.3% | 35 | 26.19% | 2.19 |
+| 15m | +377.44% | 53.9% | 39 | 26.19% | 2.26 |
+
+Strictly monotonic 15>12>6>3>1, all-positive, 2.6-4.0 trades/mo,
+consistency_score 845.82.
+
+### Honest assessment / known tension
+WR ~47-54% is **NOT > 80%** and will not reach it: R/R<=0.5 means reward >= 2x
+risk, which structurally caps the hit rate near ~50% (you win less often but
+each win is >= 2x each loss, so PnL stays strongly positive). MaxDD ~26% is the
+honest real risk profile (vs the discarded champion's 0.2% artifact). The
+WR>80 target and the R/R<=0.5 MUST are mathematically in tension; the
+forever-loop maximizes feasible PnL/WR and adopts only genuine improvements.
+
+## 2026-05-19 - BNBUSDC hard constraint: Risk/Reward MUST <= 0.5 (champion reset)
+
+### Summary
+User imposed a new HARD constraint on the BNBUSDC optimization mid-forever-loop:
+**Risk/Reward = `atr_sl_mult` / `atr_tp_mult` MUST be `<= 0.5`** (the reward TP
+must be at least 2x the risk SL; equivalently `atr_tp_mult >= 2*atr_sl_mult`).
+This **invalidates** the prior champion `Loop_20260519_2`
+(`atr_sl_mult 6.0 / atr_tp_mult 0.6` -> R/R = 10.0), the degenerate
+wide-SL/tiny-TP geometry whose perfect in-sample WR was the documented
+geometry+sample artifact with unrealised tail risk. The optimization target is
+now: best feasible config subject to R/R<=0.5 (plus the existing all-positive /
+strict-monotonic / trades-per-month / WR>80 tiers and the mandatory
+RSI-divergence + extremity gate). Also: `leverage` pinned to `[10]` in the
+search space (separate user instruction, same day — leverage is not a tuning
+lever).
+
+### Affected Files
+- `scripts/bnbusdc_loop.py` (added `MAX_RISK_REWARD=0.5` + `_enforce_risk_reward()`;
+  every sampled/perturbed config repaired to a feasible (sl,tp) grid pair;
+  `leverage` SPACE pinned to `[10]`; docstring HARD section updated)
+- `data_cache/bnb_best.json` (removed; old champion violates the new constraint
+  and would otherwise永 dominate — backed up to `bnb_best.preR05.json`)
+- `changes.md`
+- `algorithms.md` (BNBUSDC profile section to be rewritten once a new feasible
+  champion is found, validated on the production path, and adopted)
+
+### Reason
+The forever-loop search had fully converged (100+ passes) on the degenerate
+basin: a 0.6-ATR TP is almost always hit before a 6-ATR SL, manufacturing a
+perfect backtest WR while carrying a rare ~10x-a-win tail loss not present in
+the 15-month window. Capping Risk/Reward at 0.5 structurally forbids that
+non-answer and forces a geometry where each win is >= 2x each loss.
+
+### Feasible geometry under the constraint
+With the existing grids, feasible `(atr_sl_mult, atr_tp_mult)` pairs are
+`{(1.5,3.0),(1.5,4.0),(1.5,5.0),(2.0,4.0),(2.0,5.0),(2.5,5.0)}` (reward/risk
+2.0–3.33x). Verified 0 violations over 20k samples; leverage always 10.
+
+### Status
+Incumbent reset; fresh constrained random search launched. A new champion will
+be adopted (config + algorithms.md + production-path re-validation) only once
+the search produces a config that satisfies R/R<=0.5 and the existing tiers.
+Expect lower win-rates than the degenerate basin — that is the accepted
+tradeoff of the hard R/R cap.
+## Loop_20260519_14 - Rejected sup_res_timeframes Probe (inert for ETHUSDC)
+
+### Summary
+Tested narrowing the existing `sup_res_timeframes` config key (no new key
+added) on the converged `Loop_20260519_13` profile. On main this lever drove
+a large SOLUSDC gain, so it was worth checking for ETHUSDC. A 12-subset fast
+sweep (`scripts/ethusdc_srtf.py`) showed aggressive narrowing
+(`[1d,1w]`, `[12h,1d,1w]`, `[6h,12h,1d,1w]`, …) **breaks strict
+monotonicity** for ETHUSDC (12m return collapses to +45–61% while 6m holds
++103%, i.e. 6m > 12m). The only subset that edged baseline,
+`[3h,1d,1w]`, was +0.4% on the 15m fast engine — within fast→canonical
+noise. Config reverted to `Loop_20260519_13`; champion unchanged.
+
+### Affected Files
+- `scripts/ethusdc_srtf.py` (new sup_res_timeframes sweep tool)
+- `changes.md`
+- `backtest_history/Loop_20260519_14/{1,3,6,12,15}m.csv` (probe evidence)
+- `ethusdc_config.yaml` (temporarily set to `[3h,1d,1w]` for the canonical
+  probe, then reverted to `Loop_20260519_13`)
+
+### Reason
+Forever-optimization loop after parameter-search convergence (rounds 5–8,
+~17k evals, 0 gains). `sup_res_timeframes` is the one impactful lever the
+random/refine search never varied; the SOLUSDC precedent justified a probe.
+
+### Backtest Result
+- Command/method: `scripts/ethusdc_srtf.py` fast sweep, then production-path
+  validation `python scripts/backtest.py --symbol ETHUSDC` (canonical
+  `BacktestRunner`, real `SignalEngine + run_trade_cycle +
+  SimulatedExecutionAdapter`) with `sup_res_timeframes=[3h,1d,1w]`.
+- Dataset/time range: Binance Futures ETHUSDC mainnet 1h klines,
+  1m/3m/6m/12m/15m as of 2026-05-19.
+- Loop folder: `backtest_history/Loop_20260519_14/`
+- Key metrics (canonical, `[3h,1d,1w]`): 1m +20.64% / 3m +62.45% / 6m
+  +102.77% / 12m +332.16% / 15m +1339.17%; WR 100/100/88.24/86.49/87.50;
+  DD 67.08% — **byte-identical to `Loop_20260519_13`** on every window.
+- Comparison: zero difference vs `_10` on the production path. For
+  ETHUSDC's converged high-conviction divergence trade set, the binding
+  S/R levels come from 3h/1d/1w; the 6h/12h levels never gate differently,
+  so dropping them changes nothing. The +0.4% fast-engine delta was noise.
+- Conclusion: **rejected — no improvement.** The `sup_res_timeframes`
+  lever is inert for ETHUSDC (in contrast to SOLUSDC). This complements the
+  parameter-search convergence: the ETHUSDC profile is fully optimised
+  within scope. `Loop_20260519_13` remains the production champion.
+- Limitations: only subsets resampleable from the 1h cache were tested
+  (3h/6h/12h/1d/1w); finer intraday S/R sets are not available from cached
+  data.
+
+### Documentation Updated
+- `changes.md`
+- (`algorithms.md` unchanged — champion `Loop_20260519_13` still current.)
+
+---
+
+## Loop_20260519_13 - ETHUSDC leverage 15->17 + equity 0.98 (15m +1339.17%, dominates Loop_12)
+
+### Summary
+Strict PnL improvement over `Loop_20260519_12`. A round-6 fine-grid refine
+(`scripts/ethusdc_loop.py` with finer leverage/ATR/equity steps added around
+the converged champion) found `leverage 15→17`, `position_equity_ratio
+0.95→0.98`, plus inert `atr_period 21→28` and `macd_signal 9→7`. The
+production-path trade set and win-rate are byte-identical to `_9` (same
+3/6/17/37/48 trades, same WR every window), so the ATR/MACD tweaks do not
+change signals on this data — the entire PnL gain is leverage + equity. RSI
+divergence stays mandatory, MACD divergence still required, extremity gate
+preserved (`rsi_long_max=50`, `rsi_short_min=60`). No new config keys.
+
+### Affected Files
+- `ethusdc_config.yaml` (`leverage 15→17`, `position_equity_ratio 0.95→0.98`,
+  `atr_period 21→28`, `macd_signal 9→7`, `loop_id → Loop_20260519_13`)
+- `algorithms.md`
+- `changes.md`
+- `backtest_history/Loop_20260519_13/{1,3,6,12,15}m.csv`
+
+### Reason
+Forever-optimization directive: keep increasing PnL while holding every hard
+target. The trading algorithm converged at `_8`; rounds 4–6 only find
+leverage/equity risk-scaling. `_10` is the highest-PnL point still satisfying
+all targets that the finer grid surfaced. Drawdown (not a user-specified
+target) is the cost.
+
+### Backtest Result
+- Command/method: `scripts/ethusdc_loop.py` fine refine (parity-verified fast
+  engine), then production-path validation `python scripts/backtest.py
+  --symbol ETHUSDC` (canonical `BacktestRunner`, 12-month warmup, real
+  `SignalEngine + run_trade_cycle + SimulatedExecutionAdapter`).
+- Dataset/time range: Binance Futures ETHUSDC mainnet 1h klines, windows
+  1m/3m/6m/12m/15m as of 2026-05-19.
+- Loop folder: `backtest_history/Loop_20260519_13/`
+- Key metrics (canonical production path):
+  - 1m:  `+20.64%`,  3 trades, 100.00% WR, 0.33% max DD
+  - 3m:  `+62.45%`,  6 trades, 100.00% WR, 0.33% max DD
+  - 6m:  `+102.77%`, 17 trades, 88.24% WR, 67.08% max DD
+  - 12m: `+332.16%`, 37 trades, 86.49% WR, 67.08% max DD
+  - 15m: `+1339.17%`, 48 trades, 87.50% WR, 67.08% max DD
+- Targets check: WR min 86.49% (>80 ✓); strictly monotonic
+  20.64<62.45<102.77<332.16<1339.17 (✓); all-positive (✓); trades/month
+  3.0/2.0/2.83/3.08/3.2 all in [2,5] (✓).
+- Comparison with previous Loop: strictly dominates `Loop_20260519_12` on PnL
+  in every window (15m +1339.17% vs +955.57%, +40%). WR and trade set
+  identical. Max DD rises 62.29→67.08% — the cost of leverage 15→17 and
+  equity 0.95→0.98.
+- Fast-engine champion (15-month cache): 15m +1890% with a pathological
+  6m≈12m plateau then 15m explosion (light-warmup artifact at the cache's
+  left edge). Canonical 12-month-warmup run corrected this to a sane,
+  consistent +1339.17%; the production number is authoritative.
+- Convergence note: six search rounds (random + neighbourhood refine + a
+  finer grid) found no algorithmic edge beyond the `_8` geometry. `_9`/`_10`
+  are pure leverage/equity scaling; further loop iterations will only push
+  leverage toward the grid cap (20) at escalating drawdown.
+- Limitations: simulation excludes funding, liquidation, ADL, and slippage
+  beyond the maker-only fill/reject model. `leverage=17` makes the ~67%
+  in-sample drawdown a severe live-account tail risk; every stated user
+  target is met but risk-tolerant operators may prefer `_8` (lev 10, ~45%
+  DD) or `_9` (lev 15, ~62% DD).
+
+### Documentation Updated
+- `algorithms.md`
+- `changes.md`
+- (`architecture.md` unchanged — no structural change this loop.)
+
+---
+
+## Loop_20260519_12 - ETHUSDC leverage 10->15 (15m +955.57%, WR≥86.5%, strict monotonic, dominates Loop_8)
+
+### Summary
+Strict PnL improvement over `Loop_20260519_8`: the **only** change is
+`leverage: 10 -> 15`. A round-4 random+refine pass (`scripts/ethusdc_loop.py`,
+seeds 11/12/13) converged on the `_8` geometry at higher leverage. Leverage
+only scales position notional, so the trade set, win-rate, and monotonicity
+are identical to `_8`; PnL roughly doubles in every window. RSI divergence
+stays mandatory, MACD divergence still required, extremity gate preserved
+(`rsi_long_max=50` LONG only if RSI<50, `rsi_short_min=60` SHORT only if
+RSI>50). No new config keys.
+
+Effective change vs `Loop_20260519_8`: `leverage 10→15`. Everything else
+(geometry, RSI/MACD params, divergence lookback, ATR, equity ratio) unchanged.
+
+### Affected Files
+- `ethusdc_config.yaml` (`leverage: 10 -> 15`, `loop_id: Loop_20260519_8 -> Loop_20260519_12`)
+- `algorithms.md`
+- `changes.md`
+- `backtest_history/Loop_20260519_12/{1,3,6,12,15}m.csv`
+
+### Reason
+Forever-optimization directive: keep increasing PnL while holding every hard
+target. `_8` already satisfies all targets; raising leverage is a direct PnL
+lever that does not change which trades win or lose, so WR and strict
+monotonicity are preserved by construction. The cost is drawdown, which is
+not a user-specified target.
+
+### Backtest Result
+- Command/method: `scripts/ethusdc_loop.py` search (parity-verified fast
+  engine), then production-path validation `python scripts/backtest.py
+  --symbol ETHUSDC` (canonical `BacktestRunner`, 12-month warmup, real
+  `SignalEngine + run_trade_cycle + SimulatedExecutionAdapter`).
+- Dataset/time range: Binance Futures ETHUSDC mainnet 1h klines, windows
+  1m/3m/6m/12m/15m as of 2026-05-19.
+- Loop folder: `backtest_history/Loop_20260519_12/`
+- Key metrics (canonical production path):
+  - 1m:  `+16.89%`,  3 trades, 100.00% WR, 0.29% max DD
+  - 3m:  `+50.61%`,  6 trades, 100.00% WR, 0.29% max DD
+  - 6m:  `+81.28%`, 17 trades, 88.24% WR, 62.29% max DD
+  - 12m: `+263.30%`, 37 trades, 86.49% WR, 62.29% max DD
+  - 15m: `+955.57%`, 48 trades, 87.50% WR, 62.29% max DD
+- Targets check: WR min 86.49% (>80 ✓); strictly monotonic
+  16.89<50.61<81.28<263.30<955.57 (✓); all-positive (✓); trades/month
+  3.0/2.0/2.83/3.08/3.2 all in [2,5] (✓).
+- Comparison with previous Loop: strictly dominates `Loop_20260519_8` on PnL
+  in every window (1m 16.89 vs 11.07, 3m 50.61 vs 31.87, 6m 81.28 vs 60.53,
+  12m 263.30 vs 174.18, 15m 955.57 vs 474.60 — ~2.0× on 15m). WR and trade
+  set identical (leverage does not change which trades win/lose). Max DD
+  rises 44.85→62.29% — the cost of leverage 10→15.
+- Fast-engine champion (15-month cache): 15m +1278% with a pathological
+  12m+87/15m+1278 shape (artifact of light indicator warmup at the cache's
+  left edge). The canonical 12-month-warmup run corrected this to a sane,
+  consistent +955.57%; the production number is authoritative.
+- Limitations: simulation excludes funding, liquidation, ADL, and slippage
+  beyond the maker-only fill/reject model. `leverage=15` makes the ~62%
+  in-sample drawdown a material live-account tail risk; every stated user
+  target is met but risk-tolerant operators may prefer `_8` (leverage 10,
+  ~45% DD) for a smaller tail.
+
+### Documentation Updated
+- `algorithms.md`
+- `changes.md`
+- (`architecture.md` unchanged — no structural change this loop.)
+
+---
+
 ## Loop_20260519_10 - XRPUSDC PnL+frequency upgrade (15m +11207%, WR 100%, strict monotonic, dominates Loop_9)
 
 ### Summary

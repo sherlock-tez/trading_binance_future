@@ -270,6 +270,80 @@ def test_rest_fallback_emits_and_dedupes(monkeypatch):
     assert ev.close_price == 1.6
 
 
+def test_refresh_symbol_timeframes_async_runs_in_parallel(monkeypatch):
+    import time as _time
+    svc = _service()
+    tfs = ["1h", "3h", "6h", "12h", "1d", "1w"]
+    frame = pd.DataFrame(
+        {"open_time": [0], "open": [1.0], "high": [1.0],
+         "low": [1.0], "close": [1.0], "volume": [1.0], "close_time": [0]}
+    )
+
+    def slow_fetch(symbol, timeframe, *, limit):
+        _time.sleep(0.1)  # simulate per-call REST latency
+        return frame
+
+    monkeypatch.setattr(svc, "fetch_klines_frame", slow_fetch)
+
+    async def run():
+        t0 = _time.monotonic()
+        result = await svc.refresh_symbol_timeframes_async("ETHUSDC", tfs, limit=600)
+        return result, _time.monotonic() - t0
+
+    result, elapsed = asyncio.run(run())
+    assert set(result.keys()) == set(tfs)
+    # serial would be ~0.6s; parallel via to_thread should be ~0.1-0.2s
+    assert elapsed < 0.4, f"expected parallel (<0.4s), got {elapsed:.2f}s"
+
+
+def test_rest_stale_retry_backs_off_and_alerts(monkeypatch):
+    svc = _service()
+    closes: list[CandleEvent] = []
+    alerts: list[str] = []
+    sleep_delays: list[float] = []
+
+    # Frame: forming candle (iloc[-1]) close_time=39 (epoch-ms, in 1970 -> past_due).
+    # Closed candle (iloc[-2]) close_time=29 -> emitted once on iter 1; then
+    # subsequent fetches dedupe and trigger the stale-retry backoff.
+    frame = pd.DataFrame(
+        {
+            "open_time": [10, 20, 30],
+            "open": [1.0, 1.0, 1.0],
+            "high": [2.0, 2.0, 2.0],
+            "low": [0.5, 0.5, 0.5],
+            "close": [1.5, 1.6, 1.7],
+            "volume": [10.0, 11.0, 12.0],
+            "close_time": [19, 29, 39],
+        }
+    )
+    monkeypatch.setattr(svc, "fetch_klines_frame", lambda *a, **k: frame)
+
+    async def fake_sleep(seconds):
+        sleep_delays.append(seconds)
+        if len(sleep_delays) >= 7:
+            raise _StopLoop()
+
+    monkeypatch.setattr(bf.asyncio, "sleep", fake_sleep)
+
+    async def run():
+        with pytest.raises(_StopLoop):
+            await svc.stream_closed_klines(
+                ["X"], "1m", lambda e: closes.append(e),
+                on_error=lambda m: alerts.append(m),
+                mode="rest",
+            )
+
+    asyncio.run(run())
+
+    # iter1 emits; iters 2-7 are stale-retry backoffs at 250ms * N.
+    assert len(closes) == 1
+    expected = [0.25, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5]
+    assert sleep_delays == expected, sleep_delays
+    # alert fires exactly once, at stale_retries == 5 (iter 6).
+    assert any("stale" in a.lower() for a in alerts), alerts
+    assert sum("stale" in a.lower() for a in alerts) == 1, alerts
+
+
 def test_rest_only_mode_never_opens_websocket(monkeypatch):
     svc = _service()
     closes: list[CandleEvent] = []
@@ -339,5 +413,17 @@ def test_settings_market_data_mode_env(monkeypatch):
 
 def test_settings_invalid_market_data_mode_raises(monkeypatch):
     monkeypatch.setenv("MARKET_DATA_MODE", "bogus")
+    with pytest.raises(ConfigError):
+        load_settings()
+
+
+def test_settings_frame_lookback_default_and_env(monkeypatch):
+    assert load_settings().frame_lookback == 600
+    monkeypatch.setenv("FRAME_LOOKBACK", "1500")
+    assert load_settings().frame_lookback == 1500
+
+
+def test_settings_invalid_frame_lookback_raises(monkeypatch):
+    monkeypatch.setenv("FRAME_LOOKBACK", "0")
     with pytest.raises(ConfigError):
         load_settings()

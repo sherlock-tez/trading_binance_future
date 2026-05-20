@@ -30,7 +30,10 @@ RECONNECT_BACKOFF_BASE = 1.0
 RECONNECT_BACKOFF_CAP = 60.0
 MAX_CONNECTION_SECONDS = 23 * 3600   # rotate before Binance's 24h hard cap
 ALERT_THROTTLE_SECONDS = 300.0       # min gap between repeated failure alerts
-REST_ALIGN_BUFFER_MS = 3000          # wake this long after a candle closes
+REST_ALIGN_BUFFER_MS = 500           # first wake this long after a candle closes
+REST_ALIGN_RETRY_MS = 250            # base unit for stale-retry backoff (N * this)
+REST_STALE_BACKOFF_CAP_MS = 5000     # cap the stale-retry backoff at this many ms
+REST_STALE_ALERT_AFTER = 5           # WARN + Telegram once this many stale retries
 
 
 def _build_ws_url(base: str, combined: str, mode: str, is_testnet: bool) -> str:
@@ -219,6 +222,31 @@ class BinanceMarketDataService:
         self._cache.setdefault(symbol, {})
         for timeframe in timeframes:
             self._cache[symbol][timeframe] = self.fetch_klines_frame(symbol, timeframe, limit=limit)
+        return {k: v.copy() for k, v in self._cache[symbol].items()}
+
+    async def refresh_symbol_timeframes_async(
+        self,
+        symbol: str,
+        timeframes: List[str],
+        *,
+        limit: int = 500,
+    ) -> Dict[str, pd.DataFrame]:
+        """Parallel sibling of refresh_symbol_timeframes.
+
+        Runs each REST fetch in a worker thread via asyncio.to_thread and
+        gathers them concurrently, so total wall time is ~max(per-call)
+        instead of sum(per-call). Used at the live decision boundary
+        where the bot must process 6+ timeframes as fast as possible.
+        """
+        frames = await asyncio.gather(
+            *(
+                asyncio.to_thread(self.fetch_klines_frame, symbol, tf, limit=limit)
+                for tf in timeframes
+            )
+        )
+        self._cache.setdefault(symbol, {})
+        for tf, frame in zip(timeframes, frames):
+            self._cache[symbol][tf] = frame
         return {k: v.copy() for k, v in self._cache[symbol].items()}
 
     def get_cached(self, symbol: str) -> Dict[str, pd.DataFrame]:
@@ -434,10 +462,11 @@ class BinanceMarketDataService:
         align_to_close = not probe_for_recovery
         if align_to_close:
             logger.warning(
-                "REST polling %s, aligned to %s candle close (+%.0fs buffer)",
+                "REST polling %s, aligned to %s candle close (+%.0fms buffer, %.0fms retry)",
                 ",".join(symbols),
                 timeframe,
-                REST_ALIGN_BUFFER_MS / 1000.0,
+                REST_ALIGN_BUFFER_MS,
+                REST_ALIGN_RETRY_MS,
             )
         else:
             logger.warning(
@@ -447,8 +476,10 @@ class BinanceMarketDataService:
                 probe_seconds,
             )
         last_probe = time.monotonic()
+        stale_retries = 0
         while True:
             round_ok = True
+            emitted_any = False
             next_close_ms: Optional[int] = None
             for symbol in symbols:
                 try:
@@ -482,6 +513,7 @@ class BinanceMarketDataService:
                 if close_time <= last_close_time.get(sym_key, 0):
                     continue
                 last_close_time[sym_key] = close_time
+                emitted_any = True
 
                 event = CandleEvent(
                     symbol=sym_key,
@@ -512,12 +544,42 @@ class BinanceMarketDataService:
 
             if align_to_close and round_ok and next_close_ms is not None:
                 wake_ms = next_close_ms + 1 + REST_ALIGN_BUFFER_MS
-                delay = max(wake_ms / 1000.0 - time.time(), 1.0)
+                past_due = wake_ms <= time.time() * 1000.0
+                if not emitted_any and past_due:
+                    # Boundary already crossed but Binance hasn't given us the
+                    # new closed candle yet -> back off (250ms * N, capped).
+                    stale_retries += 1
+                    delay = min(
+                        stale_retries * REST_ALIGN_RETRY_MS,
+                        REST_STALE_BACKOFF_CAP_MS,
+                    ) / 1000.0
+                    if stale_retries == REST_STALE_ALERT_AFTER:
+                        logger.warning(
+                            "Binance REST stale for %s %s: %d consecutive "
+                            "retries past expected close; backing off "
+                            "(next sleep %.2fs)",
+                            ",".join(symbols),
+                            timeframe,
+                            stale_retries,
+                            delay,
+                        )
+                        result = emit_failure(
+                            f"REST stale: {timeframe} {','.join(symbols)} "
+                            f"{stale_retries} retries past expected close"
+                        )
+                        if asyncio.iscoroutine(result):
+                            await result
+                else:
+                    stale_retries = 0
+                    delay = max(
+                        wake_ms / 1000.0 - time.time(),
+                        REST_ALIGN_RETRY_MS / 1000.0,
+                    )
                 wake_utc = datetime.fromtimestamp(
                     wake_ms / 1000.0, timezone.utc
                 ).strftime("%Y-%m-%d %H:%M:%S UTC")
                 logger.info(
-                    "REST: next %s close ~%s; sleeping %.0fs",
+                    "REST: next %s close ~%s; sleeping %.2fs",
                     timeframe,
                     wake_utc,
                     delay,
