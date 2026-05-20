@@ -78,43 +78,47 @@ def score(window_results) -> Tuple[float, bool, Dict[str, Any]]:
     avg_wr = sum(wrs) / len(wrs)
     avg_ret = sum(rets) / len(rets)
     last_ret = rets[-1]  # 15m
-    wr_ok = min_wr > 70.0  # Tier A WR threshold (per current /loop)
+    wr_ok = min_wr > 80.0  # Tier A WR threshold (current /loop: WR>80)
     max_dd = max((float(r.metrics.get("max_drawdown_pct", 0.0)) for r in results), default=0.0)
 
-    # User 2026-05-20 (post-infeasibility decision): relaxed strict_monotonic
-    # to all_positive after 42k evals proved strict_mono infeasible under
-    # R/R<=0.5 + WR>=70 + tpm>=2. Tier A = all_positive + WR>70. tpm and
-    # mono become soft tie-breaks (heavily weighted bonuses) so search prefers
-    # denser-trade, more-monotonic configs without hard-rejecting otherwise.
+    # User 2026-05-20 (NEW criteria): WR>80 + strict_monotonic + R/R<=0.5
+    # MUST hold. Past 42k evals showed this combo + tpm>=2 was infeasible,
+    # but the user dropped the tpm floor here so we promote strict_monotonic
+    # back to a hard requirement. Tier A = all_positive + strict_monotonic +
+    # WR>80. Trades-per-month is now a soft tie-break (bonus) to satisfy the
+    # "increase number of trades" target without rejecting otherwise.
     mono_ok = strict_monotonic
     tpm2_ok = min_tpm >= 2.0
-    hard_ok = all_positive
+    hard_ok = all_positive and mono_ok
 
     if hard_ok and wr_ok:
-        # Tier A: all_positive + WR>70. Maximise PnL, reward higher WR, +trades
-        # bonus (capped at tpm=5), +mono bonus (a la BTC pattern). DD tie-break.
-        mono_bonus = 1e4 if strict_monotonic else 1e3 / (1.0 + viol)
+        # Tier A: all_positive + strict_monotonic + WR>80. Maximise PnL,
+        # reward higher WR, +trades bonus (capped at tpm=5). DD tie-break.
         s = 1e12 + last_ret * 10.0 + avg_ret * 2.0 + min_wr * 5.0 \
-            + min(min_tpm, 5.0) * 200.0 + mono_bonus - max_dd * 30.0
+            + min(min_tpm, 5.0) * 500.0 - max_dd * 30.0
     elif hard_ok:
-        # Tier B: all_positive but WR<=70. Push WR up then PnL.
+        # Tier B: all_positive + strict_monotonic but WR<=80. Push WR up then PnL.
         s = 1e9 + min_wr * 1e6 + last_ret * 100.0 + avg_ret * 10.0 + min(min_tpm, 5.0) * 1e3
     else:
         # Tier C: partial credit so near-misses surface for the next loop.
+        # WR-first ordering: min_wr dominates, then monotonicity, then PnL.
+        # User's hard criterion is WR>80 — Tier C must rank near-misses by WR.
         s = 0.0
         if all_positive:
             s += 5e7
             if wr_ok:
                 s += 1e7
-            if tpm_ok:
+            if mono_ok:
                 s += 5e6
-            s += 3e6 / (1.0 + viol)
-            s += min_wr * 1e4
-            s += min(last_ret, 1000.0) * 100.0 + avg_ret * 20.0
-            s += min(min_tpm, 5.0) * 1e4
+            if tpm2_ok:
+                s += 2e6
+            s += min_wr * 5e4               # was 1e4 — WR is now the dominant term
+            s += 2e6 / (1.0 + viol)         # monotonic-violation proximity
+            s += min(last_ret, 1000.0) * 50.0 + avg_ret * 10.0
+            s += min(min_tpm, 5.0) * 5e3
         else:
             s += sum(1 for x in rets if x > 0) * 1e5
-            s += min_wr * 100.0 + avg_ret * 0.2
+            s += min_wr * 1e3 + avg_ret * 0.2
         s = min(s, 9.9e8)
 
     detail = {

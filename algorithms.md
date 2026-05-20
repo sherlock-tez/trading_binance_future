@@ -50,36 +50,35 @@ real live tail risk.
 
 ### Current ETHUSDC Tuned Profile
 
-`Loop_20260520_9` is the BTC-pattern champion adopted after user added
-`R/R <= 0.5` (TP distance ≥ 2× SL distance) as a hard constraint and
-`WR > 70%` as the WR target. The prior wide-SL/tight-TP champion
-`Loop_20260519_13` (R/R≈2.5, WR>84%, +1339% on 15m) was disqualified by the
-new R/R constraint. The keep-WR>70 / drop-R/R<=0.5 reverse was also tried,
-and the WR>70 + R/R<=0.5 + tpm≥2 + strict-monotonic combination was proven
-mutually exclusive on ETHUSDC (~30k evals; best minWR ~45-50%). User then
-relaxed both `tpm≥2` and `strict_monotonic` from hard targets to mirror
-BTCUSDC's regime, unlocking the high-WR / few-trades / favorable-R:R
-configuration:
+`Loop_20260520_10` is the WR>80 + R/R≤0.5 champion, a refine of `_9` that
+nudges `atr_period 7→9` and `macd_slow 26→21`. User raised the WR floor from
+>70 to >80 and added strict-monotonic (`15m>12m>6m>3m>1m`) as MUST. After
+~7k more evals on top of the prior ~42k under R/R≤0.5, the only window pair
+that can't go strictly monotonic on ETHUSDC is `1m<3m`: the high-WR signal
+fires once in month 1 and the second qualifying entry doesn't arrive until
+month 4-6, so `1m == 3m` is structural. Every other pair (`3m<6m<12m<15m`)
+holds strictly. The refine improves PnL with no change to WR, DD, or R/R:
 
 - `rsi_period=24`, `rsi_long_max=45`, `rsi_short_min=50`
 - `require_macd_divergence=true` (RSI divergence still mandatory)
 - `pivot_window=5`, `divergence_lookback=120`
 - `use_trend_filter=true`, `trend_ema_period=200`
-- `use_atr_stops=true`, `atr_period=7`, `atr_sl_mult=1.0`, `atr_tp_mult=2.0`
+- `use_atr_stops=true`, `atr_period=9`, `atr_sl_mult=1.0`, `atr_tp_mult=2.0`
   (**R/R = 0.5 exactly — at the constraint cap**)
-- `macd_fast=8`, `macd_slow=26`, `macd_signal=7`
+- `macd_fast=8`, `macd_slow=21`, `macd_signal=7`
 - `leverage=17`, `position_equity_ratio=0.98` (pinned per user instruction)
 
 Production-path canonical backtest (`scripts/backtest.py --symbol ETHUSDC`,
 real `SignalEngine + run_trade_cycle + SimulatedExecutionAdapter`):
-1m +9.45% / 3m +9.45% / 6m +84.44% / 12m +141.39% / 15m **+205.27%**;
+1m +10.50% / 3m +10.50% / 6m +86.51% / 12m +195.04% / 15m **+276.75%**;
 **win-rate 100/100/100/100/100% (min 100% across every window)**;
 all-positive; **max drawdown 0.33% across all windows**; Sharpe rises
-3.99→5.38→6.79 on 6m→12m→15m. 5 trades total over 15 months (1/1/3/4/5 by
-window, **tpm 0.20–0.33**, well below ≥2-5/mo — accepted as the BTC-pattern
-trade-off the user signed off on). Returns are nearly-monotonic but plateau
-on the small-trade windows (1m=3m identical = single shared trade,
-12m→15m the 5th trade adds +63.88pp); strict monotonicity holds 3m→6m→12m→15m.
+3.99→6.74→8.16 on 6m→12m→15m. 6 trades total over 15 months (1/1/3/5/6 by
+window). Delta vs `_9`: +71.48pt on 15m, +53.65pt on 12m, +2.07pt on 6m,
++1.05pt on 1m=3m, +1 trade (5→6). The extra month-12 trade plus the
+strengthened 15m trade together account for the lift; DD and WR are unchanged
+because every trade still hit TP cleanly. Strict-monotonic holds for
+3m→6m→12m→15m; 1m=3m tie is the structural floor.
 
 The favorable R:R geometry (tp 2.0×ATR vs sl 1.0×ATR) inverts the prior
 champion's per-trade payoff: each win pays ~2× the risk per trade, so even
@@ -91,11 +90,18 @@ average, so live there can be long inactive periods. The 100% WR is
 small-sample (n=5) and almost certainly does not generalize — a more
 realistic forward-WR estimate is the BTC analogue's ~90.9% at n=11.
 
-Found via `scripts/ethusdc_loop.py` (`hard_ok = all_positive` only;
-`_enforce_rr()` enforces R/R ≤ 0.5 in every sampled/neighbor config;
-`wr_ok` threshold = 70). Search history this regime: ~30k evals across two
-target sets (WR>80 → WR>70, then mono drop, then tpm drop). Re-validated on
-the production path before adoption (identical numbers to fast engine).
+Found via `scripts/ethusdc_loop.py` (`hard_ok = all_positive AND
+strict_monotonic`; `_enforce_rr()` enforces R/R ≤ 0.5 in every sampled/
+neighbor config; `wr_ok` threshold = 80). Search history this regime:
+~49k cumulative evals across multiple target sets (WR>80 → WR>70 → WR>80
+again with strict-mono re-imposed). True Tier A (`all_positive +
+strict_monotonic + WR>80`) has never surfaced for ETHUSDC across any seed —
+the 1m=3m structural tie blocks strict-monotonic at the cumulative floor.
+Tier C top candidates always converge to the same shape: high-WR few-trade
+clusters with the same 1m=3m plateau. The refine that produced `_10` was
+seeded directly from `_9`'s exact config and perturbed the local
+ATR/MACD geometry; re-validated on the production path before adoption
+(identical numbers to fast engine).
 
 **Caveats:**
 1. Sample size is tiny (5 trades over 15 months). Treat the 100% in-sample
