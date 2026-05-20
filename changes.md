@@ -1,5 +1,78 @@
 # changes.md
 
+## Loop_20260520_3 - XRPUSDC strict Pareto refine (15m +84537%, WR 100%, all 5 windows up vs Loop_2)
+
+### Summary
+Algorithmic-only refine that **strictly dominates `Loop_20260520_2` on every
+window** — both pinned risk-exposure dials (`leverage=25`,
+`position_equity_ratio=0.9`) unchanged, both MUSTs preserved (WR>80,
+all-positive, RR≤0.5, divergence + extremity gate). Two strategy params
+moved: `atr_tp_mult 8.0→10.0` (TP widened, risk/reward improved to 0.30) and
+`macd_signal 7→9`. The TP widening reverses the Loop_2 tightening (which
+helped 4/5 windows at the cost of 1m); the new MACD-signal value restores
+the 1m trade quality so all 5 windows go up simultaneously.
+
+Effective changes vs `Loop_20260520_2`: `atr_tp_mult 8.0→10.0`,
+`macd_signal 7→9`. (All other strategy/trading params, the RR MUST, and
+both pinned exposure dials unchanged.)
+
+### Affected Files
+- `xrpusdc_config.yaml`
+- `algorithms.md`
+- `changes.md`
+- `backtest_history/Loop_20260520_3/{1,3,6,12,15}m.csv`
+
+### Reason
+The forever-loop continued past `Loop_20260520_2`. A refine pass found a
+neighbouring config that is a **strict Pareto improvement on all 5
+windows** — including reversing the 1m regression that Loop_2 traded for
+its 4/5-window gain. PnL up materially in every window, WR / all-positive /
+RR / pinned exposure / divergence + extremity gate all unchanged.
+
+### Backtest Result
+- Command/method: `scripts/xrpusdc_loop.py --mode refine` for search
+  (parity-verified fast engine; `min_rr_ratio=2.0` + pinned
+  `leverage=25` + pinned `position_equity_ratio=0.9`), then production-path
+  validation `SWEEP_SYMBOL=XRPUSDC python scripts/btcusdc_optimize.py
+  --windows 1,3,6,12,15` (real `SignalEngine + run_trade_cycle +
+  SimulatedExecutionAdapter`, 12-month warmup).
+- Dataset/time range: Binance Futures XRPUSDC mainnet 1h klines, windows
+  1m/3m/6m/12m/15m as of 2026-05-20.
+- Loop folder: `backtest_history/Loop_20260520_3/`
+- Key metrics (production path, exact parity with the fast engine):
+  - 1m:  `+319.87%`,    2 trades, 100.00% WR, 7.169 Sharpe, 0.45% max DD
+  - 3m:  `+4052.85%`,   4 trades, 100.00% WR, 4.170 Sharpe, 0.45% max DD
+  - 6m:  `+4052.85%`,   4 trades, 100.00% WR, 4.170 Sharpe, 0.45% max DD
+  - 12m: `+84537.00%`,  6 trades, 100.00% WR, 4.559 Sharpe, 0.45% max DD
+  - 15m: `+84537.00%`,  6 trades, 100.00% WR, 4.559 Sharpe, 0.45% max DD
+- Targets check:
+  - WR min 100% (>80 ✓)
+  - all-positive ✓
+  - strict-monotonic NOT satisfied (3m=6m and 12m=15m — same structural
+    cause as `Loop_1/_2`; operator-accepted relaxation for RR≤0.5 regime)
+  - trades/month 2.0/1.33/0.67/0.5/0.4 — unchanged vs `Loop_2`
+  - Risk/Reward = 0.30 (≤ 0.5 ✓, enforced by `min_rr_ratio=2.0`)
+  - Leverage 25 + `position_equity_ratio` 0.9 (both operator-pinned, unchanged)
+  - Divergence + extremity gate preserved (`rsi_long_max=40` ≤50,
+    `rsi_short_min=60` ≥50)
+- Comparison with previous Loop (`Loop_20260520_2`) — **strict Pareto**:
+  - 1m PnL:  +237.97% → +319.87%   (+34%)
+  - 3m PnL:  +2398.51% → +4052.85% (+69%)
+  - 6m PnL:  +2398.51% → +4052.85% (+69%)
+  - 12m PnL: +36232.24% → +84537.00% (+133%)
+  - 15m PnL: +36232.24% → +84537.00% (+133%)
+  - Trades over 15m: 6 → 6 (unchanged), tpm unchanged
+  - All other constraints unchanged
+- Limitations: identical to `Loop_20260520_1/_2` — small-sample in-sample
+  WR-100 over 6 trades; reward-heavy geometry's close 3×ATR stop has a
+  higher real-world hit probability than the in-sample shows; low trade
+  frequency (~0.4/mo on 15m); leverage-25 live-tail loss is unmodeled
+  (single stop ≈ 75% equity loss).
+
+### Documentation Updated
+- `algorithms.md`
+- `changes.md`
+
 ## Loop_20260520_2 - XRPUSDC algorithmic refine under pinned exposure (15m +36232%, WR 100%, +1 trade vs Loop_1)
 
 ### Summary

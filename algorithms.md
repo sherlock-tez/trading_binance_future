@@ -180,7 +180,7 @@ leverage-bounded (drawdown grows ~6pt per leverage step).
 
 ### Current XRPUSDC Tuned Profile
 
-`Loop_20260520_2` is the deployable XRPUSDC champion under the operator MUST
+`Loop_20260520_3` is the deployable XRPUSDC champion under the operator MUST
 **Risk/Reward ≤ 0.5** (reward ≥ 2× risk), enforced via the existing
 `min_rr_ratio=2.0` config key on both the production path and the fast engine.
 The reward-heavy geometry inverts the prior tight-TP/wide-SL family used by
@@ -196,16 +196,16 @@ RSI>50):
   reversals)
 - `pivot_window=6`, `divergence_lookback=60`
 - `use_trend_filter=true`, `trend_ema_period=100`
-- `use_atr_stops=true`, `atr_period=7`, `atr_sl_mult=3.0`, `atr_tp_mult=8.0`
-  (reward/risk = 2.67, risk/reward = 0.375 ≤ 0.5 ✓)
-- `macd_fast=7`, `macd_slow=24`, `macd_signal=7`
+- `use_atr_stops=true`, `atr_period=7`, `atr_sl_mult=3.0`, `atr_tp_mult=10.0`
+  (reward/risk = 3.33, risk/reward = 0.30 ≤ 0.5 ✓)
+- `macd_fast=7`, `macd_slow=24`, `macd_signal=9`
 - `min_rr_ratio=2.0` (the operator MUST; rejects any plan with reward/risk < 2)
 - `leverage=25` (operator-pinned), `position_equity_ratio=0.9` (also pinned: composes with leverage into effective exposure)
 
 Production-path backtest (`scripts/btcusdc_optimize.py --symbol XRPUSDC`, real
 `SignalEngine + run_trade_cycle + SimulatedExecutionAdapter`, 12-month warmup,
-mainnet klines), exact parity vs the fast harness: 1m +237.97% / 3m +2398.51%
-/ 6m +2398.51% / 12m +36232.24% / 15m +36232.24%; win-rate 100/100/100/100/100;
+mainnet klines), exact parity vs the fast harness: 1m +319.87% / 3m +4052.85%
+/ 6m +4052.85% / 12m +84537.00% / 15m +84537.00%; win-rate 100/100/100/100/100;
 all-positive; max drawdown 0.45% on every window; Sharpe 4.2–7.2; 6 trades
 over 15m (2/4/4/6/6).
 
@@ -232,8 +232,11 @@ strict-monotonic) → `Loop_20260520_1` (RR≤0.5 MUST added; 15m +33269% with
 WR-100 all-positive but strict-monotonic dropped) → `Loop_20260520_2` (pure
 algorithmic refine under pinned exposure: `atr_tp_mult 10→8`, `rsi_period
 9→7`, `macd_slow 26→24`, `rsi_short_min 55→60`; 4 of 5 windows improved,
-15m PnL +9% to +36232%, +1 trade, 1m regressed +314→+238% as the cost;
-current).
+15m PnL +9% to +36232%, +1 trade, 1m regressed +314→+238% as the cost)
+→ `Loop_20260520_3` (algorithmic refine reversing the TP tightening:
+`atr_tp_mult 8→10`, `macd_signal 7→9`; strict Pareto improvement on **all
+5 windows**, 15m PnL +133% to +84537%, 1m recovers to +320%, risk/reward
+0.30 ≤ 0.5 ✓; current).
 
 **Caveats:** (1) The 100% in-sample WR over 5 trades is a tiny sample and
 partly luck — the reward-heavy geometry would normally have a *lower* hit
@@ -369,7 +372,7 @@ The user-required rule "LONG only if RSI < 50, SHORT only if RSI > 50" is always
   - Position-limit rejection is enforced by execution adapters with the same rejection reason.
 - Duplicate-signal filtering keys accepted entries by the RSI divergence pivot timestamp plus direction. This prevents repeated re-entry from the same stale divergence setup on later candles while still allowing a new trade when a new pivot forms.
 
-A separate fast vectorized harness (`scripts/btcusdc_fast.py`) is used for parameter search. It is mathematically equivalent to the engine path (parity verified against `scripts/btcusdc_optimize.py`) and only serves the iterative tuning loop; production logic still flows through `SignalEngine` + `run_trade_cycle` + `SimulatedExecutionAdapter`. `scripts/bnbusdc_loop.py` is a BNBUSDC-specific search driver (random map + neighbourhood refine) that reuses the same fast engine and scores against the BNBUSDC targets; any winning config it finds is always re-validated on the production path before being adopted (it was for `Loop_20260518_31`, with identical numbers). `scripts/ethusdc_loop.py` and `scripts/xrpusdc_loop.py` are the analogous ETHUSDC/XRPUSDC search drivers; the XRPUSDC one scores with PnL as the dominant objective and trades/month as a soft tiebreaker (WR>80 + all-positive + strict-monotonic remain hard gates), and its `Loop_20260520_2` champion (RR≤0.5 regime) re-validated on the production path with identical numbers. The harness's generators now enforce reward ≥ 2× risk in the sample space when that MUST is active, and pin `position_equity_ratio` alongside `leverage` so sizing-creep cannot masquerade as algorithmic improvement.
+A separate fast vectorized harness (`scripts/btcusdc_fast.py`) is used for parameter search. It is mathematically equivalent to the engine path (parity verified against `scripts/btcusdc_optimize.py`) and only serves the iterative tuning loop; production logic still flows through `SignalEngine` + `run_trade_cycle` + `SimulatedExecutionAdapter`. `scripts/bnbusdc_loop.py` is a BNBUSDC-specific search driver (random map + neighbourhood refine) that reuses the same fast engine and scores against the BNBUSDC targets; any winning config it finds is always re-validated on the production path before being adopted (it was for `Loop_20260518_31`, with identical numbers). `scripts/ethusdc_loop.py` and `scripts/xrpusdc_loop.py` are the analogous ETHUSDC/XRPUSDC search drivers; the XRPUSDC one scores with PnL as the dominant objective and trades/month as a soft tiebreaker (WR>80 + all-positive + strict-monotonic remain hard gates), and its `Loop_20260520_3` champion (RR≤0.5 regime) re-validated on the production path with identical numbers. The harness's generators now enforce reward ≥ 2× risk in the sample space when that MUST is active, and pin `position_equity_ratio` alongside `leverage` so sizing-creep cannot masquerade as algorithmic improvement.
 
 ## Known Limitations
 
