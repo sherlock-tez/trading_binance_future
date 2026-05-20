@@ -14,60 +14,58 @@ trading:
   maker_only: true
 
 strategy:
-  # SOLUSDC CHAMPION = Loop_20260520_1 (regime change 2026-05-20).
-  # USER TARGET RELAXATION (2026-05-20 round 2): trade-frequency floor AND
-  # PnL maximization both dropped, in service of new HARD WR > 70% target.
-  # Now-active HARD constraints: R/R <= 0.5 AND WR > 70 AND strict-monotonic
-  # AND all-positive on ACTIVE windows (zero-trade windows treated as
-  # neutral). NO trade-frequency floor.
-  # REGIME CHANGE vs _10: the prior champion lineage (_8/_9/_10) optimized
-  # PnL with tight-SL/far-TP (R/R 0.11, WR ~27%, 15m +11194%). Under the
-  # new WR>70 target that geometry is infeasible (WR is structurally low at
-  # R/R far below 0.5). The new regime moves to R/R *at* the cap (= BTC's
-  # sweet spot at R/R 0.45) with both filter gates ON (trend EMA 200 +
-  # MACD-divergence required) for max selectivity.
-  # _11 = wr70_pareto sweep winner #1 (scripts/solusdc_sweep.py,
-  # --maxrr 0.5 --wrfloor 70 --tpmfloor 0): sl 1.0 / tp 2.0 (R/R EXACTLY
-  # 0.5), atr_period 12, divergence_lookback 80 (longer than _10's 52),
-  # rsi gate 45/60 (tighter short side vs _10's 55), trend filter ON
-  # (EMA 200), require_macd_divergence true. Rest = SOL's proven entry
-  # edge (macd 7/24/9, pivot6, [1d,1w] S/R, leverage 8 pinned, peq 1.0
-  # pinned).
-  # _11 chosen over WR-perfect candidates (#5/#11 in sweep, both with
-  # MACDdiv=False and 100% in-sample WR over 4-5 trades): those collapse
-  # OOS to 60% WR (small-sample artifact). _11 has 7 in-sample trades, an
-  # 85.71% in-sample min WR that survives OOS at 66.67% (24m held-out) —
-  # most robust generalizer; biggest sample; highest OOS PnL.
+  # SOLUSDC CHAMPION = Loop_20260520_2 (succeeds _11 / Loop_20260520_1
+  # under tightened target set 2026-05-20 round 3).
+  # USER TARGET CHANGE (2026-05-20 round 3): WR floor raised 70 -> **80**
+  # AND "increase number of trades" re-introduced as a directional target.
+  # Active HARD constraints: R/R <= 0.5 AND WR > 80 AND strict-monotonic
+  # AND all-positive on ACTIVE windows (zero-trade windows neutral).
+  # DIRECTIONAL: maximize trade count subject to the hard set.
+  # _2 = wr80_freq sweep winner #1 (scripts/solusdc_sweep.py
+  # --grid wr80_freq --maxrr 0.5 --wrfloor 80 --tpmfloor 0).
+  # 972 combos probed the entry-frequency dims that wr70_pareto left thin:
+  # atr_period [8, 10, 12] x pivot_window [4, 5, 6] x dlb [30, 40, 52, 80]
+  # x rsi_long_max [45, 47, 48] x rsi_short_min [52, 55, 60] x trend_ema
+  # [50, 100, 200]; geometry anchored at _11 (sl 1.0 / tp 2.0 R/R 0.5).
+  # 12 passers; top 3 (rsi_long_max=47 across atr_period 8/10/12) ALL show
+  # the same +1 LONG trade pattern vs _11 -> robust to atr_period choice,
+  # not a single-config fluke. _2 picks atr_period=8 (faster ATR, top 15m
+  # PnL of the trio).
+  # The unlock: rsi_long_max 45 -> 47 admits one additional LONG entry
+  # that's still inside the LONG<50 extremity rule. WR rose
+  # (85.71 -> 87.5%) and PnL rose (+170 -> +211 in-sample 15m); not a
+  # WR/freq tradeoff but a strict Pareto improvement.
   # Production path (scripts/btcusdc_optimize.py, mainnet, 12m warmup):
-  #   1m: 0 trades (neutral) | 3m +25.2/WR100 (1 tr) | 6m +104.0/WR100 (4)
-  #   12m +137.2/WR100 (5) | 15m +170.0/WR85.71 (7); strict-monotonic ✓,
-  #   all-positive ✓, max DD 11.3% (vs _10's 35.2% — dramatically lower).
-  # OOS held-out: 18m +170/WR85.7 (7 tr); 24m +125.5/WR66.67 (9 tr).
-  # The 24m OOS WR slips just under 70 — small-sample noise floor, ~9 tr
-  # total. Expect lumpy live equity (low frequency ~0.5 tr/mo, big wins).
-  # TRADEOFF vs _10: WR 27%->85.71%, max DD 35%->11%; PnL 11194%->170%
-  # (much less compounding); trade freq 5/mo->0.5/mo (BTC-like).
-  # R/R cap enforced by construction in the sweep (MAX_RISK_REWARD=0.5 /
-  # --maxrr). Mandatory RSI-divergence + extremity gate LONG<50/SHORT>50
-  # preserved (45/60).
+  #   1m: 0 tr (neutral) | 3m +26.4/WR100 (1) | 6m +66.7/WR100 (3)
+  #   12m +165.6/WR100 (6) | 15m +211.0/WR87.5 (8); strict-mono ✓,
+  #   all-positive ✓, max DD 10.83% (vs _11's 11.35% — marginally better).
+  # OOS held-out (extended cache to 24m, then reverted):
+  #   18m: +211.0/WR87.5 (8 tr, no new trades 15->18m)
+  #   24m: +161.2/WR70.0 (10 tr, +2 new vs 15m: 1W/1L)
+  # 24m OOS is materially better than _11's (+161 vs +125, WR 70.0 vs 66.7).
+  # TRADEOFF vs _11: +1 in-sample tr, +1.8pt WR, +41pt 15m PnL, -0.5pt DD —
+  # strict win on every dimension. Trade freq still ~0.5-0.7 tr/mo.
+  # R/R cap enforced by construction (sl 1.0 / tp 2.0 = 0.5 exactly).
+  # Mandatory RSI-divergence + extremity gate LONG<50/SHORT>50 preserved
+  # (rsi_long_max 47 < 50 ✓, rsi_short_min 60 > 50 ✓).
   rsi_period: 14
   macd_fast: 7
   macd_slow: 24
   macd_signal: 9
   divergence_lookback: 80  # _11: 52 -> 80 (longer confirmation for high-WR regime)
   pivot_window: 6
-  atr_period: 12  # _11: 9 -> 12 (standard SOL value)
+  atr_period: 8  # Loop_20260520_2: _11's 12 -> 8 (faster ATR; #1 in wr80_freq sweep)
   use_atr_stops: true
-  atr_sl_mult: 1.0  # _11: 0.55 -> 1.0 (wider stop survives noise under trend filter)
-  atr_tp_mult: 2.0  # _11: 5.0 -> 2.0 (closer target; R/R = 1.0/2.0 = 0.5 exactly at cap)
-  use_trend_filter: true  # _11: NEW filter ON (BTC's biggest WR lever)
+  atr_sl_mult: 1.0  # at R/R cap 0.5 (sl 1.0 / tp 2.0)
+  atr_tp_mult: 2.0
+  use_trend_filter: true  # trend filter ON (WR backbone)
   trend_ema_period: 200
-  rsi_long_max: 45.0
-  rsi_short_min: 60.0  # _11: 55 -> 60 (tighter short extremity)
+  rsi_long_max: 47.0  # Loop_20260520_2: _11's 45 -> 47 (unlocks 1 extra LONG, still <50 extremity rule)
+  rsi_short_min: 60.0
   require_macd_divergence: true
   min_rr_ratio: 0.0
   max_sl_distance_pct: 0.0
-  loop_id: Loop_20260520_1
+  loop_id: Loop_20260520_2
 
 execution:
   order_reprice_bps: 2

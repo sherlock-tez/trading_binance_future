@@ -323,6 +323,44 @@ def _grid_wr70_pareto() -> Dict[str, List[Any]]:
     }
 
 
+def _grid_wr80_freq() -> Dict[str, List[Any]]:
+    """2026-05-20 NEW TARGET: WR>80 + R/R<=0.5 + strict-mono + **increase trades**.
+
+    wr70_pareto under --wrfloor 80 capped at 7 trades (all _11-equivalents).
+    Grid was thin on entry-frequency dims: atr_period [12 only], pivot_window
+    [6 only], divergence_lookback [52,80 only], rsi gates [<=45 / >=55 only].
+
+    This grid anchors at _11's known-good geometry (sl=1.0, tp=2.0 -> R/R 0.5
+    at cap; MACDdiv ON per user rule; trend filter ON for WR backbone) and
+    sweeps the dims that control entry frequency. RSI gates kept extremity-
+    respecting (long<50, short>50 hard rule).
+
+    Run --maxrr 0.5 --wrfloor 80 --tpmfloor 0.
+    """
+    return {
+        "use_atr_stops": [True],
+        "use_trend_filter": [True],
+        "require_macd_divergence": [True],  # user rule - divergence MUST be detected
+        "rsi_period": [14],
+        "macd_fast": [7],
+        "macd_slow": [24],
+        "macd_signal": [9],
+        "leverage": [8],
+        "position_equity_ratio": [1.0],
+        # Entry-frequency levers (the gap probed by this grid):
+        "atr_period": [8, 10, 12],
+        "pivot_window": [4, 5, 6],
+        "divergence_lookback": [30, 40, 52, 80],
+        "rsi_long_max": [45.0, 47.0, 48.0],   # push toward LONG<50 boundary
+        "rsi_short_min": [52.0, 55.0, 60.0],  # push toward SHORT>50 boundary
+        "trend_ema_period": [50, 100, 200],
+        # Geometry anchored at _11 (R/R = 1.0/2.0 = 0.5 exactly at cap):
+        "atr_sl_mult": [1.0],
+        "atr_tp_mult": [2.0],
+        "sup_res_timeframes": [["1d", "1w"]],
+    }
+
+
 GRIDS = {
     "wr80_rr": _grid_wr80_rr,
     "rr_fine": _grid_rr_fine,
@@ -330,6 +368,7 @@ GRIDS = {
     "wr70_rr_btc2": _grid_wr70_rr_btc2,
     "wr70_rr_strict": _grid_wr70_rr_strict,
     "wr70_pareto": _grid_wr70_pareto,
+    "wr80_freq": _grid_wr80_freq,
 }
 
 

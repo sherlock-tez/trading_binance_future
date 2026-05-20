@@ -1,5 +1,46 @@
 # changes.md
 
+## Loop_20260520_2 — SOLUSDC: strict Pareto over `_11` under tightened WR>80 + "more trades" targets
+
+### Summary
+User tightened targets (2026-05-20 round 3): WR floor raised 70 → **80** HARD, and **"increase number of trades"** re-introduced as a directional target. Other rules unchanged (R/R ≤ 0.5, strict-mono, RSI extremity + MACDdiv, no new config keys, leverage 8 / peq 1.0 pinned). New champion `Loop_20260520_2` from `scripts/solusdc_sweep.py --grid wr80_freq` (972 combos): **`rsi_long_max` 45 → 47** (admits one extra LONG entry that's still inside the LONG<50 extremity rule) and **`atr_period` 12 → 8** (faster ATR, top 15m PnL of the trio). Strict Pareto over `_11`: +1 in-sample trade (8 vs 7), +1.8pt WR (87.5 vs 85.71), +41pt 15m PnL (+211 vs +170), -0.5pt max DD (10.83 vs 11.35).
+
+### Affected Files
+- `solusdc_config.yaml` (atr_period 12→8, rsi_long_max 45→47, loop_id Loop_20260520_2, header comment rewritten), `algorithms.md` (SOLUSDC Tuned Profile updated), `changes.md`, `scripts/solusdc_sweep.py` (added `wr80_freq` grid), `backtest_history/Loop_20260520_2/`.
+
+### Reason / Backtest — wr80_freq sweep found the +1-trade Pareto
+1. **Re-scored `wr70_pareto` at `--wrfloor 80`** (2376 evals): 12 passers; max 15m trades = 7 (all `_11`-equivalents). The grid was thin on entry-frequency dims (atr_period 12 only, pivot 6 only, dlb 52/80 only, rsi gates ≤45/≥55 only).
+2. **New `wr80_freq` grid** (972 combos): `atr_period` [8,10,12] × `pivot_window` [4,5,6] × `divergence_lookback` [30,40,52,80] × `rsi_long_max` [45,47,48] × `rsi_short_min` [52,55,60] × `trend_ema_period` [50,100,200]; geometry anchored at sl=1.0/tp=2.0 (R/R 0.5 cap), MACDdiv ON, trend filter ON per user rules.
+3. **Top 3 all have `rsi_long_max=47`** across atr_period 8/10/12 — same +1 trade vs `_11`, same WR jump 85.71→87.5%. Robust to atr_period choice (not a single-config fluke). `_2` picks atr_period=8 (highest 15m PnL +211.05% of the trio).
+4. Production path (`btcusdc_optimize.py`, mainnet, 12m warmup; sweep parity exact):
+   - 1m: 0 tr (neutral) | 3m +26.4% WR 100% (1 tr) | 6m +66.7% WR 100% (3 tr) | 12m +165.6% WR 100% (6 tr) | 15m **+211.05%** WR **87.5%** (8 tr)
+   - strict-mono ✓, all-positive ✓, max DD **10.83%**, Sharpe 3.74–7.24
+   - Loop folder `backtest_history/Loop_20260520_2/`
+
+### Out-of-sample (cache temporarily extended to 24m then reverted to 15)
+- **18m: +211.05% / WR 87.5% / 8 tr** (identical to 15m — no new trades fired months 15→18)
+- **24m: +161.21% / WR 70.0% / 10 tr** (2 new trades vs 15m: 1 win / 1 loss)
+- Materially better than `_11`'s OOS (`_11` 24m was +125.5% / WR 66.67%). 24m WR climbs back to exactly the prior 70-floor.
+
+### Tradeoff vs prior champion `_11`
+| Metric | `_11` (prior) | `_2` (new) |
+|---|---|---|
+| 15m PnL | +170.01% | **+211.05%** (+41pt) |
+| 15m WR | 85.71% | **87.5%** (+1.8pt) |
+| 15m trades | 7 | **8** (+1) |
+| Max DD | 11.35% | **10.83%** (-0.5pt) |
+| 24m OOS PnL | +125.5% | **+161.21%** (+36pt) |
+| 24m OOS WR | 66.67% | **70.0%** (+3.3pt) |
+| 24m OOS trades | 9 | 10 |
+| R/R | 0.5 | 0.5 (unchanged at cap) |
+
+Strict win on every dimension — no tradeoff dial.
+
+### What's still pinned (per user rules)
+`leverage = 8`, `position_equity_ratio = 1.0`, RSI extremity rule (long<50 ✓ at 47, short>50 ✓ at 60), MACD divergence required, R/R ≤ 0.5 (= 0.5 exactly), no new config keys, strict-monotonic + all-positive on active windows.
+
+---
+
 ## Loop_20260520_1 — SOLUSDC: regime change (R/R 0.11→0.5, WR 27%→85.71%) under new WR>70 target
 
 ### Summary
