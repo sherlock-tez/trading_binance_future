@@ -1,5 +1,96 @@
 # changes.md
 
+## Loop_20260520_1 - XRPUSDC reward-heavy regime under new MUST Risk/Reward≤0.5 (15m +33269%, WR 100%, strict-monotonic dropped)
+
+### Summary
+Operator added a new MUST: **Risk/Reward ≤ 0.5** (reward ≥ 2× risk),
+enforced via the existing `min_rr_ratio=2.0` config key on both the
+production path and the fast engine (no new config key). This invalidates
+`Loop_20260519_10` (SL 5.0 / TP 1.0, risk/reward 5.0) and forces a fundamental
+geometry change to a reward-heavy regime (SL 3.0 / TP 10.0, risk/reward 0.30).
+
+~18,000 evaluations across two independent campaigns confirmed the
+constraint set {WR>80 + strict-monotonic + ≥2 trades/mo + RR≤0.5 + leverage 25
++ divergence + extremity gate} is **mutually infeasible** for XRPUSDC: a far
+take-profit (≥2×SL) is hit so rarely that the only WR-100 configs are too
+sparse (~0.3 trades/mo) to build a strictly increasing 1<3<6<12<15 curve.
+Presented the conflict to the operator with the tradeoff matrix; operator
+chose to **drop strict-monotonicity** for this profile and keep
+{WR>80, RR≤0.5, all-positive, max PnL}.
+
+Effective changes vs `Loop_20260519_10`: `rsi_period 7→9`, `macd_fast 16→7`,
+`divergence_lookback 100→60`, `pivot_window 5→6`, `atr_period 21→7`,
+`atr_sl_mult 5.0→3.0`, `atr_tp_mult 1.0→10.0`, `trend_ema_period 50→100`,
+`rsi_long_max 50→40`, `require_macd_divergence false→true`,
+`position_equity_ratio 1.0→0.9`, `min_rr_ratio 0.0→2.0` (the new MUST).
+(`leverage`, `rsi_short_min`, `macd_slow`, `macd_signal`, `use_trend_filter`,
+`use_atr_stops` unchanged.)
+
+### Affected Files
+- `xrpusdc_config.yaml`
+- `scripts/xrpusdc_loop.py` (search-space generators now enforce
+  reward ≥ 2× risk; harness also tracks a separate frequency champion among
+  WR>80 + monotonic + all-positive candidates)
+- `algorithms.md`
+- `changes.md`
+- `backtest_history/Loop_20260520_1/{1,3,6,12,15}m.csv`
+
+### Reason
+Operator instruction added Risk/Reward MUST ≤ 0.5 and reaffirmed leverage
+pinned at 25. The prior champion `Loop_20260519_10` (RR 5.0) violated the
+new MUST. A reward-heavy regime is the only geometry that satisfies RR≤0.5;
+within that regime, the search found a config that maximizes PnL while
+holding WR>80 and all-positive, accepting the unavoidable loss of
+strict-monotonicity (the structural cost of the new RR cap, verified across
+~18k evaluations).
+
+### Backtest Result
+- Command/method: `scripts/xrpusdc_loop.py --mode random/refine` for search
+  (parity-verified fast engine with `min_rr_ratio=2.0` enforced + search-space
+  reward≥2×risk constraint), then production-path validation
+  `SWEEP_SYMBOL=XRPUSDC python scripts/btcusdc_optimize.py --windows
+  1,3,6,12,15` (real `SignalEngine + run_trade_cycle +
+  SimulatedExecutionAdapter`, 12-month warmup).
+- Dataset/time range: Binance Futures XRPUSDC mainnet 1h klines, windows
+  1m/3m/6m/12m/15m as of 2026-05-20.
+- Loop folder: `backtest_history/Loop_20260520_1/`
+- Key metrics (production path, exact parity with the fast engine):
+  - 1m:  `+314.38%`,    2 trades, 100.00% WR, 6.701 Sharpe, 0.45% max DD
+  - 3m:  `+1537.29%`,   3 trades, 100.00% WR, 3.191 Sharpe, 0.45% max DD
+  - 6m:  `+1537.29%`,   3 trades, 100.00% WR, 3.191 Sharpe, 0.45% max DD
+  - 12m: `+33268.68%`,  5 trades, 100.00% WR, 4.212 Sharpe, 0.45% max DD
+  - 15m: `+33268.68%`,  5 trades, 100.00% WR, 4.212 Sharpe, 0.45% max DD
+- Targets check:
+  - WR min 100% (>80 ✓)
+  - all-positive ✓
+  - **strict-monotonic NOT satisfied** (3m=6m and 12m=15m; operator
+    accepted this as the cost of the new RR MUST after seeing the
+    infeasibility proof)
+  - trades/month 2.0/1.0/0.5/0.42/0.33 — only 1m hits the 2–5 band; same
+    structural cause as the dropped monotonicity
+  - Risk/Reward = 0.30 (≤ 0.5 ✓, enforced by `min_rr_ratio=2.0`)
+  - Leverage 25 (pinned, unchanged)
+  - Divergence + extremity gate preserved (rsi_long_max=40 ≤50, rsi_short_min=55 ≥50)
+- Comparison with previous Loop: `Loop_20260519_10` (15m +11207%, RR 5.0,
+  strict-monotonic) is no longer valid under the new MUST. The new champion
+  has ~3× the 15m PnL but trades the strict-monotonicity property and trade
+  frequency for the RR cap.
+- Limitations:
+  - In-sample WR 100% comes from 5 trades over 15m — tiny sample; the
+    reward-heavy geometry would normally have a lower hit rate than the prior
+    tight-TP design (close 3×ATR stop is hit more easily than the far 10×ATR
+    TP); in-sample none of the 5 trades stopped out, but live the WR
+    distribution will look different.
+  - Trade frequency is very low (~0.3/mo on 15m) — the strategy is effectively
+    a high-conviction divergence reversal sniper at this RR.
+  - At leverage 25 the simulator (no funding/liquidation) does not model the
+    live tail loss; a single live stop is ~75% equity loss (3×ATR×25),
+    severe but not as catastrophic as the prior wide-SL geometry's ~125%.
+
+### Documentation Updated
+- `algorithms.md`
+- `changes.md`
+
 ## Loop_20260519_10 - XRPUSDC PnL+frequency upgrade (15m +11207%, WR 100%, strict monotonic, dominates Loop_9)
 
 ### Summary

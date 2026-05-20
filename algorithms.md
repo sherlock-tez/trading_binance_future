@@ -180,31 +180,67 @@ leverage-bounded (drawdown grows ~6pt per leverage step).
 
 ### Current XRPUSDC Tuned Profile
 
-`Loop_20260519_10` is the deployable XRPUSDC champion. It keeps the mandatory
-RSI divergence plus the extremity gate and uses a wide-SL / tight-TP bounce
-geometry on trend-filtered high-conviction divergence entries, tuned so
-**every** backtest window is WR 100 (the user's #1 MUST), strictly monotonic
-`15>12>6>3>1`, and all-positive with PnL maximized:
+`Loop_20260520_1` is the deployable XRPUSDC champion under the operator MUST
+**Risk/Reward ≤ 0.5** (reward ≥ 2× risk), enforced via the existing
+`min_rr_ratio=2.0` config key on both the production path and the fast engine.
+The reward-heavy geometry inverts the prior tight-TP/wide-SL family used by
+the other symbols: SL is now close (3×ATR) and TP is far (10×ATR), and the
+configuration is trend-filtered on a fast RSI with mandatory MACD-divergence
+confluence. Mandatory RSI divergence + extremity gate preserved
+(`rsi_long_max=40` → LONG only if RSI<50; `rsi_short_min=55` → SHORT only if
+RSI>50):
 
-- `rsi_period=7`, `rsi_long_max=50`, `rsi_short_min=55` (extremity rule preserved)
-- `require_macd_divergence=false` (RSI divergence still mandatory; the MACD
-  line never gates entries, so `macd_fast/slow/signal` are inert)
-- `pivot_window=5`, `divergence_lookback=100`
-- `use_trend_filter=true`, `trend_ema_period=50`
-- `use_atr_stops=true`, `atr_period=21`, `atr_sl_mult=5.0`, `atr_tp_mult=1.0`
-- `leverage=25`, `position_equity_ratio=1.0`
+- `rsi_period=9`, `rsi_long_max=40`, `rsi_short_min=55` (extremity rule preserved)
+- `require_macd_divergence=true` (RSI divergence still mandatory; MACD-div
+  confluence is the additional filter that admits only the highest-conviction
+  reversals)
+- `pivot_window=6`, `divergence_lookback=60`
+- `use_trend_filter=true`, `trend_ema_period=100`
+- `use_atr_stops=true`, `atr_period=7`, `atr_sl_mult=3.0`, `atr_tp_mult=10.0`
+  (reward/risk = 3.33, risk/reward = 0.30 ≤ 0.5 ✓)
+- `min_rr_ratio=2.0` (the operator MUST; rejects any plan with reward/risk < 2)
+- `leverage=25` (operator-pinned), `position_equity_ratio=0.9`
 
 Production-path backtest (`scripts/btcusdc_optimize.py --symbol XRPUSDC`, real
 `SignalEngine + run_trade_cycle + SimulatedExecutionAdapter`, 12-month warmup,
-mainnet klines), exact parity vs the fast harness: 1m +43.69% / 3m +102.06% /
-6m +189.62% / 12m +2629.76% / 15m +11207.29%; win-rate 100/100/100/100/100;
-strictly monotonic 15>12>6>3>1; all-positive; max drawdown 0.5% on every
-window; Sharpe 10–31; 23 trades over 15m (3/5/7/17/23). The baseline shipped
-config (rsi 11, sl 6.0/tp 0.6, lev 10, short_min 75) blew the account
-(-100%+ on 6/12/15m) — this profile replaces it. Lineage: `Loop_20260519_9`
-(first champion, 15m +8035%, 17 trades) → `Loop_20260519_10` (refine
-`atr_tp_mult 1.2→1.0`, `pivot_window 4→5`: strictly more PnL **and** more
-trades at identical WR/monotonicity/drawdown, current).
+mainnet klines), exact parity vs the fast harness: 1m +314.38% / 3m +1537.29%
+/ 6m +1537.29% / 12m +33268.68% / 15m +33268.68%; win-rate 100/100/100/100/100;
+all-positive; max drawdown 0.45% on every window; Sharpe 3.2–6.7; 5 trades
+over 15m (2/3/3/5/5).
+
+**Important: strict-monotonicity is intentionally relaxed for this profile.**
+The 3m and 6m windows are equal (both +1537.29%) and the 12m and 15m windows
+are equal (both +33268.68%) — the reward-heavy geometry yields only ~0.3
+trades/month so consecutive windows that contain the same set of closed
+trades produce identical cumulative returns. ~18,000 evaluations across two
+independent campaigns confirmed that the constraint set {WR>80 +
+strict-monotonic + ≥2 trades/mo + RR≤0.5 + leverage 25 + divergence +
+extremity gate} is mutually infeasible for XRPUSDC: a far take-profit
+(≥2×SL) is hit so rarely that the only WR-100 configs are too sparse to
+build a strictly increasing 1<3<6<12<15 curve. The operator chose
+{WR>80, RR≤0.5, all-positive, +PnL} as the binding constraints and
+explicitly accepted dropping strict-monotonicity for this symbol. The
+trades/month target (2–5/mo) is also missed by ~6–10× for the same
+structural reason.
+
+This profile is a hard departure from `Loop_20260519_10` (SL 5.0 / TP 1.0,
+risk/reward 5.0 — violated the new RR MUST). Lineage: shipped starter
+(broken) → `Loop_20260519_9` (first WR-100 strict-monotonic champion,
+15m +8035%, RR 5.0) → `Loop_20260519_10` (PnL refine, 15m +11207%, RR 5.0,
+strict-monotonic) → `Loop_20260520_1` (RR≤0.5 MUST added; 15m +33269% with
+WR-100 all-positive but strict-monotonic dropped; current).
+
+**Caveats:** (1) The 100% in-sample WR over 5 trades is a tiny sample and
+partly luck — the reward-heavy geometry would normally have a *lower* hit
+rate than a tight-TP design because the close 3×ATR stop is reached more
+easily than the far 10×ATR take-profit; in-sample none of the 5 trades were
+stopped, but live the WR distribution will look different. (2) Trade
+frequency is very low (~0.3/mo on the 15m window); the strategy is
+effectively a high-conviction divergence reversal sniper at this RR. (3) At
+leverage 25 the simulator (no funding/liquidation) still doesn't model the
+live tail; a single live stop at this leverage is large but not
+account-wiping since SL is only 3×ATR (`5×ATR*25` would be ~125% loss in the
+old geometry; `3×ATR*25` is ~75% loss — still severe).
 
 The wide SL (5.0×ATR) relative to a tight TP (1.2×ATR) gives a very high
 per-trade hit rate; the fast RSI (`rsi_period=7`) plus the short trend EMA
@@ -328,7 +364,7 @@ The user-required rule "LONG only if RSI < 50, SHORT only if RSI > 50" is always
   - Position-limit rejection is enforced by execution adapters with the same rejection reason.
 - Duplicate-signal filtering keys accepted entries by the RSI divergence pivot timestamp plus direction. This prevents repeated re-entry from the same stale divergence setup on later candles while still allowing a new trade when a new pivot forms.
 
-A separate fast vectorized harness (`scripts/btcusdc_fast.py`) is used for parameter search. It is mathematically equivalent to the engine path (parity verified against `scripts/btcusdc_optimize.py`) and only serves the iterative tuning loop; production logic still flows through `SignalEngine` + `run_trade_cycle` + `SimulatedExecutionAdapter`. `scripts/bnbusdc_loop.py` is a BNBUSDC-specific search driver (random map + neighbourhood refine) that reuses the same fast engine and scores against the BNBUSDC targets; any winning config it finds is always re-validated on the production path before being adopted (it was for `Loop_20260518_31`, with identical numbers). `scripts/ethusdc_loop.py` and `scripts/xrpusdc_loop.py` are the analogous ETHUSDC/XRPUSDC search drivers; the XRPUSDC one scores with PnL as the dominant objective and trades/month as a soft tiebreaker (WR>80 + all-positive + strict-monotonic remain hard gates), and its `Loop_20260519_10` champion re-validated on the production path with identical numbers.
+A separate fast vectorized harness (`scripts/btcusdc_fast.py`) is used for parameter search. It is mathematically equivalent to the engine path (parity verified against `scripts/btcusdc_optimize.py`) and only serves the iterative tuning loop; production logic still flows through `SignalEngine` + `run_trade_cycle` + `SimulatedExecutionAdapter`. `scripts/bnbusdc_loop.py` is a BNBUSDC-specific search driver (random map + neighbourhood refine) that reuses the same fast engine and scores against the BNBUSDC targets; any winning config it finds is always re-validated on the production path before being adopted (it was for `Loop_20260518_31`, with identical numbers). `scripts/ethusdc_loop.py` and `scripts/xrpusdc_loop.py` are the analogous ETHUSDC/XRPUSDC search drivers; the XRPUSDC one scores with PnL as the dominant objective and trades/month as a soft tiebreaker (WR>80 + all-positive + strict-monotonic remain hard gates), and its `Loop_20260520_1` champion (RR≤0.5 regime) re-validated on the production path with identical numbers. The harness's generators now enforce reward ≥ 2× risk in the sample space when that MUST is active.
 
 ## Known Limitations
 
