@@ -1,5 +1,88 @@
 # changes.md
 
+## Loop_20260520_2 - XRPUSDC algorithmic refine under pinned exposure (15m +36232%, WR 100%, +1 trade vs Loop_1)
+
+### Summary
+Algorithmic-only refine over `Loop_20260520_1` with all risk-exposure dials
+pinned (`leverage=25`, `position_equity_ratio=0.9`, `atr_sl_mult=3.0`,
+`min_rr_ratio=2.0`) so no improvement can come from sizing/leverage creep —
+only from genuine entry/exit logic changes. A prior refine had surfaced
+`position_equity_ratio 0.9→0.95` as the "best" config; that was rejected
+(it's a 5.6% effective-leverage bump in disguise, contradicting the operator's
+leverage pin) and `position_equity_ratio` was added to the harness's pinned-
+value list. This run found a real algorithmic improvement.
+
+Effective changes vs `Loop_20260520_1`: `atr_tp_mult 10.0→8.0` (TP tighter;
+risk/reward still 0.375 ≤ 0.5 ✓), `rsi_period 9→7` (faster RSI),
+`macd_slow 26→24` (slightly faster MACD), `rsi_short_min 55→60` (stricter
+short extremity gate; still ≥50 ✓). All other strategy/trading params, the
+RR MUST, and both pinned exposure dials unchanged.
+
+### Affected Files
+- `xrpusdc_config.yaml`
+- `scripts/xrpusdc_loop.py` (pinned `position_equity_ratio` to [0.9] in SPACE
+  alongside `leverage=[25]` so sizing-creep cannot masquerade as algorithm)
+- `algorithms.md`
+- `changes.md`
+- `backtest_history/Loop_20260520_2/{1,3,6,12,15}m.csv`
+
+### Reason
+Operator's "Dont change the leverage" instruction reasonably extends to
+`position_equity_ratio` since both compose multiplicatively into effective
+exposure (`notional = equity × position_equity_ratio × leverage`). With
+sizing fixed, the search must find genuine algorithmic improvement — which
+this refine did: 4 of 5 windows improved (including the headline 15m PnL),
++1 trade vs `Loop_1`, at the cost of the 1m window regressing 314→238%
+(still strongly positive).
+
+### Backtest Result
+- Command/method: `scripts/xrpusdc_loop.py --mode random/refine` for search
+  (parity-verified fast engine with `min_rr_ratio=2.0` enforced + search-
+  space reward≥2×risk constraint + pinned `leverage=25` and
+  `position_equity_ratio=0.9`), then production-path validation
+  `SWEEP_SYMBOL=XRPUSDC python scripts/btcusdc_optimize.py --windows
+  1,3,6,12,15` (real `SignalEngine + run_trade_cycle +
+  SimulatedExecutionAdapter`, 12-month warmup).
+- Dataset/time range: Binance Futures XRPUSDC mainnet 1h klines, windows
+  1m/3m/6m/12m/15m as of 2026-05-20.
+- Loop folder: `backtest_history/Loop_20260520_2/`
+- Key metrics (production path, exact parity with the fast engine):
+  - 1m:  `+237.97%`,    2 trades, 100.00% WR, 7.161 Sharpe, 0.45% max DD
+  - 3m:  `+2398.51%`,   4 trades, 100.00% WR, 4.167 Sharpe, 0.45% max DD
+  - 6m:  `+2398.51%`,   4 trades, 100.00% WR, 4.167 Sharpe, 0.45% max DD
+  - 12m: `+36232.24%`,  6 trades, 100.00% WR, 4.557 Sharpe, 0.45% max DD
+  - 15m: `+36232.24%`,  6 trades, 100.00% WR, 4.557 Sharpe, 0.45% max DD
+- Targets check:
+  - WR min 100% (>80 ✓)
+  - all-positive ✓
+  - strict-monotonic NOT satisfied (3m=6m and 12m=15m — same structural
+    cause as `Loop_1`: reward-heavy geometry, sparse trades; operator
+    already accepted dropping this MUST for the RR≤0.5 regime)
+  - trades/month 2.0/1.33/0.67/0.5/0.4 — slightly better than `Loop_1`
+    (was 2.0/1.0/0.5/0.42/0.33) but still misses the 2–5 band on the
+    longer windows
+  - Risk/Reward = 0.375 (≤ 0.5 ✓, enforced by `min_rr_ratio=2.0`)
+  - Leverage 25 + `position_equity_ratio` 0.9 (both operator-pinned, unchanged)
+  - Divergence + extremity gate preserved (`rsi_long_max=40` ≤50,
+    `rsi_short_min=60` ≥50)
+- Comparison with previous Loop (`Loop_20260520_1`):
+  - 15m PnL: +33269% → +36232% (+9%)
+  - 12m PnL: +33269% → +36232% (+9%)
+  - 6m PnL: +1537% → +2399% (+56%)
+  - 3m PnL: +1537% → +2399% (+56%)
+  - 1m PnL: +314% → +238% (-24%, the cost of the trade — still strongly positive)
+  - Trades over 15m: 5 → 6
+  - All other constraints unchanged
+- Limitations: identical to `Loop_20260520_1` — small-sample in-sample
+  WR-100 over 6 trades; reward-heavy geometry's close 3×ATR stop has a
+  higher real-world hit probability than the in-sample shows; low trade
+  frequency (~0.4/mo on 15m); leverage-25 live-tail loss is unmodeled
+  (single stop ≈ 75% equity loss).
+
+### Documentation Updated
+- `algorithms.md`
+- `changes.md`
+
 ## Loop_20260520_1 - XRPUSDC reward-heavy regime under new MUST Risk/Reward≤0.5 (15m +33269%, WR 100%, strict-monotonic dropped)
 
 ### Summary

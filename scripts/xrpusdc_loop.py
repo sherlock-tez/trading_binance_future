@@ -161,7 +161,7 @@ SPACE: Dict[str, List[Any]] = {
     "use_trend_filter": [True, False],
     "trend_ema_period": [50, 100, 150, 200, 225, 250],
     "leverage": [25],  # pinned by operator: do not change leverage
-    "position_equity_ratio": [0.5, 0.7, 0.9, 0.95, 1.0],
+    "position_equity_ratio": [0.9],  # pinned: composes with leverage into effective exposure; operator pinned leverage so this stays fixed too
     "pivot_window": [3, 4, 5, 6, 7, 8],
     "divergence_lookback": [40, 50, 60, 80, 100, 120, 160],
     "rsi_period": [7, 9, 11, 12, 14, 21],
