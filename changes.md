@@ -1,9 +1,9 @@
 # changes.md
 
-## Loop_20260520_3 - XRPUSDC strict Pareto refine (15m +84537%, WR 100%, all 5 windows up vs Loop_2)
+## Loop_20260520_8 - XRPUSDC strict Pareto refine (15m +84537%, WR 100%, all 5 windows up vs Loop_2)
 
 ### Summary
-Algorithmic-only refine that **strictly dominates `Loop_20260520_2` on every
+Algorithmic-only refine that **strictly dominates `Loop_20260520_7` on every
 window** — both pinned risk-exposure dials (`leverage=25`,
 `position_equity_ratio=0.9`) unchanged, both MUSTs preserved (WR>80,
 all-positive, RR≤0.5, divergence + extremity gate). Two strategy params
@@ -12,7 +12,7 @@ moved: `atr_tp_mult 8.0→10.0` (TP widened, risk/reward improved to 0.30) and
 helped 4/5 windows at the cost of 1m); the new MACD-signal value restores
 the 1m trade quality so all 5 windows go up simultaneously.
 
-Effective changes vs `Loop_20260520_2`: `atr_tp_mult 8.0→10.0`,
+Effective changes vs `Loop_20260520_7`: `atr_tp_mult 8.0→10.0`,
 `macd_signal 7→9`. (All other strategy/trading params, the RR MUST, and
 both pinned exposure dials unchanged.)
 
@@ -20,10 +20,10 @@ both pinned exposure dials unchanged.)
 - `xrpusdc_config.yaml`
 - `algorithms.md`
 - `changes.md`
-- `backtest_history/Loop_20260520_3/{1,3,6,12,15}m.csv`
+- `backtest_history/Loop_20260520_8/{1,3,6,12,15}m.csv`
 
 ### Reason
-The forever-loop continued past `Loop_20260520_2`. A refine pass found a
+The forever-loop continued past `Loop_20260520_7`. A refine pass found a
 neighbouring config that is a **strict Pareto improvement on all 5
 windows** — including reversing the 1m regression that Loop_2 traded for
 its 4/5-window gain. PnL up materially in every window, WR / all-positive /
@@ -38,7 +38,7 @@ RR / pinned exposure / divergence + extremity gate all unchanged.
   SimulatedExecutionAdapter`, 12-month warmup).
 - Dataset/time range: Binance Futures XRPUSDC mainnet 1h klines, windows
   1m/3m/6m/12m/15m as of 2026-05-20.
-- Loop folder: `backtest_history/Loop_20260520_3/`
+- Loop folder: `backtest_history/Loop_20260520_8/`
 - Key metrics (production path, exact parity with the fast engine):
   - 1m:  `+319.87%`,    2 trades, 100.00% WR, 7.169 Sharpe, 0.45% max DD
   - 3m:  `+4052.85%`,   4 trades, 100.00% WR, 4.170 Sharpe, 0.45% max DD
@@ -55,7 +55,7 @@ RR / pinned exposure / divergence + extremity gate all unchanged.
   - Leverage 25 + `position_equity_ratio` 0.9 (both operator-pinned, unchanged)
   - Divergence + extremity gate preserved (`rsi_long_max=40` ≤50,
     `rsi_short_min=60` ≥50)
-- Comparison with previous Loop (`Loop_20260520_2`) — **strict Pareto**:
+- Comparison with previous Loop (`Loop_20260520_7`) — **strict Pareto**:
   - 1m PnL:  +237.97% → +319.87%   (+34%)
   - 3m PnL:  +2398.51% → +4052.85% (+69%)
   - 6m PnL:  +2398.51% → +4052.85% (+69%)
@@ -63,7 +63,7 @@ RR / pinned exposure / divergence + extremity gate all unchanged.
   - 15m PnL: +36232.24% → +84537.00% (+133%)
   - Trades over 15m: 6 → 6 (unchanged), tpm unchanged
   - All other constraints unchanged
-- Limitations: identical to `Loop_20260520_1/_2` — small-sample in-sample
+- Limitations: identical to `Loop_20260520_6/_2` — small-sample in-sample
   WR-100 over 6 trades; reward-heavy geometry's close 3×ATR stop has a
   higher real-world hit probability than the in-sample shows; low trade
   frequency (~0.4/mo on 15m); leverage-25 live-tail loss is unmodeled
@@ -73,10 +73,10 @@ RR / pinned exposure / divergence + extremity gate all unchanged.
 - `algorithms.md`
 - `changes.md`
 
-## Loop_20260520_2 - XRPUSDC algorithmic refine under pinned exposure (15m +36232%, WR 100%, +1 trade vs Loop_1)
+## Loop_20260520_7 - XRPUSDC algorithmic refine under pinned exposure (15m +36232%, WR 100%, +1 trade vs Loop_1)
 
 ### Summary
-Algorithmic-only refine over `Loop_20260520_1` with all risk-exposure dials
+Algorithmic-only refine over `Loop_20260520_6` with all risk-exposure dials
 pinned (`leverage=25`, `position_equity_ratio=0.9`, `atr_sl_mult=3.0`,
 `min_rr_ratio=2.0`) so no improvement can come from sizing/leverage creep —
 only from genuine entry/exit logic changes. A prior refine had surfaced
@@ -85,7 +85,7 @@ only from genuine entry/exit logic changes. A prior refine had surfaced
 leverage pin) and `position_equity_ratio` was added to the harness's pinned-
 value list. This run found a real algorithmic improvement.
 
-Effective changes vs `Loop_20260520_1`: `atr_tp_mult 10.0→8.0` (TP tighter;
+Effective changes vs `Loop_20260520_6`: `atr_tp_mult 10.0→8.0` (TP tighter;
 risk/reward still 0.375 ≤ 0.5 ✓), `rsi_period 9→7` (faster RSI),
 `macd_slow 26→24` (slightly faster MACD), `rsi_short_min 55→60` (stricter
 short extremity gate; still ≥50 ✓). All other strategy/trading params, the
@@ -97,7 +97,7 @@ RR MUST, and both pinned exposure dials unchanged.
   alongside `leverage=[25]` so sizing-creep cannot masquerade as algorithm)
 - `algorithms.md`
 - `changes.md`
-- `backtest_history/Loop_20260520_2/{1,3,6,12,15}m.csv`
+- `backtest_history/Loop_20260520_7/{1,3,6,12,15}m.csv`
 
 ### Reason
 Operator's "Dont change the leverage" instruction reasonably extends to
@@ -118,7 +118,7 @@ this refine did: 4 of 5 windows improved (including the headline 15m PnL),
   SimulatedExecutionAdapter`, 12-month warmup).
 - Dataset/time range: Binance Futures XRPUSDC mainnet 1h klines, windows
   1m/3m/6m/12m/15m as of 2026-05-20.
-- Loop folder: `backtest_history/Loop_20260520_2/`
+- Loop folder: `backtest_history/Loop_20260520_7/`
 - Key metrics (production path, exact parity with the fast engine):
   - 1m:  `+237.97%`,    2 trades, 100.00% WR, 7.161 Sharpe, 0.45% max DD
   - 3m:  `+2398.51%`,   4 trades, 100.00% WR, 4.167 Sharpe, 0.45% max DD
@@ -138,7 +138,7 @@ this refine did: 4 of 5 windows improved (including the headline 15m PnL),
   - Leverage 25 + `position_equity_ratio` 0.9 (both operator-pinned, unchanged)
   - Divergence + extremity gate preserved (`rsi_long_max=40` ≤50,
     `rsi_short_min=60` ≥50)
-- Comparison with previous Loop (`Loop_20260520_1`):
+- Comparison with previous Loop (`Loop_20260520_6`):
   - 15m PnL: +33269% → +36232% (+9%)
   - 12m PnL: +33269% → +36232% (+9%)
   - 6m PnL: +1537% → +2399% (+56%)
@@ -146,7 +146,7 @@ this refine did: 4 of 5 windows improved (including the headline 15m PnL),
   - 1m PnL: +314% → +238% (-24%, the cost of the trade — still strongly positive)
   - Trades over 15m: 5 → 6
   - All other constraints unchanged
-- Limitations: identical to `Loop_20260520_1` — small-sample in-sample
+- Limitations: identical to `Loop_20260520_6` — small-sample in-sample
   WR-100 over 6 trades; reward-heavy geometry's close 3×ATR stop has a
   higher real-world hit probability than the in-sample shows; low trade
   frequency (~0.4/mo on 15m); leverage-25 live-tail loss is unmodeled
@@ -156,7 +156,7 @@ this refine did: 4 of 5 windows improved (including the headline 15m PnL),
 - `algorithms.md`
 - `changes.md`
 
-## Loop_20260520_1 - XRPUSDC reward-heavy regime under new MUST Risk/Reward≤0.5 (15m +33269%, WR 100%, strict-monotonic dropped)
+## Loop_20260520_6 - XRPUSDC reward-heavy regime under new MUST Risk/Reward≤0.5 (15m +33269%, WR 100%, strict-monotonic dropped)
 
 ### Summary
 Operator added a new MUST: **Risk/Reward ≤ 0.5** (reward ≥ 2× risk),
@@ -189,7 +189,7 @@ Effective changes vs `Loop_20260519_10`: `rsi_period 7→9`, `macd_fast 16→7`,
   WR>80 + monotonic + all-positive candidates)
 - `algorithms.md`
 - `changes.md`
-- `backtest_history/Loop_20260520_1/{1,3,6,12,15}m.csv`
+- `backtest_history/Loop_20260520_6/{1,3,6,12,15}m.csv`
 
 ### Reason
 Operator instruction added Risk/Reward MUST ≤ 0.5 and reaffirmed leverage
@@ -209,7 +209,7 @@ strict-monotonicity (the structural cost of the new RR cap, verified across
   SimulatedExecutionAdapter`, 12-month warmup).
 - Dataset/time range: Binance Futures XRPUSDC mainnet 1h klines, windows
   1m/3m/6m/12m/15m as of 2026-05-20.
-- Loop folder: `backtest_history/Loop_20260520_1/`
+- Loop folder: `backtest_history/Loop_20260520_6/`
 - Key metrics (production path, exact parity with the fast engine):
   - 1m:  `+314.38%`,    2 trades, 100.00% WR, 6.701 Sharpe, 0.45% max DD
   - 3m:  `+1537.29%`,   3 trades, 100.00% WR, 3.191 Sharpe, 0.45% max DD

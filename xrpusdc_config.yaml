@@ -34,7 +34,7 @@ strategy:
   require_macd_divergence: true
   min_rr_ratio: 2.0
   max_sl_distance_pct: 0.0
-  loop_id: Loop_20260520_3
+  loop_id: Loop_20260520_8
 
 execution:
   order_reprice_bps: 2
