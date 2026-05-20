@@ -201,7 +201,7 @@ class LiveTradingRunner:
     async def _process_closed_candle(self, event: CandleEvent) -> None:
         symbol = event.symbol
         all_timeframes = [self.settings.signal_timeframe] + self.settings.sup_res_timeframes
-        frames = self.data_service.refresh_symbol_timeframes(
+        frames = await self.data_service.refresh_symbol_timeframes_async(
             symbol, all_timeframes, limit=self.settings.frame_lookback
         )
 

@@ -270,6 +270,32 @@ def test_rest_fallback_emits_and_dedupes(monkeypatch):
     assert ev.close_price == 1.6
 
 
+def test_refresh_symbol_timeframes_async_runs_in_parallel(monkeypatch):
+    import time as _time
+    svc = _service()
+    tfs = ["1h", "3h", "6h", "12h", "1d", "1w"]
+    frame = pd.DataFrame(
+        {"open_time": [0], "open": [1.0], "high": [1.0],
+         "low": [1.0], "close": [1.0], "volume": [1.0], "close_time": [0]}
+    )
+
+    def slow_fetch(symbol, timeframe, *, limit):
+        _time.sleep(0.1)  # simulate per-call REST latency
+        return frame
+
+    monkeypatch.setattr(svc, "fetch_klines_frame", slow_fetch)
+
+    async def run():
+        t0 = _time.monotonic()
+        result = await svc.refresh_symbol_timeframes_async("ETHUSDC", tfs, limit=600)
+        return result, _time.monotonic() - t0
+
+    result, elapsed = asyncio.run(run())
+    assert set(result.keys()) == set(tfs)
+    # serial would be ~0.6s; parallel via to_thread should be ~0.1-0.2s
+    assert elapsed < 0.4, f"expected parallel (<0.4s), got {elapsed:.2f}s"
+
+
 def test_rest_only_mode_never_opens_websocket(monkeypatch):
     svc = _service()
     closes: list[CandleEvent] = []

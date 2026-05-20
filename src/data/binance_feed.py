@@ -222,6 +222,31 @@ class BinanceMarketDataService:
             self._cache[symbol][timeframe] = self.fetch_klines_frame(symbol, timeframe, limit=limit)
         return {k: v.copy() for k, v in self._cache[symbol].items()}
 
+    async def refresh_symbol_timeframes_async(
+        self,
+        symbol: str,
+        timeframes: List[str],
+        *,
+        limit: int = 500,
+    ) -> Dict[str, pd.DataFrame]:
+        """Parallel sibling of refresh_symbol_timeframes.
+
+        Runs each REST fetch in a worker thread via asyncio.to_thread and
+        gathers them concurrently, so total wall time is ~max(per-call)
+        instead of sum(per-call). Used at the live decision boundary
+        where the bot must process 6+ timeframes as fast as possible.
+        """
+        frames = await asyncio.gather(
+            *(
+                asyncio.to_thread(self.fetch_klines_frame, symbol, tf, limit=limit)
+                for tf in timeframes
+            )
+        )
+        self._cache.setdefault(symbol, {})
+        for tf, frame in zip(timeframes, frames):
+            self._cache[symbol][tf] = frame
+        return {k: v.copy() for k, v in self._cache[symbol].items()}
+
     def get_cached(self, symbol: str) -> Dict[str, pd.DataFrame]:
         return {k: v.copy() for k, v in self._cache.get(symbol, {}).items()}
 
