@@ -50,58 +50,61 @@ real live tail risk.
 
 ### Current ETHUSDC Tuned Profile
 
-`Loop_20260519_13` keeps the mandatory RSI divergence plus extremity gate and
-the required MACD divergence, and uses a wide-SL / tight-TP bounce geometry on
-those high-conviction divergence entries:
+`Loop_20260520_9` is the BTC-pattern champion adopted after user added
+`R/R <= 0.5` (TP distance ≥ 2× SL distance) as a hard constraint and
+`WR > 70%` as the WR target. The prior wide-SL/tight-TP champion
+`Loop_20260519_13` (R/R≈2.5, WR>84%, +1339% on 15m) was disqualified by the
+new R/R constraint. The keep-WR>70 / drop-R/R<=0.5 reverse was also tried,
+and the WR>70 + R/R<=0.5 + tpm≥2 + strict-monotonic combination was proven
+mutually exclusive on ETHUSDC (~30k evals; best minWR ~45-50%). User then
+relaxed both `tpm≥2` and `strict_monotonic` from hard targets to mirror
+BTCUSDC's regime, unlocking the high-WR / few-trades / favorable-R:R
+configuration:
 
-- `rsi_period=21`, `rsi_long_max=50`, `rsi_short_min=60`
+- `rsi_period=24`, `rsi_long_max=45`, `rsi_short_min=50`
 - `require_macd_divergence=true` (RSI divergence still mandatory)
-- `pivot_window=6`, `divergence_lookback=160`
-- `use_trend_filter=false`, `trend_ema_period=100` (inactive)
-- `use_atr_stops=true`, `atr_period=28`, `atr_sl_mult=2.0`, `atr_tp_mult=0.8`
-- `macd_fast=12`, `macd_slow=34`, `macd_signal=7`
-- `leverage=17`, `position_equity_ratio=0.98`
+- `pivot_window=5`, `divergence_lookback=120`
+- `use_trend_filter=true`, `trend_ema_period=200`
+- `use_atr_stops=true`, `atr_period=7`, `atr_sl_mult=1.0`, `atr_tp_mult=2.0`
+  (**R/R = 0.5 exactly — at the constraint cap**)
+- `macd_fast=8`, `macd_slow=26`, `macd_signal=7`
+- `leverage=17`, `position_equity_ratio=0.98` (pinned per user instruction)
 
 Production-path canonical backtest (`scripts/backtest.py --symbol ETHUSDC`,
-12-month warmup, real `SignalEngine + run_trade_cycle +
-SimulatedExecutionAdapter`): 1m +20.64% / 3m +62.45% / 6m +102.77% / 12m
-+332.16% / 15m +1339.17%; win-rate 100/100/88.2/86.5/87.5% (min 86.49%);
-strictly monotonic 15>12>6>3>1; all-positive; 2.0–3.2 trades/month; max
-drawdown 0.33% on 1m/3m rising to 67.08% on 6/12/15m. The trade set and
-win-rate are byte-identical to `Loop_20260519_12` (same 3/6/17/37/48 trades,
-same WR), so `atr_period 21→28` and `macd_signal 9→7` are inert on this data;
-the entire PnL gain over `_9` (15m +1339.17% vs +955.57%, +40%) is
-`leverage 15→17` + `position_equity_ratio 0.95→0.98`. It strictly dominates
-`_9` on PnL in every window at the same WR and strict-monotonic consistency.
+real `SignalEngine + run_trade_cycle + SimulatedExecutionAdapter`):
+1m +9.45% / 3m +9.45% / 6m +84.44% / 12m +141.39% / 15m **+205.27%**;
+**win-rate 100/100/100/100/100% (min 100% across every window)**;
+all-positive; **max drawdown 0.33% across all windows**; Sharpe rises
+3.99→5.38→6.79 on 6m→12m→15m. 5 trades total over 15 months (1/1/3/4/5 by
+window, **tpm 0.20–0.33**, well below ≥2-5/mo — accepted as the BTC-pattern
+trade-off the user signed off on). Returns are nearly-monotonic but plateau
+on the small-trade windows (1m=3m identical = single shared trade,
+12m→15m the 5th trade adds +63.88pp); strict monotonicity holds 3m→6m→12m→15m.
 
-The tight TP (0.8×ATR) relative to a wide SL (2.0×ATR) gives a high per-trade
-hit rate; the slower RSI (`rsi_period=21`) plus long divergence memory
-(`divergence_lookback=160`) filter to the highest-conviction reversals. Found
-via `scripts/ethusdc_loop.py` (random map + neighbourhood refine,
-ETHUSDC-specific reuse of the parity-verified fast engine), then re-validated
-on the production path before adoption. Lineage: `Loop_20260519_7`
-(first all-targets pass, 15m +181.66%) → `Loop_20260519_8` (round-3 refine,
-15m +474.60%) → `Loop_20260519_12` (leverage 10→15, 15m +955.57%) →
-`Loop_20260519_13` (leverage 15→17 + equity 0.95→0.98, 15m +1339.17%,
-current). **The trading algorithm itself converged at `_8`; `_9`/`_10` are
-pure leverage/equity risk-scaling — the entry/exit/geometry is unchanged and
-six independent search rounds found no further algorithmic edge in the
-parameter space.**
+The favorable R:R geometry (tp 2.0×ATR vs sl 1.0×ATR) inverts the prior
+champion's per-trade payoff: each win pays ~2× the risk per trade, so even
+with the much lower expected hit rate of "near-tp first," the wide reward
+distance plus the trend-filter + RSI-extremity + MACD-divergence triple gate
+filters to high-conviction entries that hit TP all 5 times in the cache.
+Trade-frequency cost: the strict signal stack only fires every ~3 months on
+average, so live there can be long inactive periods. The 100% WR is
+small-sample (n=5) and almost certainly does not generalize — a more
+realistic forward-WR estimate is the BTC analogue's ~90.9% at n=11.
 
-**Caveat:** as with the BNBUSDC tight-TP profile, the high in-sample win-rate
-is partly a geometry artifact — a 2.0×ATR stop is rarely reached when the TP
-is only 0.8×ATR, but a gap/adverse spike can still hit it live. The real risk
-is the unrealised tail loss, not the in-sample variance. **`leverage=17`
-(equity 0.98) is very aggressive:** the in-sample max drawdown is ~67% on the
-6–15m windows (vs ~62% for `_9` at leverage 15, ~45% for `_8` at leverage
-10). Every stated target (WR>80, strict monotonic, ≥2 trades/month,
-all-positive, higher PnL) is satisfied, but a single adverse tail at this
-leverage is a severe live-account risk; risk-tolerant operators may prefer
-`_8` (leverage 10, ~45% DD) or `_9` (leverage 15, ~62% DD) for a smaller
-tail. The fast-engine search reported 15m +1890% with a pathological 6m≈12m
-plateau then a 15m explosion (an artifact of light warmup at the cache's left
-edge); the production path corrected this to a sane, consistent +1339.17% —
-the production number is the authoritative one.
+Found via `scripts/ethusdc_loop.py` (`hard_ok = all_positive` only;
+`_enforce_rr()` enforces R/R ≤ 0.5 in every sampled/neighbor config;
+`wr_ok` threshold = 70). Search history this regime: ~30k evals across two
+target sets (WR>80 → WR>70, then mono drop, then tpm drop). Re-validated on
+the production path before adoption (identical numbers to fast engine).
+
+**Caveats:**
+1. Sample size is tiny (5 trades over 15 months). Treat the 100% in-sample
+   WR as the upper bound, not the expectation.
+2. Long inactivity periods are expected. Live operators should monitor that
+   the trend filter + divergence stack isn't permanently quiet.
+3. `leverage=17` (equity 0.98) is still aggressive. With DD ~0.33% in-sample
+   the leverage choice looks safe, but only 5 trades have stressed it. A
+   single adverse tail at this leverage remains a live-account risk.
 
 ### Current BNBUSDC Tuned Profile
 

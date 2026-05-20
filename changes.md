@@ -1,5 +1,64 @@
 # changes.md
 
+## Loop_20260520_9 - ETHUSDC BTC-pattern champion (R/R<=0.5 + WR>70)
+
+### Summary
+New ETHUSDC champion under the regime change the user imposed on 2026-05-20:
+`R/R <= 0.5` (TP distance >= 2× SL distance) as a hard constraint, `WR > 70%`
+as the WR target. The prior wide-SL/tight-TP champion `Loop_20260519_13`
+(R/R≈2.5, WR>84%, 15m +1339%) was disqualified by the R/R constraint, and
+WR>70 + R/R<=0.5 + tpm>=2 + strict-monotonic proved mutually exclusive on
+ETHUSDC after ~30k evaluations. User then relaxed both `tpm>=2` and
+`strict_monotonic` to mirror BTCUSDC's regime, which unlocked the
+high-WR / few-trades / favorable-R:R configuration found here. Production-path
+validated against fast engine (identical numbers): 15m +205.27%, WR 100% on
+every window, all-positive, DD 0.33%, R/R=0.5 at the constraint cap, 5 trades
+over 15 months (tpm 0.20-0.33).
+
+### Affected Files
+- `ethusdc_config.yaml` (strategy params replaced; leverage 17 / equity 0.98
+  stay pinned per user instruction; new `loop_id: Loop_20260520_9`)
+- `algorithms.md` (Current ETHUSDC Tuned Profile rewritten for the
+  BTC-pattern champion with R/R=0.5, WR 100% caveats, tpm trade-off noted)
+- `changes.md`
+- `scripts/ethusdc_loop.py` (score function: `hard_ok = all_positive` only,
+  `wr_ok` threshold 80->70, `_enforce_rr()` repair restored, atr grids
+  reshaped for favorable R:R, grids extended to include BTCUSDC values
+  exactly)
+- `backtest_history/Loop_20260520_9/{1,3,6,12,15}m.csv` (per-window trade
+  history from canonical backtest)
+
+### Reason
+User imposed `R/R <= 0.5` + `WR > 70%` constraints, citing
+`btcusdc_config.yaml` (sl 1.5 / tp 4.0, R/R 0.375) as proof the criteria are
+achievable. Initial seed test (BTC strategy params + ETH-pinned leverage)
+produced 15m -95% on ETH — BTC pattern does not transfer directly, ETH needs
+its own geometry. Successive constraint relaxations (mono first, then tpm)
+were required to unlock the feasible region. The final champion mirrors
+BTCUSDC's "few high-conviction trades" pattern.
+
+### Backtest Result
+- Command/method: `python scripts/backtest.py --symbol ETHUSDC` (canonical
+  `SignalEngine + run_trade_cycle + SimulatedExecutionAdapter` path).
+- Window returns: 1m +9.45% / 3m +9.45% / 6m +84.44% / 12m +141.39% /
+  15m **+205.27%**.
+- Win-rates: 100% / 100% / 100% / 100% / 100% (min 100% across every window).
+- Trade counts: 1 / 1 / 3 / 4 / 5 over windows (tpm 0.20-0.33).
+- Returns are nearly-monotonic: 1m=3m share a single trade; 3m→6m→12m→15m
+  strictly increasing. All-positive across windows.
+- Max drawdown: 0.33% on every window.
+- Sharpe ratio: 0.0 / 0.0 / 3.99 / 5.38 / 6.79.
+- Maker fill ratio: 1.0 across all windows; no maker rejects.
+- `R/R = sl/tp = 1.0/2.0 = 0.5` (exactly at the user constraint cap).
+
+### Notes
+- Sample size is tiny (5 total trades). Treat the 100% in-sample WR as upper
+  bound, not the forward expectation.
+- Long inactive periods expected — the trend-filter + RSI-extremity +
+  MACD-divergence stack only fires on high-conviction setups.
+- Leverage 17 + equity 0.98 stay pinned (user explicitly forbids tuning
+  leverage); DD 0.33% in-sample is misleadingly low for only 5 trades.
+
 ## Loop_20260519_14 - Rejected sup_res_timeframes Probe (inert for ETHUSDC)
 
 ### Summary

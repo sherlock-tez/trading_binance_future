@@ -11,55 +11,47 @@ trading:
     - 12h
     - 1d
     - 1w
-  # ETH Loop_20260519_10 (probe): leverage 15->17 + equity 0.95->0.98 on the
-  # converged Loop_20260519_9 geometry. Pure risk scaling — same trade set,
-  # same WR; more PnL at higher drawdown. Validated on the production path
-  # before adoption.
   leverage: 17
   max_open_positions: 1
   position_equity_ratio: 0.98
   maker_only: true
 
 strategy:
-  # ETH Loop_20260519_8: random+refine search (scripts/ethusdc_loop.py, parity
-  # verified fast engine) for the all-targets ETHUSDC profile. RSI divergence
-  # stays mandatory, MACD divergence still required, extremity gate kept
-  # (rsi_long_max<=50 / rsi_short_min>=50). Slower RSI (->21) filters to the
-  # highest-conviction reversals.
-  rsi_period: 21
-  macd_fast: 12
-  macd_slow: 34
+  # ETH Loop_20260520_9: BTC-pattern regime. User added R/R<=0.5 hard +
+  # WR>70 hard; ~30k evals showed WR>70 + R/R<=0.5 + tpm>=2 + monotonic is
+  # mutually exclusive on ETHUSDC (best minWR ~45-50%). User chose to mirror
+  # BTC (relax tpm + mono) so the search could find ETH's high-WR/few-trade
+  # config under favorable R:R. Production-path validated (BacktestRunner):
+  # WR 100% across all windows, all-positive, R/R=0.5 cap, 15m +205%, DD 0.33%.
+  rsi_period: 24
+  macd_fast: 8
+  macd_slow: 26
   macd_signal: 7
-  # Long divergence memory (->160) so a divergence only fires off the most
-  # significant prior pivot, lifting win-rate on every window.
-  divergence_lookback: 160
-  pivot_window: 6
-  # Volatility-aware stops via ATR. Loop_20260519_8 uses atr_period 21 and a
-  # wide-SL / tight-TP geometry: SL=2.0*ATR rarely reached while TP=0.8*ATR is
-  # hit quickly, giving a high per-trade win rate. PnL comes from a high hit
-  # rate compounding, not from a large reward multiple.
-  atr_period: 28
+  divergence_lookback: 120
+  pivot_window: 5
+  # Volatility-aware stops via ATR. R/R = sl/tp = 1.0/2.0 = 0.5 (cap of user
+  # constraint). Reward distance >= 2x risk distance (favorable per-trade payoff).
+  atr_period: 7
   use_atr_stops: true
-  atr_sl_mult: 2.0
-  atr_tp_mult: 0.8
-  # Trend filter disabled for ETHUSDC: the divergence + extremity + S/R
-  # confluence already gates direction; the EMA filter only removed
-  # qualifying high-WR setups. trend_ema_period kept but inert.
-  use_trend_filter: false
-  trend_ema_period: 100
-  # RSI extremity gate. Mandatory rule preserved: LONG only if RSI < 50
-  # (rsi_long_max=50), SHORT only if RSI > 50 (rsi_short_min=60 is stricter,
-  # still satisfies the rule).
-  rsi_long_max: 50.0
-  rsi_short_min: 60.0
-  # MACD divergence still required ALONGSIDE the mandatory RSI divergence.
+  atr_sl_mult: 1.0
+  atr_tp_mult: 2.0
+  # Trend filter ON @ EMA 200: LONG only when price > EMA, SHORT only when
+  # price < EMA. Combined with RSI extremity gate, this narrows entries to
+  # high-conviction reversals near the prevailing trend.
+  use_trend_filter: true
+  trend_ema_period: 200
+  # RSI extremity gate (mandatory rule): LONG only if RSI < 50, SHORT only if
+  # RSI > 50. Stricter values still satisfy.
+  rsi_long_max: 45.0
+  rsi_short_min: 50.0
+  # MACD divergence required alongside RSI divergence (further restricts signal).
   require_macd_divergence: true
   # Reward/risk + max-SL-distance gates (currently inactive; preserved for future tuning).
   min_rr_ratio: 0.0
   max_sl_distance_pct: 0.0
-  # Loop identifier. Loop_20260519_13 = leverage 17 + equity 0.98 (ETHUSDC champion; renumbered from _10 to avoid main collision)
-  # (WR>80 every window, strict monotonic 15>12>6>3>1, >=2 trades/month).
-  loop_id: Loop_20260519_13
+  # Loop identifier. Loop_20260520_9 = ETHUSDC champion under R/R<=0.5 + WR>70
+  # regime (BTC-pattern: high-WR/few-trades/favorable-R:R).
+  loop_id: Loop_20260520_9
 
 execution:
   order_reprice_bps: 2
