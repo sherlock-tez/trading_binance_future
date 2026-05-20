@@ -14,6 +14,12 @@ XRPUSDC targets:
   Subject to the hard gate, maximize 15m PnL then avg PnL, reward higher WR
   and trade frequency, penalise drawdown.
 
+  Additional operator MUST: Risk/Reward <= 0.5, i.e. reward/risk >= 2.0
+  (atr_tp_mult >= 2 * atr_sl_mult). Enforced on the production AND fast
+  engine via the existing `min_rr_ratio=2.0` config key, and the search-space
+  generators only emit geometry satisfying it. This invalidates the prior
+  wide-SL / tight-TP champions (Loop_20260519_9/10).
+
 Trades/month is intentionally a *soft* term inside the objective rather than a
 hard gate: the operator prefers maximum PnL over hitting the 2-5 trades/month
 band when they conflict (WR>80 + strict-monotonic remain the hard MUSTs).
@@ -86,11 +92,30 @@ def score(window_results) -> Tuple[float, bool, Dict[str, Any]]:
     wr80 = min_wr > 80.0
     max_dd = max((float(r.metrics.get("max_drawdown_pct", 0.0)) for r in results), default=0.0)
 
-    # Hard gate = the user's MUSTs only: WR>80, all-positive, strict monotonic.
-    # Trades/month is a SOFT preference (operator prefers PnL when in conflict).
-    hard_ok = wr80 and all_positive and strict_monotonic
+    # Hard DD cap (operator MUST after seeing the 82% DD candidate that the
+    # prior PnL-dominant scoring tried to promote). Any config with in-sample
+    # max drawdown > 5% is structurally rejected — it cannot enter Tier A or
+    # Tier A2 regardless of PnL, since 82% in-sample DD is a real operational
+    # risk live (margin calls, kill switches) not just an unmodeled-tail
+    # caveat. Existing champions (Loop_1/_2/_3) all have DD ~0.45%.
+    DD_MAX = 5.0
+    dd_ok = max_dd <= DD_MAX
 
-    if hard_ok:
+    # Hard gate = the user's MUSTs: WR>80, all-positive, strict monotonic, DD<=5%.
+    # Trades/month is a SOFT preference (operator prefers PnL when in conflict).
+    hard_ok = wr80 and all_positive and strict_monotonic and dd_ok
+
+    if not dd_ok:
+        # Catastrophic in-sample drawdown veto. Any config with max_dd > 5%
+        # is structurally rejected across every tier — the operator hard MUST
+        # added after a search candidate posted 82% in-sample DD. Score is
+        # capped well below Tier C so these configs never overwrite the
+        # incumbent regardless of how high their PnL is.
+        s = sum(1 for x in rets if x > 0) * 1e3
+        s += min_wr * 10.0 + min(last_ret, 1000.0) * 1.0
+        s -= max_dd * 100.0
+        s = min(s, 1e5)
+    elif hard_ok:
         # Tier A: every MUST satisfied. PnL is the dominant objective (the
         # operator prefers maximum PnL over the 2-5 trades/month band when
         # they conflict). 15m PnL leads, then avg PnL; WR-above-80 and
@@ -105,8 +130,21 @@ def score(window_results) -> Tuple[float, bool, Dict[str, Any]]:
         if tpm_ok:
             s += 500.0                   # small bonus for clearing 2/mo band
         s -= max_dd * 100.0              # mild PnL-leaning drawdown penalty
+    elif wr80 and all_positive and dd_ok:
+        # Tier A2: WR>80 + all-positive + DD<=5%, strict-monotonic NOT required.
+        # Operator-accepted under the RR<=0.5 regime where strict-monotonicity
+        # was proven infeasible. PnL-dominant, ranked above the legacy
+        # strict-monotonic tier so a low-WR monotonic config can't overwrite
+        # a high-WR non-monotonic one in this regime. DD cap blocks the
+        # search from trading catastrophic in-sample drawdown for PnL.
+        s = 1e10 + last_ret * 1000.0 + avg_ret * 200.0 + (min_wr - 80.0) * 50.0
+        s += min(min_tpm, 5.0) * 100.0
+        if tpm_ok:
+            s += 500.0
+        s -= max_dd * 100.0
     elif all_positive and strict_monotonic:
-        # Tier B: consistency + positivity met, WR<=80. Push WR toward 80 first.
+        # Tier B: strict-monotonic + positivity but WR<=80. Demoted below
+        # Tier A2 because the operator dropped strict-monotonicity as a MUST.
         s = 1e9 + min_wr * 1e6 + last_ret * 100.0 + avg_ret * 10.0
     else:
         # Tier C: partial credit so near-misses surface for the next loop.
@@ -127,6 +165,7 @@ def score(window_results) -> Tuple[float, bool, Dict[str, Any]]:
     detail = {
         "hard_ok": hard_ok,
         "wr80": wr80,
+        "dd_ok": dd_ok,
         "all_positive": all_positive,
         "strict_monotonic": strict_monotonic,
         "mono_violation": round(viol, 3),
@@ -154,8 +193,8 @@ SPACE: Dict[str, List[Any]] = {
     "atr_tp_mult": [0.6, 0.8, 1.0, 1.2, 1.5, 1.8, 2.0, 2.5, 3.0, 4.0, 5.0, 6.0, 8.0, 10.0],
     "use_trend_filter": [True, False],
     "trend_ema_period": [50, 100, 150, 200, 225, 250],
-    "leverage": [3, 5, 8, 10, 15, 20, 25],
-    "position_equity_ratio": [0.5, 0.7, 0.9, 0.95, 1.0],
+    "leverage": [25],  # pinned by operator: do not change leverage
+    "position_equity_ratio": [0.9],  # pinned: composes with leverage into effective exposure; operator pinned leverage so this stays fixed too
     "pivot_window": [3, 4, 5, 6, 7, 8],
     "divergence_lookback": [40, 50, 60, 80, 100, 120, 160],
     "rsi_period": [7, 9, 11, 12, 14, 21],
@@ -169,10 +208,32 @@ SPACE: Dict[str, List[Any]] = {
 }
 
 
+# Operator MUST: Risk/Reward <= 0.5  <=>  reward/risk >= 2.0  <=>
+# atr_tp_mult >= 2 * atr_sl_mult. Enforced in production + fast engine via
+# min_rr_ratio=2.0 (existing config key); the generators below also bias the
+# search to feasible geometry so the budget isn't wasted on rejected plans.
+RR_MIN = 2.0
+
+
+def _enforce_rr(o: Dict[str, Any], rng: random.Random) -> None:
+    """Pick atr_tp_mult from grid values >= RR_MIN * atr_sl_mult; if none,
+    lower atr_sl_mult to the largest value that admits a valid take-profit."""
+    tp_opts = SPACE["atr_tp_mult"]
+    sl_opts = SPACE["atr_sl_mult"]
+    feasible_tp = [tp for tp in tp_opts if tp >= RR_MIN * o["atr_sl_mult"]]
+    if not feasible_tp:
+        max_sl = max((sl for sl in sl_opts if RR_MIN * sl <= max(tp_opts)),
+                     default=min(sl_opts))
+        o["atr_sl_mult"] = max_sl
+        feasible_tp = [tp for tp in tp_opts if tp >= RR_MIN * o["atr_sl_mult"]]
+    o["atr_tp_mult"] = rng.choice(feasible_tp)
+
+
 def sample(rng: random.Random) -> Dict[str, Any]:
     o = {k: rng.choice(v) for k, v in SPACE.items()}
     if o["macd_slow"] <= o["macd_fast"]:
         o["macd_slow"] = o["macd_fast"] + 14
+    _enforce_rr(o, rng)
     return o
 
 
@@ -190,6 +251,7 @@ def neighbors(center: Dict[str, Any], rng: random.Random) -> Dict[str, Any]:
             o[k] = rng.choice(opts)
     if o["macd_slow"] <= o["macd_fast"]:
         o["macd_slow"] = o["macd_fast"] + 14
+    _enforce_rr(o, rng)
     return o
 
 
@@ -228,6 +290,25 @@ def main() -> None:
                   f"detail={json.dumps(prev.get('detail', {}), sort_keys=True)}", flush=True)
         except Exception as e:  # noqa: BLE001
             print(f"[incumbent] none ({e})", flush=True)
+    # Separately track the highest trade-frequency config among configs that
+    # still satisfy every hard MUST (WR>80 + all-positive + strict-monotonic).
+    # Surfaces Pareto alternatives to the PnL champion that better serve the
+    # 2-5 trades/month target — the PnL-dominant `score` never ranks these.
+    FREQ_PATH = os.path.join(RESULTS_DIR, "xrp_freqbest.json")
+    best_freq_key = (-1.0, -1e18)  # (min_trades_per_month, ret_15m) lexicographic
+    best_freq_rec: Dict[str, Any] = {}
+    if os.path.exists(FREQ_PATH):
+        try:
+            with open(FREQ_PATH) as f:
+                pf = json.load(f)
+            d = pf.get("detail", {})
+            best_freq_key = (float(d.get("min_trades_per_month", -1.0)),
+                             float(d.get("ret_15m_pct", -1e18)))
+            best_freq_rec = pf
+            print(f"[freq incumbent] tpm={best_freq_key[0]} 15m={best_freq_key[1]}", flush=True)
+        except Exception:  # noqa: BLE001
+            pass
+
     log: List[Tuple[float, Dict[str, Any], Dict[str, Any]]] = []
     start = time.time()
 
@@ -255,8 +336,18 @@ def main() -> None:
                   f"wr80={det.get('wr80')} minWR={det.get('min_wr_pct')} "
                   f"15m={det.get('ret_15m_pct')} mono={det.get('strict_monotonic')} "
                   f"pos={det.get('all_positive')} tpm={det.get('min_trades_per_month')}", flush=True)
+        if hard_ok:
+            fk = (float(det["min_trades_per_month"]), float(det["ret_15m_pct"]))
+            if fk > best_freq_key:
+                best_freq_key = fk
+                best_freq_rec = {"overrides": o, "detail": det}
+                with open(FREQ_PATH, "w") as f:
+                    json.dump(best_freq_rec, f, indent=2)
+                print(f"[new freq best] i={i} tpm={fk[0]} 15m={fk[1]} "
+                      f"minWR={det.get('min_wr_pct')} mono={det.get('strict_monotonic')}", flush=True)
         if i % 100 == 0:
-            print(f"[prog] {i}/{args.n} elapsed={time.time()-start:.0f}s best={best_s:.1f}", flush=True)
+            print(f"[prog] {i}/{args.n} elapsed={time.time()-start:.0f}s best={best_s:.1f} "
+                  f"freqbest_tpm={best_freq_key[0]}", flush=True)
 
     log.sort(key=lambda x: x[0], reverse=True)
     print("\n=== TOP CONFIGS ===")
