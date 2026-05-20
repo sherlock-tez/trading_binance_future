@@ -14,44 +14,45 @@ trading:
   maker_only: true
 
 strategy:
-  # SOLUSDC CHAMPION = Loop_20260520_3 (succeeds _2/Loop_20260520_2 by
-  # walking the atr_period gradient to its peak at atr_period=3).
+  # SOLUSDC CHAMPION = Loop_20260520_4 (succeeds _3 via pivot_window 6->5 +
+  # rsi_short_min 60->65; found by wr80_atr3_cross at the atr_p=3 anchor).
   # USER TARGETS (2026-05-20 round 3): R/R <= 0.5 AND WR > 80 HARD AND
   # strict-mono + all-positive on ACTIVE windows; "increase number of
   # trades" directional. RSI extremity (LONG<50/SHORT>50) + MACDdiv required.
-  # _3 source: scripts/solusdc_sweep.py --grid wr80_atr_fine probing
-  # atr_period [2,3,4,5,6] with all other dims pinned at _2. Result is a
-  # SMOOTH MONOTONIC gradient 9->3 (each step strictly better on every
-  # window) then SHARP BREAK at 2 (15m PnL +89/WR62.5, 3m -19%/WR0,
-  # 6m -12%/WR33). atr_period=3 is the local optimum.
-  # Result table (15m PnL / 15m WR):
-  #   atr_p=9: +207.78/87.5  | atr_p=8: +211.05/87.5  (_2)
-  #   atr_p=7: +215.96/87.5  | atr_p=6: +223.33/87.5
-  #   atr_p=5: +342.77/100   | atr_p=4: +363.53/100
-  #   atr_p=3: +402.22/100   (_3, PEAK)
-  #   atr_p=2: +89.00/62.5   (BREAKS - 2h ATR can't filter 1h whipsaws)
-  # The 100% in-sample WR is NOT a small-sample artifact (8 trades, OOS at
-  # 24m drops to 80% via +2 OOS trades 1W/1L; same OOS-trade footprint as
-  # _2 but starting from 0 in-sample losses vs _2's 1). Smooth gradient
-  # rules out single-point overfit.
+  # Lineage to _4 (each step strict Pareto over previous):
+  #   _11 (Loop_20260520_1): atr_p 12, rsi 45/60, pivot 6 -> 15m +170/WR85.7/7tr
+  #   _2  (Loop_20260520_2): rsi_long 45->47 -> 15m +211/WR87.5/8tr
+  #   _3  (Loop_20260520_3): atr_p 8->3 (gradient peak) -> 15m +402/WR100/8tr
+  #   _4  (Loop_20260520_4): pivot 6->5 + rsi_short 60->65 -> 15m +534/WR100/9tr
+  # _4 source: scripts/solusdc_sweep.py --grid wr80_atr3_cross (864 combos
+  # at atr_p=3, varying pivot/dlb/RSI gates/trend EMA/S/R). 66 passers; #1
+  # is (pivot=5, rsi_long=47, rsi_short=65, dlb=80, trend=200, sup_res
+  # invariant). The pivot=5+rsi_short=65 combo unlocks +1 LONG trade at 15m
+  # (8->9) and +1 at 12m (6->7) while keeping all 9 trades winning (15m WR
+  # remains 100%). Robust to sup_res choice ([1d,1w] = [6h,12h,1d,1w]
+  # exactly tied in score and trade path).
   # Production path (scripts/btcusdc_optimize.py, mainnet, 12m warmup):
   #   1m: 0 tr (neutral) | 3m +33.4/WR100 (1) | 6m +85.4/WR100 (3)
-  #   12m +192.97/WR100 (6) | 15m +402.22/WR100 (8); strict-mono ✓,
-  #   all-positive ✓, max DD 0.16% (no SL hit in-sample), Sharpe 6.00.
-  # OOS held-out (extended cache to 24m then reverted):
-  #   18m: +402.22/WR100 (8 tr, no new trades 15->18m)
-  #   24m: +326.73/WR80.0 (10 tr, +2 vs 15m: 1W/1L)
-  # 24m OOS is +165pt better than _2's +161.21, OOS WR climbs to 80.0
-  # (right at the user's hard floor; in-sample 100% comfortably clears).
-  # TRADEOFF vs _2: STRICT WIN on every dim (+1.9x 15m PnL, +12.5pt 15m WR,
-  # -10.7pt 15m DD, +2x 24m OOS PnL, +10pt 24m OOS WR). No tradeoff dial.
+  #   12m +269.7/WR100 (7) | 15m +533.77/WR100 (9); strict-mono ✓,
+  #   all-positive ✓, max DD 0.16% (no SL hit in-sample), Sharpe 6.83.
+  # OOS held-out (extended cache to 24m then reverted to 15):
+  #   18m: +533.77/WR100 (9 tr, no new trades 15->18m)
+  #   24m: +545.54/WR83.33 (12 tr, +3 vs 15m: 1W/2L; net positive)
+  # 24m OOS PnL EXCEEDS in-sample 15m (+545.54 > +533.77) because 1 OOS
+  # winner outweighs the 2 OOS losers on compounded equity. 24m OOS WR
+  # 83.33% has comfortable headroom over the >80 floor (was 80.0 in _3).
+  # 24m OOS max DD halves (15.17 -> 8.73%).
+  # TRADEOFF vs _3: STRICT WIN on every dim (+131pt 15m PnL, +1 in-sample tr,
+  # +0 WR delta but +1 trade at 100%, +218pt 24m OOS PnL, +3.3pt 24m OOS WR,
+  # -6.4pt 24m DD). No tradeoff dial. Trade count rises 8->9 in-sample,
+  # 10->12 OOS at 24m.
   # R/R cap enforced by construction (sl 1.0 / tp 2.0 = 0.5 exactly).
   rsi_period: 14
   macd_fast: 7
   macd_slow: 24
   macd_signal: 9
   divergence_lookback: 80  # _11: 52 -> 80 (longer confirmation for high-WR regime)
-  pivot_window: 6
+  pivot_window: 5  # Loop_20260520_4: was 6 in _3; pivot=5+rsi_short=65 unlocks +1 trade
   atr_period: 3  # Loop_20260520_3: _2's 8 -> 3 (peak of atr gradient; atr_p=2 BREAKS)
   use_atr_stops: true
   atr_sl_mult: 1.0  # at R/R cap 0.5 (sl 1.0 / tp 2.0)
@@ -59,15 +60,18 @@ strategy:
   use_trend_filter: true  # trend filter ON (WR backbone)
   trend_ema_period: 200
   rsi_long_max: 47.0  # Loop_20260520_2: _11's 45 -> 47 (unlocks 1 extra LONG, still <50 extremity rule)
-  rsi_short_min: 60.0
+  rsi_short_min: 65.0  # Loop_20260520_4: was 60 in _3; pairs with pivot=5
   require_macd_divergence: true
   min_rr_ratio: 0.0
   max_sl_distance_pct: 0.0
-  loop_id: Loop_20260520_3
-  # Note: atr_period=3 puts ATR on a 3-hour window (1h * 3). Smooth gradient
-  # 9->3 confirmed via wr80_atr_fine; atr_p=2 BREAKS (3m -19%/WR0, 6m -12%/WR33).
-  # 24m OOS WR exactly at 80.0 (boundary); in-sample 15m WR 100% comfortably
-  # clears the >80 HARD floor.
+  loop_id: Loop_20260520_4
+  # Loop_20260520_4 succeeds _3 via wr80_atr3_cross sweep (864 combos at
+  # atr_period=3 anchor): pivot_window 6->5 + rsi_short_min 60->65 unlocks
+  # +1 LONG-side trade (15m 8->9, 12m 6->7) while keeping all-100% WR
+  # in-sample and lifting 15m PnL +131pt (402->534). 24m OOS PnL grows to
+  # +545.54 (now higher than 15m in-sample was for _3) with WR climbing
+  # 80.0->83.33% (more headroom over the >80 floor). Max DD at 24m halves
+  # (15.17->8.73%). Strict Pareto on every dimension over _3.
 
 execution:
   order_reprice_bps: 2

@@ -423,6 +423,37 @@ def _grid_wr80_freq_v2() -> Dict[str, List[Any]]:
     }
 
 
+def _grid_wr80_atr3_cross() -> Dict[str, List[Any]]:
+    """Cross-check at the new atr_period=3 anchor (Loop_20260520_3).
+    Probes whether dim interactions change at the smaller ATR window.
+
+    Tests pivot 4/5/6, dlb 40/52/80, rsi_long_max 45/47/48/49,
+    rsi_short_min 52/55/60/65, trend EMA 100/150/200, S/R [1d,1w] vs broader.
+    All other dims pinned at _3 (atr_p=3, sl=1.0, tp=2.0, MACDdiv ON,
+    trend filter ON, leverage 8, peq 1.0).
+    """
+    return {
+        "use_atr_stops": [True],
+        "use_trend_filter": [True],
+        "require_macd_divergence": [True],
+        "rsi_period": [14],
+        "macd_fast": [7],
+        "macd_slow": [24],
+        "macd_signal": [9],
+        "leverage": [8],
+        "position_equity_ratio": [1.0],
+        "atr_period": [3],
+        "pivot_window": [4, 5, 6],
+        "divergence_lookback": [40, 52, 80],
+        "rsi_long_max": [45.0, 47.0, 48.0, 49.0],
+        "rsi_short_min": [52.0, 55.0, 60.0, 65.0],
+        "trend_ema_period": [100, 150, 200],
+        "atr_sl_mult": [1.0],
+        "atr_tp_mult": [2.0],
+        "sup_res_timeframes": [["1d", "1w"], ["6h", "12h", "1d", "1w"]],
+    }
+
+
 GRIDS = {
     "wr80_rr": _grid_wr80_rr,
     "rr_fine": _grid_rr_fine,
@@ -433,6 +464,7 @@ GRIDS = {
     "wr80_freq": _grid_wr80_freq,
     "wr80_freq_v2": _grid_wr80_freq_v2,
     "wr80_atr_fine": _grid_wr80_atr_fine,
+    "wr80_atr3_cross": _grid_wr80_atr3_cross,
 }
 
 

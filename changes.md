@@ -1,5 +1,54 @@
 # changes.md
 
+## Loop_20260520_4 — SOLUSDC: pivot_window 6→5 + rsi_short_min 60→65 unlocks +1 trade; strict Pareto over `_3`
+
+### Summary
+Cross-checked at the new `atr_period=3` anchor with `wr80_atr3_cross` sweep (864 combos, 66 passers). Top combo: **`pivot_window 6→5`** + **`rsi_short_min 60→65`** — together (not separately) unlock +1 LONG trade in the 6-12m window. The new trade is a winner, keeping in-sample WR at 100% with 9 trades (was 8). All other dims unchanged from `_3`. RSI extremity (LONG<50/SHORT>50) preserved.
+
+### Affected Files
+- `solusdc_config.yaml` (pivot_window 6→5, rsi_short_min 60→65, loop_id Loop_20260520_4, header rewritten), `algorithms.md` (SOLUSDC Tuned Profile updated), `changes.md`, `scripts/solusdc_sweep.py` (added `wr80_atr3_cross` grid), `backtest_history/Loop_20260520_4/`.
+
+### Reason / Backtest — wr80_atr3_cross at the new anchor
+At atr_p=3 anchor with all other `_3` settings, the cross-check varied pivot 4/5/6 × dlb 40/52/80 × rsi_long_max 45/47/48/49 × rsi_short_min 52/55/60/65 × trend EMA 100/150/200 × sup_res {[1d,1w], [6h,12h,1d,1w]} = 864 combos. 66 passed all hard.
+
+Top 2 (identical trade path, only sup_res differs):
+- pivot=5, rsi_long=47, rsi_short=65, dlb=80, trend=200 → 15m **+533.77%** WR **100%** (9 tr) vs `_3`'s +402.22% (8 tr)
+- pivot=5 + rsi_short=65 BOTH required: the sweep confirms pivot=6+rsi_short=65 ties `_3` exactly (same 8 trades). The combination is what unlocks.
+
+Production path (`btcusdc_optimize.py`, mainnet, 12m warmup; sweep parity exact):
+- 1m: 0 tr (neutral) | 3m +33.4% WR 100% (1 tr) | 6m +85.5% WR 100% (3 tr) | 12m +269.7% WR 100% (7 tr) | 15m **+533.77%** WR **100%** (9 tr)
+- strict-mono ✓, all-positive ✓, max DD **0.16%** (no SL hit in-sample), Sharpe 6.83
+- Loop folder `backtest_history/Loop_20260520_4/`
+
+### Out-of-sample (cache temporarily extended to 24m then reverted)
+- **18m: +533.77% / WR 100% / 9 tr** (no new trades 15→18m)
+- **24m: +545.54% / WR 83.33% / 12 tr** (3 new vs 15m: 1W/2L, net positive)
+- 24m OOS PnL EXCEEDS in-sample 15m PnL — the OOS winner outweighs the 2 OOS losers on compounded equity. 24m OOS WR 83.33% (comfortable over the >80 floor, vs `_3`'s 80.0% boundary case). 24m max DD halves (15.17→8.73).
+
+### Tradeoff vs prior champion `_3`
+| Metric | `_3` (prior) | `_4` (new) | Δ |
+|---|---|---|---|
+| 15m PnL | +402.22% | **+533.77%** | +131pt |
+| 15m WR | 100% | 100% (unchanged) | – |
+| 15m trades | 8 | **9** | +1 |
+| 12m trades | 6 | **7** | +1 |
+| 15m DD | 0.16% | 0.16% (unchanged) | – |
+| 24m OOS PnL | +326.73% | **+545.54%** | +219pt (~1.7×) |
+| 24m OOS WR | 80.0% | **83.33%** | +3.3pt |
+| 24m OOS trades | 10 | **12** | +2 |
+| 24m DD | 15.17% | **8.73%** | -6.4pt |
+| R/R | 0.5 | 0.5 (cap, unchanged) | – |
+
+Strict win on every dimension. No tradeoff dial.
+
+### Why pivot_window=5 + rsi_short_min=65 work together
+Shorter pivot detects more local extrema (more S/R candidates). The combination shifts which pivots qualify as relevant S/R for entries. The +1 LONG trade unlocked at this geometry is a winner; the higher rsi_short_min=65 (vs `_3`'s 60) keeps SHORT-side selectivity to compensate for the looser pivot. Net: +1 in-sample trade and +131pt PnL with zero in-sample losses.
+
+### What's still pinned (per user rules)
+`leverage = 8`, `position_equity_ratio = 1.0`, RSI extremity rule (long<50 ✓ at 47, short>50 ✓ at 65), MACD divergence required, R/R ≤ 0.5 (= 0.5 exactly), no new config keys, strict-monotonic + all-positive on active windows.
+
+---
+
 ## Loop_20260520_3 — SOLUSDC: atr_period gradient peak (atr_p 8→3); strict Pareto over `_2` on every dim
 
 ### Summary

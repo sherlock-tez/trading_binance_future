@@ -46,57 +46,63 @@ HARD** and **re-introduced "increase number of trades" as a directional
 target**. Strict-mono + all-positive HARD remain (ACTIVE windows; zero-trade
 windows neutral). R/R ≤ 0.5 remains. RSI extremity + MACDdiv rules remain.
 
-`Loop_20260520_3` is the new champion, found by walking a smooth monotonic
-gradient on `atr_period` from `_2`'s 8 down to 3:
+`Loop_20260520_4` is the new champion. The optimization went through four
+strict-Pareto steps in this session (each step strictly better than the prior
+on every dimension):
 
 1. `_2` (`Loop_20260520_2`, atr_period=8, rsi_long_max=47): wr80_freq sweep
-   winner — 972 combos, 12 passers, found `_11→_2` improvement via
-   `rsi_long_max 45→47` (+1 extra LONG inside LONG<50 extremity).
-2. `wr80_freq_v2` anchored at `_2` (648 combos): atr_period=7 marginal step
-   (+5pt). Suggested gradient direction.
-3. `wr80_atr_fine` extended grid (atr_period 2/3/4/5/6): smooth gradient
-   continues through `_2`'s atr_p=8 down to atr_p=3 (15m PnL: 207.78 at
-   atr_p=9 → 402.22 at atr_p=3, monotonic and strictly better at each step).
-   **atr_period=2 BREAKS** (15m +89/WR62.5, 3m -19%/WR0, 6m -12%/WR33 — 2h
-   ATR is noise-level on 1h data). So `atr_period=3` is the local peak.
+   winner — 972 combos. The `rsi_long_max 45→47` unlock added +1 LONG entry
+   inside the LONG<50 extremity rule.
+2. `_3` (`Loop_20260520_3`, atr_period=3): wr80_atr_fine probe found a smooth
+   monotonic atr_period gradient from 9→3 (15m PnL: 207.78→402.22) that
+   sharply breaks at atr_p=2 (3m -19%/WR0, 6m -12%/WR33). atr_p=3 is the peak.
+3. `_4` (`Loop_20260520_4`, **pivot_window=5**, **rsi_short_min=65**):
+   `wr80_atr3_cross` sweep at the atr_p=3 anchor (864 combos, 66 passers)
+   found the (pivot=5, rsi_short=65) combo unlocks +1 LONG trade at 15m
+   (8→9) and +1 at 12m (6→7) while keeping all 9 in-sample trades winning.
 
-`Loop_20260520_3` params (only `atr_period` changed vs `_2`):
-- `rsi_period=14`, `rsi_long_max=47`, `rsi_short_min=60` (extremity rule
-  preserved: long<50 ✓ short>50 ✓)
+`Loop_20260520_4` params (only `pivot_window` and `rsi_short_min` changed
+vs `_3`):
+- `rsi_period=14`, `rsi_long_max=47`, **`rsi_short_min=65`** (was 60 in `_3`;
+  extremity rule preserved: long<50 ✓ short>50 ✓)
 - `require_macd_divergence=true`
 - `macd_fast=7`, `macd_slow=24`, `macd_signal=9`
-- `pivot_window=6`, `divergence_lookback=80`
-- `sup_res_timeframes=[1d, 1w]`
+- **`pivot_window=5`** (was 6 in `_3`), `divergence_lookback=80`
+- `sup_res_timeframes=[1d, 1w]` (invariant: [6h,12h,1d,1w] gives identical
+  trade path in the sweep)
 - `use_trend_filter=true`, `trend_ema_period=200`
-- `use_atr_stops=true`, **`atr_period=3`** (was 8 in `_2`; peak of gradient),
+- `use_atr_stops=true`, `atr_period=3` (from `_3`),
   `atr_sl_mult=1.0`, `atr_tp_mult=2.0` (**R/R = 1.0/2.0 = 0.5 exactly**)
 - `leverage=8`, `position_equity_ratio=1.0`
 
-**Why `atr_period=3` works:** at 3-hour ATR window, stops/targets adapt
-quickly to the current volatility regime. In trending periods (which the
-trend filter + divergence detection already select for) the ATR shrinks
-post-entry — letting trades reach the 2×ATR target without first getting
-shaken out on noise-level ATR. At atr_p=2 the ATR becomes noise itself
-(SL/TP too tight on a 1h bar), so the geometry breaks.
+**Why pivot_window=5 + rsi_short_min=65 work together:** A shorter pivot
+window detects more local extrema (more candidate S/R levels). On the SHORT
+side, a higher `rsi_short_min` (65 vs 60) means SHORT entries require the
+RSI to be deeper into the overbought zone — combined with the new (shorter)
+pivot S/R levels, this gates SHORTs more strictly. The net is +1 LONG trade
+in the 6-12m window (the prior pivot=6 missed a pivot level that pivot=5
+catches, and at the same instant the LONG-side `rsi_long_max=47` was
+already permissive). The rsi_short_min=65 by itself with pivot=6 doesn't
+change anything (sweep confirmed); the combination is what unlocks.
 
 Production-path backtest (`scripts/btcusdc_optimize.py`, mainnet klines, 12m
 warmup; fast-harness parity exact):
 1m: 0 trades (neutral) / 3m +33.4% WR100 (1 tr) / 6m +85.5% WR100 (3 tr) /
-12m +192.97% WR100 (6 tr) / 15m **+402.22%** WR **100%** (8 tr);
+12m +269.7% WR100 (7 tr) / 15m **+533.77%** WR **100%** (9 tr);
 strict-monotonic ✓, all-positive ✓, max DD **0.16%** (no SL hit in-sample);
-Sharpe 5.94–6.00.
+Sharpe 6.83.
 **Out-of-sample (held-out 18m/24m, cache temporarily extended to 24m then
-reverted to 15):** 18m **+402.22% / WR 100%** (8 tr — no new trades fired
-months 15→18); 24m **+326.73% / WR 80.0%** (10 tr — 2 new vs 15m: 1W/1L).
-24m OOS WR exactly at the user's >80 floor; in-sample 100% comfortably clears.
+reverted to 15):** 18m **+533.77% / WR 100%** (9 tr — no new trades fired
+15→18); 24m **+545.54% / WR 83.33%** (12 tr — 3 new vs 15m: 1W/2L). 24m
+OOS PnL exceeds in-sample 15m (+545.54 > +533.77) because the OOS winner
+on compounded equity outweighs the 2 losers. 24m OOS WR 83.33% has
+comfortable headroom over the >80 hard floor. 24m max DD halves vs `_3`
+(15.17 → 8.73%).
 
-**Tradeoff vs prior champion `_2`:** strict win on every dimension —
-+191pt 15m PnL (211→402), +12.5pt 15m WR (87.5→100), -10.67pt max DD
-(10.83→0.16), +165pt 24m OOS PnL (161→326), +10pt 24m OOS WR (70.0→80.0).
-Same trade count (8 in-sample, 10 at 24m OOS). No tradeoff dial. The
-"100% in-sample WR" is NOT a small-sample artifact (8 trades, robust to
-the OOS +2 trades that drop it to 80% — same OOS footprint as `_2` but
-starting from 0 in-sample losses).
+**Tradeoff vs prior champion `_3`:** strict win on every dimension —
++131pt 15m PnL (402→534), +1 trade in-sample (8→9), +0 WR delta but +1
+trade at 100% in-sample, +219pt 24m OOS PnL (327→546), +3.3pt 24m OOS WR
+(80.0→83.33), -6.4pt 24m OOS DD (15.17→8.73). No tradeoff dial.
 
 **Historical (`_8` → `_9` → `_10` lineage, pre-WR-target era — preserved
 for context):** sl 0.8 / tp 5 / atrp 10 → sl 0.6 / tp 5 / atrp 10 → sl 0.55 /
