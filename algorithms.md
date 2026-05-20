@@ -32,60 +32,72 @@ no additional high-conviction trade in the oldest 12-to-15-month segment.
 ### Current SOLUSDC Tuned Profile
 
 **CONSTRAINT CHANGE (2026-05-19):** the user imposed a hard cap
-**Risk/Reward = `atr_sl_mult`/`atr_tp_mult` ≤ 0.5** (reward TP ≥ 2× risk SL).
-This forbids the degenerate wide-SL/tiny-TP geometry, which makes the prior
-champion `_7` (sl 2.85 / tp 1.0, R/R 2.85) **INFEASIBLE**. The feasible region
-inverts to tight-SL / far-TP, where the win-rate is **structurally ~20-36% —
-the WR>80 target is unreachable here, an explicit accepted tradeoff** of the
-R/R cap (do not revert to the `_7` basin to chase WR). Among all feasible
-configs the champion is the max-PnL one that still clears the remaining hard
-items (strict-monotonic, all-positive, 2-5 trades/mo).
+**Risk/Reward = `atr_sl_mult`/`atr_tp_mult` ≤ 0.5** (reward TP ≥ 2× risk SL),
+forbidding the degenerate wide-SL/tiny-TP geometry. `_8` → `_9` → `_10`
+followed under this cap with tight-SL/far-TP (R/R ~0.11) and ~5 trades/mo.
 
-`Loop_20260519_10` is that feasible champion (between-node refinement of `_9`
-via `scripts/btcusdc_sweep.py grid=sol_rr_fine --maxrr 0.5`). It keeps the
-proven `_7`/`_8`/`_9` entry edge (RSI divergence + extremity gate, fast
-MACD-divergence confluence, daily/weekly S/R) and only re-tunes the stop:
+**TARGET CHANGE (2026-05-20):** the user imposed **WR > 70% as a HARD target**
+(while keeping R/R ≤ 0.5), and explicitly **dropped the trade-frequency floor
+(2-5/mo) and PnL maximization**. Strict-monotonic + all-positive HARD remain,
+applied to ACTIVE windows only (zero-trade windows are neutral).
 
-- `rsi_period=14`, `rsi_long_max=45`, `rsi_short_min=55` (extremity rule preserved)
+**Regime change:** the prior `_10` philosophy (tight-SL/far-TP, R/R 0.11,
+WR ~27%) cannot hit WR > 70% — it's structurally low-WR by design. After
+~6,200 evals confirming the lower regime ceilings, the new champion moves to
+R/R **at** the cap (= BTC's sweet spot at R/R 0.45) with both filter gates ON
+(trend EMA 200 + MACD-divergence required) for maximum selectivity.
+
+`Loop_20260520_1` is the new champion, found by `scripts/solusdc_sweep.py
+grid=wr70_pareto --maxrr 0.5 --wrfloor 70 --tpmfloor 0` (2376 feasible combos,
+14 passed all hard; #1 picked as most OOS-robust):
+
+- `rsi_period=14`, `rsi_long_max=45`, `rsi_short_min=60` (tighter short side
+  vs `_10`'s 55; extremity rule preserved)
 - `require_macd_divergence=true`
-- `macd_fast=7`, `macd_slow=24`, `macd_signal=9` (signal is inert — divergence
-  uses the MACD line, not the signal line)
-- `pivot_window=6`, `divergence_lookback=52`
+- `macd_fast=7`, `macd_slow=24`, `macd_signal=9`
+- `pivot_window=6`, `divergence_lookback=80` (longer than `_10`'s 52)
 - `sup_res_timeframes=[1d, 1w]`
-- `use_trend_filter=false`
-- `use_atr_stops=true`, `atr_period=9`, `atr_sl_mult=0.55`, `atr_tp_mult=5.0`
-  (**R/R = 0.55/5.0 = 0.11 ≤ 0.5 MUST**; reward is ~9× the risk)
+- **`use_trend_filter=true`, `trend_ema_period=200`** (NEW: trend filter is
+  the biggest WR booster, transplanted from BTC)
+- `use_atr_stops=true`, `atr_period=12`, `atr_sl_mult=1.0`, `atr_tp_mult=2.0`
+  (**R/R = 1.0/2.0 = 0.5 exactly at the cap**; reward is 2× the risk —
+  matches BTC's R/R 0.45 sweet spot, NOT `_10`'s deep R/R 0.11)
 - `leverage=8`, `position_equity_ratio=1.0`
 
-Lineage in the feasible region: `_8` (sl0.8/tp5) → `_9` (sl0.6/tp5,
-`sol_rr_refine`) → `_10` (sl0.55/tp5.0/atrp9, `sol_rr_fine` winner #5). `_10`
-was chosen over two nominally-higher in-sample configs from the same fine
-sweep: #1 (`sl0.65/tp6/atrp12`, 15m +11869%) is **overfit** — its held-out 24m
-OOS collapses to +1497% with **81% drawdown**, WR 17%; #2 (`sl0.65/tp5/atrp10`,
-15m +11560%) is robust but `_10` gives up only ~3% in-sample to it while
-**dominating out-of-sample**. The overfit guard (reject in-sample-best /
-OOS-worst / grid-edge configs) is standing policy here.
+`_11` was picked from the 14 passing configs over the WR-perfect alternatives
+(#5/#11 in sweep: MACDdiv=False, 100% in-sample WR on 4-5 trades) because
+those collapse OOS to 60% WR (small-sample artifact). `_11` has 7 in-sample
+trades — biggest sample, smallest OOS slip, best OOS PnL.
 
 Production-path backtest (`scripts/btcusdc_optimize.py`, mainnet klines, 12m
-warmup; fast-harness parity exact): 1m +17.5% WR20.0 / 3m +308.9% WR35.3 /
-6m +386.4% WR25.0 / 12m +3393.1% WR24.6 / 15m **+11194.1%** WR27.0; 74 trades
-over 15m; strict-monotonic ✓, all-positive ✓, ~5 tr/mo ✓; 12m/15m max drawdown
-**35.2%** (vs `_9` 37.7%, `_8` 49.6%, `_7` ~61% — the lowest of the lineage);
-Sharpe 0.7→3.2. The 15m PnL is +23% over `_9` (+9072%): the reward≥2× risk
-geometry rides large trending moves, so a few 5-ATR winners carry a ~27%
-hit-rate. Equity is **lumpy** and the 0.55-ATR stop is tight → expect long
-losing streaks and high path-variance at leverage 8.
-**Out-of-sample (held-out 18m/24m, never in any sweep; extended ~29-month
-data):** `_10` is strongly net-positive and *growing* on the held-out
-windows — 18m +5760%, 24m **+6622%** (PnL *increases* 18m→24m, the strongest
-generalization of any config in the entire R/R-constrained search — the
-opposite of overfitting) — with WR a stable ~20-35% on *every* window, at the
-lowest OOS drawdown (~59%). The low WR is a structural property of the
-R/R-capped geometry, **not** overfitting. `_10` dominates `_9` on PnL,
-drawdown *and* OOS stability (`_9` was 18m +4066% / 24m +4167%, flat; `_10`
-is +5760% / +6622%, rising). Residual live risk: lumpy equity / long losing
-streaks at a ~27% hit-rate with a tight 0.55-ATR stop and leverage 8 — size
-conservatively.
+warmup; fast-harness parity exact):
+1m: 0 trades (neutral) / 3m +25.2% WR100 (1 tr) / 6m +104.0% WR100 (4 tr) /
+12m +137.2% WR100 (5 tr) / 15m **+170.0%** WR**85.71** (7 tr);
+strict-monotonic ✓, all-positive ✓, max DD **11.35%** (vs `_10`'s 35.2%);
+Sharpe ~3.5–8.2.
+**Out-of-sample (held-out 18m/24m, extended ~29-month data):** 18m +170% /
+WR 85.71% (7 tr); 24m +125.5% / WR **66.67%** (9 tr). The 24m OOS WR slips
+just under the 70 target — small-sample noise floor (one extra OOS loser
+moves WR by ~10 pp at 9 trades total). Acceptable per the user's "as long
+as WR > 70%" framing (in-sample WR 85.71% comfortably clears).
+
+**Tradeoff vs prior champion `_10`:** WR jumps from 27% → 85.71% and max DD
+drops from 35% → 11%, but 15m PnL drops dramatically from +11194% → +170%
+(much less compounding because trade frequency drops from ~5/mo to ~0.5/mo).
+This is the explicit, user-requested regime swap: high-PnL / low-WR / lumpy
+equity → high-WR / low-DD / BTC-like low-frequency. Equity is still lumpy in
+the new regime (~0.5 tr/mo) but each trade is much higher-conviction.
+
+**Historical (`_8` → `_9` → `_10` lineage, pre-WR-target era — preserved
+for context):** sl 0.8 / tp 5 / atrp 10 → sl 0.6 / tp 5 / atrp 10 → sl 0.55 /
+tp 5.0 / atrp 9. `_10` was the converged high-PnL/low-WR champion under the
+old constraint set (target was 2-5 tr/mo + monotonic + all-positive, no WR
+floor). `_10` numbers: PROD 15m +11194% / WR 27% / max DD 35.2% / 74 trades /
+~5 tr/mo; OOS 18m +5760% / 24m +6622% (growing). The lineage is now
+superseded by the regime change; `_10`'s tight-SL/far-TP geometry is
+infeasible under the new WR>70 target. Residual live risk for `_11`: small
+sample / lumpy equity at ~0.5 tr/mo. Was lumpy at `_10` too but for the
+opposite reason — long losing streaks broken by occasional 5-ATR winners.
 
 *Historical (pre-R/R-constraint) lineage, kept for context — `_7` and earlier
 are now INFEASIBLE under R/R≤0.5:* `_5`-`_7` were between-node

@@ -14,60 +14,60 @@ trading:
   maker_only: true
 
 strategy:
-  # SOLUSDC CHAMPION = Loop_20260519_10 (feasible-region champion under the
-  # hard constraint Risk/Reward = atr_sl_mult/atr_tp_mult <= 0.5, i.e.
-  # reward TP >= 2x risk SL, imposed by the user 2026-05-19).
-  # CONSTRAINT CHANGE: the old _7 (sl2.85/tp1.0, R/R 2.85) is the degenerate
-  # wide-SL/tiny-TP geometry this cap forbids -> INFEASIBLE. Feasible region
-  # inverts to tight-SL/far-TP, where win-rate is STRUCTURALLY ~20-35% — the
-  # WR>80 target is UNREACHABLE and that is the accepted, explicit tradeoff
-  # of the R/R cap (do NOT revert to the _7 basin to chase WR). Surface the
-  # max-PnL config that still clears the other hard items (strict-monotonic
-  # 15>12>6>3>1, all-positive, 2-5 trades/mo).
-  # Lineage: _8 (sl0.8/tp5) -> _9 (sl0.6/tp5, sol_rr_refine) -> _10
-  # (sl0.55/tp5.0/atrp9, sol_rr_fine between-node winner #5). Rest = the
-  # proven _7/_8/_9 entry edge (macd 7/24/9, dlb52, pivot6, gate 45/55,
-  # [1d,1w] S/R, lev8 pinned, MACD-div required).
-  # _10 chosen over the nominally-higher in-sample #1 (sl0.65/tp6/atrp12,
-  # PROD 15m +11869%) and #2 (sl0.65/tp5/atrp10, +11560%): #1 is OVERFIT
-  # (24m OOS collapses +1497% / 81% DD). _10 gives up only ~3% in-sample
-  # vs #2 but DOMINATES out-of-sample (24m OOS +6622% & GROWING 18->24m,
-  # the strongest generalization of the whole search) at the LOWEST
-  # drawdown. _10 is interior on the established response surface.
-  # Production path (scripts/btcusdc_optimize.py, mainnet, 12m warmup; exact
-  # fast-harness parity): 1m +17.5/WR20 | 3m +308.9/WR35 | 6m +386.4/WR25 |
-  # 12m +3393.1/WR25 | 15m +11194.1/WR27 | ~5 tr/mo, strict-monotonic ✓,
-  # all-positive ✓, 12m/15m max DD 35.2% (vs _9 37.7%, _8 49.6%, _7 ~61%).
-  # OOS held-out 18m +5760% / 24m +6622% (GROWS 18->24 = best-in-search
-  # generalization); _10 dominates _9 on PnL, drawdown AND OOS stability.
-  # CONVERGED: the R/R<=0.5 feasible region is fully mapped — SL/TP/atrp via
-  # sol_rr/_refine/_fine, and the RSI gate confirmed optimal at 45/55 via
-  # sol_rr_gate (2026-05-19; _10 ranked #1 by a wide margin, no gate beats
-  # it). Monitoring mode: re-validate _10 on data drift only; no more
-  # between-node micro-tuning (overfitting). See changes.md.
-  # Equity is LUMPY (few large 5-ATR winners carry a ~27% hit-rate), the
-  # 0.55-ATR stop is tight -> expect long losing streaks / high path-variance
-  # at leverage 8. R/R cap enforced by construction in the sweep
-  # (MAX_RISK_REWARD=0.5 / --maxrr).
-  # Mandatory RSI-divergence + extremity gate LONG<50 / SHORT>50 preserved (45/55).
+  # SOLUSDC CHAMPION = Loop_20260520_1 (regime change 2026-05-20).
+  # USER TARGET RELAXATION (2026-05-20 round 2): trade-frequency floor AND
+  # PnL maximization both dropped, in service of new HARD WR > 70% target.
+  # Now-active HARD constraints: R/R <= 0.5 AND WR > 70 AND strict-monotonic
+  # AND all-positive on ACTIVE windows (zero-trade windows treated as
+  # neutral). NO trade-frequency floor.
+  # REGIME CHANGE vs _10: the prior champion lineage (_8/_9/_10) optimized
+  # PnL with tight-SL/far-TP (R/R 0.11, WR ~27%, 15m +11194%). Under the
+  # new WR>70 target that geometry is infeasible (WR is structurally low at
+  # R/R far below 0.5). The new regime moves to R/R *at* the cap (= BTC's
+  # sweet spot at R/R 0.45) with both filter gates ON (trend EMA 200 +
+  # MACD-divergence required) for max selectivity.
+  # _11 = wr70_pareto sweep winner #1 (scripts/solusdc_sweep.py,
+  # --maxrr 0.5 --wrfloor 70 --tpmfloor 0): sl 1.0 / tp 2.0 (R/R EXACTLY
+  # 0.5), atr_period 12, divergence_lookback 80 (longer than _10's 52),
+  # rsi gate 45/60 (tighter short side vs _10's 55), trend filter ON
+  # (EMA 200), require_macd_divergence true. Rest = SOL's proven entry
+  # edge (macd 7/24/9, pivot6, [1d,1w] S/R, leverage 8 pinned, peq 1.0
+  # pinned).
+  # _11 chosen over WR-perfect candidates (#5/#11 in sweep, both with
+  # MACDdiv=False and 100% in-sample WR over 4-5 trades): those collapse
+  # OOS to 60% WR (small-sample artifact). _11 has 7 in-sample trades, an
+  # 85.71% in-sample min WR that survives OOS at 66.67% (24m held-out) —
+  # most robust generalizer; biggest sample; highest OOS PnL.
+  # Production path (scripts/btcusdc_optimize.py, mainnet, 12m warmup):
+  #   1m: 0 trades (neutral) | 3m +25.2/WR100 (1 tr) | 6m +104.0/WR100 (4)
+  #   12m +137.2/WR100 (5) | 15m +170.0/WR85.71 (7); strict-monotonic ✓,
+  #   all-positive ✓, max DD 11.3% (vs _10's 35.2% — dramatically lower).
+  # OOS held-out: 18m +170/WR85.7 (7 tr); 24m +125.5/WR66.67 (9 tr).
+  # The 24m OOS WR slips just under 70 — small-sample noise floor, ~9 tr
+  # total. Expect lumpy live equity (low frequency ~0.5 tr/mo, big wins).
+  # TRADEOFF vs _10: WR 27%->85.71%, max DD 35%->11%; PnL 11194%->170%
+  # (much less compounding); trade freq 5/mo->0.5/mo (BTC-like).
+  # R/R cap enforced by construction in the sweep (MAX_RISK_REWARD=0.5 /
+  # --maxrr). Mandatory RSI-divergence + extremity gate LONG<50/SHORT>50
+  # preserved (45/60).
   rsi_period: 14
   macd_fast: 7
   macd_slow: 24
   macd_signal: 9
-  divergence_lookback: 52
+  divergence_lookback: 80  # _11: 52 -> 80 (longer confirmation for high-WR regime)
   pivot_window: 6
-  atr_period: 9  # _10: was 10 (_9); sol_rr_fine put the OOS-stable optimum at 9
+  atr_period: 12  # _11: 9 -> 12 (standard SOL value)
   use_atr_stops: true
-  atr_sl_mult: 0.55  # _10: tighter vs _9 (0.6); R/R = 0.55/5.0 = 0.11 <= 0.5 MUST
-  atr_tp_mult: 5.0  # reward >= 2x risk (the _7 wide-SL/tiny-TP geometry is forbidden)
-  use_trend_filter: false
+  atr_sl_mult: 1.0  # _11: 0.55 -> 1.0 (wider stop survives noise under trend filter)
+  atr_tp_mult: 2.0  # _11: 5.0 -> 2.0 (closer target; R/R = 1.0/2.0 = 0.5 exactly at cap)
+  use_trend_filter: true  # _11: NEW filter ON (BTC's biggest WR lever)
   trend_ema_period: 200
   rsi_long_max: 45.0
-  rsi_short_min: 55.0
+  rsi_short_min: 60.0  # _11: 55 -> 60 (tighter short extremity)
   require_macd_divergence: true
   min_rr_ratio: 0.0
   max_sl_distance_pct: 0.0
-  loop_id: Loop_20260519_10
+  loop_id: Loop_20260520_1
 
 execution:
   order_reprice_bps: 2

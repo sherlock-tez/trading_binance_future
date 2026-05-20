@@ -289,12 +289,47 @@ def _grid_wr70_rr_strict() -> Dict[str, List[Any]]:
     }
 
 
+def _grid_wr70_pareto() -> Dict[str, List[Any]]:
+    """User explicit relaxation (2026-05-20 round 2): trade-frequency AND PnL
+    floors dropped. Only HARD now: R/R<=0.5 + WR>70 + strict-monotonic on
+    active windows + all-positive on active windows. Probes corners not yet
+    tested by prior wr70_rr_* sweeps:
+      - R/R *near* the 0.5 cap (sl/tp pairs like 1.0/2.0=0.5, 1.5/3.0=0.5,
+        1.8/4.0=0.45) — BTC's sweet spot, deeper than _10's R/R 0.11
+      - `trend_ema_period: 50` (NEW: faster trend filter, catches shorter trends)
+      - BTC's `[3h,6h,12h,1d,1w]` S/R set crossed with SOL's `[1d,1w]`
+      - require_macd_divergence: BOTH true and false
+    Run --maxrr 0.5 --wrfloor 70 --tpmfloor 0.
+    """
+    return {
+        "use_atr_stops": [True],
+        "use_trend_filter": [True],
+        "require_macd_divergence": [True, False],
+        "rsi_period": [14],
+        "macd_fast": [7],
+        "macd_slow": [24],
+        "macd_signal": [9],
+        "pivot_window": [6],
+        "leverage": [8],
+        "position_equity_ratio": [1.0],
+        "atr_period": [12],
+        "divergence_lookback": [52, 80],
+        "trend_ema_period": [50, 100, 200],
+        "rsi_long_max": [35.0, 40.0, 45.0],
+        "rsi_short_min": [55.0, 60.0, 65.0],
+        "atr_sl_mult": [1.0, 1.5, 1.8, 2.0],   # R/R near 0.5 (BTC sweet spot)
+        "atr_tp_mult": [2.0, 3.0, 4.0, 5.0],
+        "sup_res_timeframes": [["1d", "1w"], ["3h", "6h", "12h", "1d", "1w"]],
+    }
+
+
 GRIDS = {
     "wr80_rr": _grid_wr80_rr,
     "rr_fine": _grid_rr_fine,
     "wr70_rr_btc": _grid_wr70_rr_btc,
     "wr70_rr_btc2": _grid_wr70_rr_btc2,
     "wr70_rr_strict": _grid_wr70_rr_strict,
+    "wr70_pareto": _grid_wr70_pareto,
 }
 
 
