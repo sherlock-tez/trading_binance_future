@@ -6,6 +6,9 @@ to search the strategy parameter space for a config that satisfies the user's
 BNBUSDC targets:
 
   HARD (must pass, in priority order):
+    0. Risk/Reward = atr_sl_mult / atr_tp_mult MUST be <= 0.5
+       (reward TP >= 2x the risk SL) -- enforced by construction, every
+       sampled/perturbed config is repaired to a feasible (sl, tp) grid pair.
     1. all windows positive (1m,3m,6m,12m,15m > 0)
     2. strict monotonic 15m > 12m > 6m > 3m > 1m  (consistency MUST)
     3. min trades/month >= 2.0 across all windows
@@ -15,6 +18,7 @@ BNBUSDC targets:
 
 Mandatory rule preserved by construction: rsi_long_max <= 50 and
 rsi_short_min >= 50 in every sampled config (RSI-divergence + extremity gate).
+leverage is pinned (user requirement: do not change leverage).
 
 No new config keys are introduced; only existing strategy/trading params vary.
 
@@ -90,8 +94,21 @@ def score(window_results) -> Tuple[float, bool, Dict[str, Any]]:
         # safer equity curve when it can keep all targets.
         s = 1e12 + last_ret * 10.0 + avg_ret * 2.0 + min_wr * 5.0 - max_dd * 30.0
     elif hard_ok:
-        # Tier B: hard constraints met, WR<=80. Push WR toward 80 then PnL.
-        s = 1e9 + min_wr * 1e6 + last_ret * 100.0 + avg_ret * 10.0
+        # Tier B: hard MUSTs met (all-positive, strict-monotonic, tpm>=2;
+        # R/R<=0.5 + leverage pinned by construction), WR<=80.
+        # Under the R/R<=0.5 cap, WR>80 is structurally unreachable (reward>=2x
+        # risk caps the hit rate near ~50%), so chasing min_wr here would trade
+        # away large PnL for WR that can never reach the target -- contrary to
+        # the user's explicit "Increase PnL" priority (and the saved preference
+        # that PnL wins when targets conflict). So: PnL-first. 15m PnL dominates,
+        # avg PnL next, gentle DD penalty, WR only a minor tiebreak.
+        s = (
+            1e9
+            + min(last_ret, 5000.0) * 1e4
+            + min(avg_ret, 5000.0) * 1e3
+            + min_wr * 1e2
+            - max_dd * 50.0
+        )
     else:
         # Tier C: partial credit so near-misses surface for the next loop.
         # Gate on all_positive (any negative window is structurally far away),
@@ -142,8 +159,8 @@ SPACE: Dict[str, List[Any]] = {
     "atr_tp_mult": [0.6, 0.8, 1.0, 1.2, 1.5, 1.8, 2.0, 2.5, 3.0, 4.0, 5.0],
     "use_trend_filter": [True, False],
     "trend_ema_period": [50, 100, 150, 200, 250],
-    "leverage": [3, 5, 8, 10],
-    "position_equity_ratio": [0.5, 0.7, 0.9, 0.95, 1.0],
+    "leverage": [10],  # locked: user requirement — do not change leverage
+    "position_equity_ratio": [0.95],  # locked: user requirement — like leverage, position-size is not a tuning lever
     "pivot_window": [3, 4, 5, 6, 7, 8],
     "divergence_lookback": [40, 60, 80, 100, 120, 160],
     "rsi_period": [7, 9, 11, 14, 21],
@@ -157,11 +174,32 @@ SPACE: Dict[str, List[Any]] = {
 }
 
 
+# User HARD constraint: Risk/Reward = atr_sl_mult / atr_tp_mult MUST be <= 0.5
+# i.e. the reward (TP) must be at least 2x the risk (SL). This supersedes the
+# old wide-SL / tiny-TP champion (Loop_20260519_2, sl 6.0 / tp 0.6 -> R/R 10.0),
+# whose perfect in-sample WR was a geometry artifact with a large unrealised
+# tail. Every sampled/perturbed config is repaired to the nearest feasible
+# (atr_sl_mult, atr_tp_mult) grid pair so the constraint always holds.
+MAX_RISK_REWARD = 0.5
+
+
+def _enforce_risk_reward(o: Dict[str, Any], rng: random.Random) -> Dict[str, Any]:
+    sl_opts = SPACE["atr_sl_mult"]
+    tp_opts = SPACE["atr_tp_mult"]
+    feasible_sl = [s for s in sl_opts if any(s / t <= MAX_RISK_REWARD for t in tp_opts)]
+    if o["atr_sl_mult"] not in feasible_sl:
+        o["atr_sl_mult"] = rng.choice(feasible_sl)
+    valid_tp = [t for t in tp_opts if o["atr_sl_mult"] / t <= MAX_RISK_REWARD]
+    if o["atr_tp_mult"] not in valid_tp:
+        o["atr_tp_mult"] = rng.choice(valid_tp)
+    return o
+
+
 def sample(rng: random.Random) -> Dict[str, Any]:
     o = {k: rng.choice(v) for k, v in SPACE.items()}
     if o["macd_slow"] <= o["macd_fast"]:
         o["macd_slow"] = o["macd_fast"] + 14
-    return o
+    return _enforce_risk_reward(o, rng)
 
 
 def neighbors(center: Dict[str, Any], rng: random.Random) -> Dict[str, Any]:
@@ -178,7 +216,7 @@ def neighbors(center: Dict[str, Any], rng: random.Random) -> Dict[str, Any]:
             o[k] = rng.choice(opts)
     if o["macd_slow"] <= o["macd_fast"]:
         o["macd_slow"] = o["macd_fast"] + 14
-    return o
+    return _enforce_risk_reward(o, rng)
 
 
 def main() -> None:

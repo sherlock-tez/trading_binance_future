@@ -17,35 +17,42 @@ trading:
   maker_only: true
 
 strategy:
-  # BNBUSDC CHAMPION = Loop_20260519_2 (edge refine, parity-verified).
-  # Backtest (production path, [1,3,6,12,15]m + 12m warmup):
-  #   1m +7.6% WR100 | 3m +34.4% WR100 | 6m +150.6% WR100
-  #   | 12m +540.8% WR100 | 15m +1003.4% WR100
-  # Strictly monotonic 15>12>6>3>1, all-positive, WR 100% on EVERY window,
-  # 3.0-3.9 trades/mo, max DD ~0.2%. Strictly better than _20260519_1
-  # (rsi_period 14->11, rsi_short_min 70->75 even stricter short gate):
-  # higher PnL at identical perfect-WR / near-zero-DD risk profile.
-  # Wide SL (6 ATR) + very tight TP (0.6 ATR), pivot 6, lookback 80,
-  # trend filter off, MACD-div not required.
-  # Mandatory RSI-divergence + extremity LONG<50 / SHORT>75 preserved.
-  rsi_period: 11
-  macd_fast: 12
-  macd_slow: 26
+  # BNBUSDC CHAMPION = Loop_20260520_5 (PnL-first under R/R<=0.5,
+  #   leverage and position_equity_ratio both PINNED).
+  # User HARD constraints: Risk/Reward = atr_sl_mult/atr_tp_mult MUST <= 0.5
+  # (reward TP >= 2x risk SL); leverage pinned at 10 and position_equity_ratio
+  # pinned at 0.95 (position-size is not a tuning lever, like leverage).
+  # Geometry SL 1.5 ATR / TP 3.0 ATR -> R/R = 0.5 (reward = 2x risk).
+  # Production-validated at peq=0.95 -- byte-identical to fast harness:
+  #   1m +3.05% | 3m +33.45% | 6m +447.76% | 12m +2182.75% | 15m +2816.40%
+  # Strictly monotonic 15>12>6>3>1, all-positive, 2.0-4.5 trades/mo.
+  # WR ~50-54% (NOT >80): structural & accepted under R/R<=0.5.
+  # max DD ~41% (honest peq=0.95 risk).
+  # Sharpe 0.3-3.3 (15m 3.29).
+  # consistency_score 3199.72.
+  # RSI-divergence ONLY (require_macd_divergence false); atr_period 21,
+  # pivot 8, lookback 60, trend off. MACD params inert.
+  # Mandatory RSI-divergence + extremity LONG<25 / SHORT>55 preserved
+  # (LONG far below the <=50 ceiling; SHORT above the >=50 floor).
+  # Adopted 2026-05-20 via refine of _4 (rsi_short_min 50->55).
+  rsi_period: 7
+  macd_fast: 16
+  macd_slow: 21
   macd_signal: 12
-  divergence_lookback: 80
-  pivot_window: 6
+  divergence_lookback: 60
+  pivot_window: 8
   atr_period: 21
   use_atr_stops: true
-  atr_sl_mult: 6.0
-  atr_tp_mult: 0.6
+  atr_sl_mult: 1.5
+  atr_tp_mult: 3.0
   use_trend_filter: false
-  trend_ema_period: 200
-  rsi_long_max: 50.0
-  rsi_short_min: 75.0
+  trend_ema_period: 150
+  rsi_long_max: 25.0
+  rsi_short_min: 55.0
   require_macd_divergence: false
   min_rr_ratio: 0.0
   max_sl_distance_pct: 0.0
-  loop_id: Loop_20260519_2
+  loop_id: Loop_20260520_5
 
 execution:
   order_reprice_bps: 2
