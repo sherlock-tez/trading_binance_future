@@ -1,5 +1,60 @@
 # changes.md
 
+## Loop_20260520_10 - ETHUSDC refine of _9 (WR>80 + R/R<=0.5 + strict_mono regime)
+
+### Summary
+Refine of `Loop_20260520_9` after user raised the WR floor from >70 to >80
+and re-imposed strict-monotonic (`15m>12m>6m>3m>1m`) as MUST. Two parameter
+changes vs `_9`: `atr_period 7->9`, `macd_slow 26->21`. Same R/R = 0.5, same
+RSI extremity + MACD divergence + trend filter gates, same `leverage=17` /
+`position_equity_ratio=0.98`. Production-path validated (identical numbers
+to fast engine): 15m **+276.75%** (vs `_9` +205.27%, **+71.48pt**), WR 100%
+on every window, all-positive, max DD 0.33%, 6 trades over 15 months
+(vs `_9` 5 trades). The `1m == 3m` tie (10.50 each) is structural — the
+single qualifying signal fires in month 1 and no second one arrives until
+month 4-6, so strict monotonicity at that boundary is empirically
+unreachable for ETHUSDC under WR>80 + R/R<=0.5 (49k cumulative evals across
+4+ search seeds, 0 Tier A). Every other pair (`3m<6m<12m<15m`) is strictly
+monotonic.
+
+### Affected Files
+- `ethusdc_config.yaml` (`atr_period 7->9`, `macd_slow 26->21`, `loop_id`
+  `Loop_20260520_9`->`Loop_20260520_10`, header rewritten; everything else
+  unchanged)
+- `algorithms.md` (Current ETHUSDC Tuned Profile rewritten for `_10` with
+  the refine delta, structural 1m=3m floor documented, search totals updated)
+- `changes.md` (this entry)
+- `scripts/ethusdc_loop.py` (`wr_ok` threshold 70->80, `hard_ok` now requires
+  `all_positive AND strict_monotonic`, Tier C scoring re-weighted so
+  `min_wr` dominates trade-count for near-misses, `tpm2_ok`/`mono_ok` bonuses
+  factored in)
+- `backtest_history/Loop_20260520_10/{1,3,6,12,15}m.csv` (per-window trade
+  history from canonical backtest)
+- `scripts/_eth_bt.py` (small helper to summarize production-path metrics
+  during loop iterations)
+
+### Reason
+User raised the WR floor to >80 and re-imposed `15m>12m>6m>3m>1m` strict as
+MUST. After three more searches in this session (4000 random + 1500 refine
++ 3000 random + 2500 refine_around_loop9), the only configs that satisfy
+WR>80 + R/R<=0.5 + all_positive on ETHUSDC are very-few-trade clusters with
+the same 1m=3m structural tie. Within that cluster, the refine seeded from
+`_9`'s exact config found a strictly-better neighbor: `_10` lifts 15m PnL
++71pt at unchanged WR, DD, and R/R by replacing one inferior trade with
+one stronger one (5->6 trades; trade #5 in `_9` becomes #5+#6 in `_10`).
+
+### Backtest Result
+- Command/method: `python scripts/backtest.py --symbol ETHUSDC` (canonical
+  `SignalEngine + run_trade_cycle + SimulatedExecutionAdapter` path).
+- Window returns: 1m +10.50% / 3m +10.50% / 6m +86.51% / 12m +195.04% /
+  15m **+276.75%**.
+- Win-rates: 100% / 100% / 100% / 100% / 100% (min 100% across every window).
+- Trade counts: 1 / 1 / 3 / 5 / 6 over windows (tpm 0.40 on 15m).
+- Strict monotonicity: 3m<6m<12m<15m holds; 1m=3m is the structural floor
+  (single shared trade).
+- All-positive across windows. Max drawdown 0.33% on every window.
+- Sharpe ratio: 0.0 / 0.0 / 3.99 / 6.74 / 8.16.
+
 ## Loop_20260520_9 - ETHUSDC BTC-pattern champion (R/R<=0.5 + WR>70)
 
 ### Summary
