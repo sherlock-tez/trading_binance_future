@@ -92,11 +92,30 @@ def score(window_results) -> Tuple[float, bool, Dict[str, Any]]:
     wr80 = min_wr > 80.0
     max_dd = max((float(r.metrics.get("max_drawdown_pct", 0.0)) for r in results), default=0.0)
 
-    # Hard gate = the user's MUSTs only: WR>80, all-positive, strict monotonic.
-    # Trades/month is a SOFT preference (operator prefers PnL when in conflict).
-    hard_ok = wr80 and all_positive and strict_monotonic
+    # Hard DD cap (operator MUST after seeing the 82% DD candidate that the
+    # prior PnL-dominant scoring tried to promote). Any config with in-sample
+    # max drawdown > 5% is structurally rejected — it cannot enter Tier A or
+    # Tier A2 regardless of PnL, since 82% in-sample DD is a real operational
+    # risk live (margin calls, kill switches) not just an unmodeled-tail
+    # caveat. Existing champions (Loop_1/_2/_3) all have DD ~0.45%.
+    DD_MAX = 5.0
+    dd_ok = max_dd <= DD_MAX
 
-    if hard_ok:
+    # Hard gate = the user's MUSTs: WR>80, all-positive, strict monotonic, DD<=5%.
+    # Trades/month is a SOFT preference (operator prefers PnL when in conflict).
+    hard_ok = wr80 and all_positive and strict_monotonic and dd_ok
+
+    if not dd_ok:
+        # Catastrophic in-sample drawdown veto. Any config with max_dd > 5%
+        # is structurally rejected across every tier — the operator hard MUST
+        # added after a search candidate posted 82% in-sample DD. Score is
+        # capped well below Tier C so these configs never overwrite the
+        # incumbent regardless of how high their PnL is.
+        s = sum(1 for x in rets if x > 0) * 1e3
+        s += min_wr * 10.0 + min(last_ret, 1000.0) * 1.0
+        s -= max_dd * 100.0
+        s = min(s, 1e5)
+    elif hard_ok:
         # Tier A: every MUST satisfied. PnL is the dominant objective (the
         # operator prefers maximum PnL over the 2-5 trades/month band when
         # they conflict). 15m PnL leads, then avg PnL; WR-above-80 and
@@ -111,12 +130,13 @@ def score(window_results) -> Tuple[float, bool, Dict[str, Any]]:
         if tpm_ok:
             s += 500.0                   # small bonus for clearing 2/mo band
         s -= max_dd * 100.0              # mild PnL-leaning drawdown penalty
-    elif wr80 and all_positive:
-        # Tier A2: WR>80 + all-positive, strict-monotonic NOT required.
+    elif wr80 and all_positive and dd_ok:
+        # Tier A2: WR>80 + all-positive + DD<=5%, strict-monotonic NOT required.
         # Operator-accepted under the RR<=0.5 regime where strict-monotonicity
         # was proven infeasible. PnL-dominant, ranked above the legacy
         # strict-monotonic tier so a low-WR monotonic config can't overwrite
-        # a high-WR non-monotonic one in this regime.
+        # a high-WR non-monotonic one in this regime. DD cap blocks the
+        # search from trading catastrophic in-sample drawdown for PnL.
         s = 1e10 + last_ret * 1000.0 + avg_ret * 200.0 + (min_wr - 80.0) * 50.0
         s += min(min_tpm, 5.0) * 100.0
         if tpm_ok:
@@ -145,6 +165,7 @@ def score(window_results) -> Tuple[float, bool, Dict[str, Any]]:
     detail = {
         "hard_ok": hard_ok,
         "wr80": wr80,
+        "dd_ok": dd_ok,
         "all_positive": all_positive,
         "strict_monotonic": strict_monotonic,
         "mono_violation": round(viol, 3),
