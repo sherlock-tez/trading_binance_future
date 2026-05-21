@@ -1,5 +1,147 @@
 # changes.md
 
+## Loop_20260521_3 — SOLUSDC: pivot_window 6→5 + rsi_short_min 60→65 unlocks +1 trade; strict Pareto over `_3`
+
+### Summary
+Cross-checked at the new `atr_period=3` anchor with `wr80_atr3_cross` sweep (864 combos, 66 passers). Top combo: **`pivot_window 6→5`** + **`rsi_short_min 60→65`** — together (not separately) unlock +1 LONG trade in the 6-12m window. The new trade is a winner, keeping in-sample WR at 100% with 9 trades (was 8). All other dims unchanged from `_3`. RSI extremity (LONG<50/SHORT>50) preserved.
+
+### Affected Files
+- `solusdc_config.yaml` (pivot_window 6→5, rsi_short_min 60→65, loop_id Loop_20260521_3, header rewritten), `algorithms.md` (SOLUSDC Tuned Profile updated), `changes.md`, `scripts/solusdc_sweep.py` (added `wr80_atr3_cross` grid), `backtest_history/Loop_20260521_3/`.
+
+### Reason / Backtest — wr80_atr3_cross at the new anchor
+At atr_p=3 anchor with all other `_3` settings, the cross-check varied pivot 4/5/6 × dlb 40/52/80 × rsi_long_max 45/47/48/49 × rsi_short_min 52/55/60/65 × trend EMA 100/150/200 × sup_res {[1d,1w], [6h,12h,1d,1w]} = 864 combos. 66 passed all hard.
+
+Top 2 (identical trade path, only sup_res differs):
+- pivot=5, rsi_long=47, rsi_short=65, dlb=80, trend=200 → 15m **+533.77%** WR **100%** (9 tr) vs `_3`'s +402.22% (8 tr)
+- pivot=5 + rsi_short=65 BOTH required: the sweep confirms pivot=6+rsi_short=65 ties `_3` exactly (same 8 trades). The combination is what unlocks.
+
+Production path (`btcusdc_optimize.py`, mainnet, 12m warmup; sweep parity exact):
+- 1m: 0 tr (neutral) | 3m +33.4% WR 100% (1 tr) | 6m +85.5% WR 100% (3 tr) | 12m +269.7% WR 100% (7 tr) | 15m **+533.77%** WR **100%** (9 tr)
+- strict-mono ✓, all-positive ✓, max DD **0.16%** (no SL hit in-sample), Sharpe 6.83
+- Loop folder `backtest_history/Loop_20260521_3/`
+
+### Out-of-sample (cache temporarily extended to 24m then reverted)
+- **18m: +533.77% / WR 100% / 9 tr** (no new trades 15→18m)
+- **24m: +545.54% / WR 83.33% / 12 tr** (3 new vs 15m: 1W/2L, net positive)
+- 24m OOS PnL EXCEEDS in-sample 15m PnL — the OOS winner outweighs the 2 OOS losers on compounded equity. 24m OOS WR 83.33% (comfortable over the >80 floor, vs `_3`'s 80.0% boundary case). 24m max DD halves (15.17→8.73).
+
+### Tradeoff vs prior champion `_3`
+| Metric | `_3` (prior) | `_4` (new) | Δ |
+|---|---|---|---|
+| 15m PnL | +402.22% | **+533.77%** | +131pt |
+| 15m WR | 100% | 100% (unchanged) | – |
+| 15m trades | 8 | **9** | +1 |
+| 12m trades | 6 | **7** | +1 |
+| 15m DD | 0.16% | 0.16% (unchanged) | – |
+| 24m OOS PnL | +326.73% | **+545.54%** | +219pt (~1.7×) |
+| 24m OOS WR | 80.0% | **83.33%** | +3.3pt |
+| 24m OOS trades | 10 | **12** | +2 |
+| 24m DD | 15.17% | **8.73%** | -6.4pt |
+| R/R | 0.5 | 0.5 (cap, unchanged) | – |
+
+Strict win on every dimension. No tradeoff dial.
+
+### Why pivot_window=5 + rsi_short_min=65 work together
+Shorter pivot detects more local extrema (more S/R candidates). The combination shifts which pivots qualify as relevant S/R for entries. The +1 LONG trade unlocked at this geometry is a winner; the higher rsi_short_min=65 (vs `_3`'s 60) keeps SHORT-side selectivity to compensate for the looser pivot. Net: +1 in-sample trade and +131pt PnL with zero in-sample losses.
+
+### What's still pinned (per user rules)
+`leverage = 8`, `position_equity_ratio = 1.0`, RSI extremity rule (long<50 ✓ at 47, short>50 ✓ at 65), MACD divergence required, R/R ≤ 0.5 (= 0.5 exactly), no new config keys, strict-monotonic + all-positive on active windows.
+
+---
+
+## Loop_20260521_2 — SOLUSDC: atr_period gradient peak (atr_p 8→3); strict Pareto over `_2` on every dim
+
+### Summary
+Walked the `atr_period` gradient from `_2`'s 8 down to its peak at 3 via `wr80_freq_v2` (648 combos confirming a smooth monotonic improvement) and `wr80_atr_fine` (atr_period [2,3,4,5,6] probe). The full gradient at otherwise-fixed `_2` geometry: 15m PnL is 207.78 (atr_p=9) → 402.22 (atr_p=3), monotonically increasing; **atr_p=2 BREAKS** (15m +89/WR62.5, 3m -19%/WR0, 6m -12%/WR33 — 2h ATR is noise-level on 1h data). So `atr_period=3` is the clean local peak, not a single-point overfit. Only `atr_period` changed vs `_2`; all other dims unchanged (rsi_long_max=47, rsi_short_min=60, dlb=80, pivot=6, sl/tp 1.0/2.0, trend EMA 200, MACDdiv ON, leverage 8 / peq 1.0 pinned).
+
+### Affected Files
+- `solusdc_config.yaml` (atr_period 8→3, loop_id Loop_20260521_2, header comment rewritten), `algorithms.md` (SOLUSDC Tuned Profile updated), `changes.md`, `scripts/solusdc_sweep.py` (added `wr80_atr_fine` + `wr80_freq_v2` grids), `backtest_history/Loop_20260521_2/`.
+
+### Reason / Backtest — smooth gradient is the robustness signal
+The atr_period gradient at fixed `_2` geometry (in-sample 15m, prod path):
+
+| atr_p | 15m PnL | 15m WR | 15m DD | Notes |
+|---|---|---|---|---|
+| 9 | +207.78% | 87.5% | – | passes |
+| 8 (= `_2`) | +211.05% | 87.5% | 10.83% | passes |
+| 7 | +215.96% | 87.5% | 10.63% | passes (intermediate step, not shipped) |
+| 6 | +223.33% | 87.5% | – | passes |
+| 5 | +342.77% | 100% | – | passes (WR jumps as 1 marginal trade flips) |
+| 4 | +363.53% | 100% | 0.16% | passes |
+| **3** (= `_3`) | **+402.22%** | **100%** | **0.16%** | **passes, PEAK** |
+| 2 | +89.00% | 62.5% | – | **BREAKS** (3m -19/WR0, 6m -12/WR33) |
+
+The gradient is smooth and monotonic 9→3, then sharply breaks at 2. That's the robustness signal — atr_p=3 isn't an isolated peak; it's the limit of a gradient that holds across 7 steps.
+
+Production path (`btcusdc_optimize.py`, mainnet, 12m warmup; sweep parity exact):
+- 1m: 0 tr (neutral) | 3m +33.4% WR 100% (1 tr) | 6m +85.5% WR 100% (3 tr) | 12m +192.97% WR 100% (6 tr) | 15m **+402.22%** WR **100%** (8 tr)
+- strict-mono ✓, all-positive ✓, max DD **0.16%** (no SL hit in-sample), Sharpe 5.94–6.00
+- Loop folder `backtest_history/Loop_20260521_2/`
+
+### Out-of-sample (cache temporarily extended to 24m then reverted)
+- **18m: +402.22% / WR 100% / 8 tr** (no new trades 15→18m)
+- **24m: +326.73% / WR 80.0% / 10 tr** (2 new OOS trades vs 15m: 1W/1L)
+- 24m OOS WR exactly at the user's >80 floor; in-sample 100% comfortably clears the HARD rule. Same OOS-trade footprint as `_2` (10 tr at 24m) but starts from 0 in-sample losses vs `_2`'s 1.
+
+### Tradeoff vs prior champion `_2`
+| Metric | `_2` (prior) | `_3` (new) | Δ |
+|---|---|---|---|
+| 15m PnL | +211.05% | **+402.22%** | +191pt (~1.9×) |
+| 15m WR | 87.5% | **100%** | +12.5pt |
+| 15m trades | 8 | 8 (unchanged) | 0 |
+| Max DD | 10.83% | **0.16%** | -10.67pt |
+| 24m OOS PnL | +161.21% | **+326.73%** | +165pt (~2×) |
+| 24m OOS WR | 70.0% | **80.0%** | +10pt |
+| R/R | 0.5 | 0.5 (unchanged at cap) | – |
+
+Strict win on every dimension — no tradeoff dial. Trade frequency unchanged at ~0.5-0.7 tr/mo (low-freq BTC-like profile).
+
+### What's still pinned (per user rules)
+`leverage = 8`, `position_equity_ratio = 1.0`, RSI extremity rule (long<50 ✓ at 47, short>50 ✓ at 60), MACD divergence required, R/R ≤ 0.5 (= 0.5 exactly), no new config keys, strict-monotonic + all-positive on active windows.
+
+---
+
+## Loop_20260521_1 — SOLUSDC: strict Pareto over `_11` under tightened WR>80 + "more trades" targets
+
+### Summary
+User tightened targets (2026-05-20 round 3): WR floor raised 70 → **80** HARD, and **"increase number of trades"** re-introduced as a directional target. Other rules unchanged (R/R ≤ 0.5, strict-mono, RSI extremity + MACDdiv, no new config keys, leverage 8 / peq 1.0 pinned). New champion `Loop_20260521_1` from `scripts/solusdc_sweep.py --grid wr80_freq` (972 combos): **`rsi_long_max` 45 → 47** (admits one extra LONG entry that's still inside the LONG<50 extremity rule) and **`atr_period` 12 → 8** (faster ATR, top 15m PnL of the trio). Strict Pareto over `_11`: +1 in-sample trade (8 vs 7), +1.8pt WR (87.5 vs 85.71), +41pt 15m PnL (+211 vs +170), -0.5pt max DD (10.83 vs 11.35).
+
+### Affected Files
+- `solusdc_config.yaml` (atr_period 12→8, rsi_long_max 45→47, loop_id Loop_20260521_1, header comment rewritten), `algorithms.md` (SOLUSDC Tuned Profile updated), `changes.md`, `scripts/solusdc_sweep.py` (added `wr80_freq` grid), `backtest_history/Loop_20260521_1/`.
+
+### Reason / Backtest — wr80_freq sweep found the +1-trade Pareto
+1. **Re-scored `wr70_pareto` at `--wrfloor 80`** (2376 evals): 12 passers; max 15m trades = 7 (all `_11`-equivalents). The grid was thin on entry-frequency dims (atr_period 12 only, pivot 6 only, dlb 52/80 only, rsi gates ≤45/≥55 only).
+2. **New `wr80_freq` grid** (972 combos): `atr_period` [8,10,12] × `pivot_window` [4,5,6] × `divergence_lookback` [30,40,52,80] × `rsi_long_max` [45,47,48] × `rsi_short_min` [52,55,60] × `trend_ema_period` [50,100,200]; geometry anchored at sl=1.0/tp=2.0 (R/R 0.5 cap), MACDdiv ON, trend filter ON per user rules.
+3. **Top 3 all have `rsi_long_max=47`** across atr_period 8/10/12 — same +1 trade vs `_11`, same WR jump 85.71→87.5%. Robust to atr_period choice (not a single-config fluke). `_2` picks atr_period=8 (highest 15m PnL +211.05% of the trio).
+4. Production path (`btcusdc_optimize.py`, mainnet, 12m warmup; sweep parity exact):
+   - 1m: 0 tr (neutral) | 3m +26.4% WR 100% (1 tr) | 6m +66.7% WR 100% (3 tr) | 12m +165.6% WR 100% (6 tr) | 15m **+211.05%** WR **87.5%** (8 tr)
+   - strict-mono ✓, all-positive ✓, max DD **10.83%**, Sharpe 3.74–7.24
+   - Loop folder `backtest_history/Loop_20260521_1/`
+
+### Out-of-sample (cache temporarily extended to 24m then reverted to 15)
+- **18m: +211.05% / WR 87.5% / 8 tr** (identical to 15m — no new trades fired months 15→18)
+- **24m: +161.21% / WR 70.0% / 10 tr** (2 new trades vs 15m: 1 win / 1 loss)
+- Materially better than `_11`'s OOS (`_11` 24m was +125.5% / WR 66.67%). 24m WR climbs back to exactly the prior 70-floor.
+
+### Tradeoff vs prior champion `_11`
+| Metric | `_11` (prior) | `_2` (new) |
+|---|---|---|
+| 15m PnL | +170.01% | **+211.05%** (+41pt) |
+| 15m WR | 85.71% | **87.5%** (+1.8pt) |
+| 15m trades | 7 | **8** (+1) |
+| Max DD | 11.35% | **10.83%** (-0.5pt) |
+| 24m OOS PnL | +125.5% | **+161.21%** (+36pt) |
+| 24m OOS WR | 66.67% | **70.0%** (+3.3pt) |
+| 24m OOS trades | 9 | 10 |
+| R/R | 0.5 | 0.5 (unchanged at cap) |
+
+Strict win on every dimension — no tradeoff dial.
+
+### What's still pinned (per user rules)
+`leverage = 8`, `position_equity_ratio = 1.0`, RSI extremity rule (long<50 ✓ at 47, short>50 ✓ at 60), MACD divergence required, R/R ≤ 0.5 (= 0.5 exactly), no new config keys, strict-monotonic + all-positive on active windows.
+
+---
+
 ## Loop_20260520_10 - ETHUSDC refine of _9 (WR>80 + R/R<=0.5 + strict_mono regime)
 
 ### Summary

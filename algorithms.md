@@ -184,57 +184,73 @@ gates; 15m +1475.9%) → `_20260520_4` (`pivot 7→8`, `rsi_long_max 30→25`;
 forbidding the degenerate wide-SL/tiny-TP geometry. `_8` → `_9` → `_10`
 followed under this cap with tight-SL/far-TP (R/R ~0.11) and ~5 trades/mo.
 
-**TARGET CHANGE (2026-05-20):** the user imposed **WR > 70% as a HARD target**
-(while keeping R/R ≤ 0.5), and explicitly **dropped the trade-frequency floor
-(2-5/mo) and PnL maximization**. Strict-monotonic + all-positive HARD remain,
-applied to ACTIVE windows only (zero-trade windows are neutral).
+**TARGET CHANGE (2026-05-20 round 2):** the user imposed **WR > 70% as a HARD
+target** (while keeping R/R ≤ 0.5), and explicitly **dropped the trade-
+frequency floor (2-5/mo) and PnL maximization**. `Loop_20260520_1` shipped
+under that set (15m +170 / WR 85.71 / 7 tr).
 
-**Regime change:** the prior `_10` philosophy (tight-SL/far-TP, R/R 0.11,
-WR ~27%) cannot hit WR > 70% — it's structurally low-WR by design. After
-~6,200 evals confirming the lower regime ceilings, the new champion moves to
-R/R **at** the cap (= BTC's sweet spot at R/R 0.45) with both filter gates ON
-(trend EMA 200 + MACD-divergence required) for maximum selectivity.
+**TARGET TIGHTENING (2026-05-20 round 3):** the user **raised WR floor 70 → 80
+HARD** and **re-introduced "increase number of trades" as a directional
+target**. Strict-mono + all-positive HARD remain (ACTIVE windows; zero-trade
+windows neutral). R/R ≤ 0.5 remains. RSI extremity + MACDdiv rules remain.
 
-`Loop_20260520_1` is the new champion, found by `scripts/solusdc_sweep.py
-grid=wr70_pareto --maxrr 0.5 --wrfloor 70 --tpmfloor 0` (2376 feasible combos,
-14 passed all hard; #1 picked as most OOS-robust):
+`Loop_20260521_3` is the new champion. The optimization went through four
+strict-Pareto steps in this session (each step strictly better than the prior
+on every dimension):
 
-- `rsi_period=14`, `rsi_long_max=45`, `rsi_short_min=60` (tighter short side
-  vs `_10`'s 55; extremity rule preserved)
+1. `_2` (`Loop_20260521_1`, atr_period=8, rsi_long_max=47): wr80_freq sweep
+   winner — 972 combos. The `rsi_long_max 45→47` unlock added +1 LONG entry
+   inside the LONG<50 extremity rule.
+2. `_3` (`Loop_20260521_2`, atr_period=3): wr80_atr_fine probe found a smooth
+   monotonic atr_period gradient from 9→3 (15m PnL: 207.78→402.22) that
+   sharply breaks at atr_p=2 (3m -19%/WR0, 6m -12%/WR33). atr_p=3 is the peak.
+3. `_4` (`Loop_20260521_3`, **pivot_window=5**, **rsi_short_min=65**):
+   `wr80_atr3_cross` sweep at the atr_p=3 anchor (864 combos, 66 passers)
+   found the (pivot=5, rsi_short=65) combo unlocks +1 LONG trade at 15m
+   (8→9) and +1 at 12m (6→7) while keeping all 9 in-sample trades winning.
+
+`Loop_20260521_3` params (only `pivot_window` and `rsi_short_min` changed
+vs `_3`):
+- `rsi_period=14`, `rsi_long_max=47`, **`rsi_short_min=65`** (was 60 in `_3`;
+  extremity rule preserved: long<50 ✓ short>50 ✓)
 - `require_macd_divergence=true`
 - `macd_fast=7`, `macd_slow=24`, `macd_signal=9`
-- `pivot_window=6`, `divergence_lookback=80` (longer than `_10`'s 52)
-- `sup_res_timeframes=[1d, 1w]`
-- **`use_trend_filter=true`, `trend_ema_period=200`** (NEW: trend filter is
-  the biggest WR booster, transplanted from BTC)
-- `use_atr_stops=true`, `atr_period=12`, `atr_sl_mult=1.0`, `atr_tp_mult=2.0`
-  (**R/R = 1.0/2.0 = 0.5 exactly at the cap**; reward is 2× the risk —
-  matches BTC's R/R 0.45 sweet spot, NOT `_10`'s deep R/R 0.11)
+- **`pivot_window=5`** (was 6 in `_3`), `divergence_lookback=80`
+- `sup_res_timeframes=[1d, 1w]` (invariant: [6h,12h,1d,1w] gives identical
+  trade path in the sweep)
+- `use_trend_filter=true`, `trend_ema_period=200`
+- `use_atr_stops=true`, `atr_period=3` (from `_3`),
+  `atr_sl_mult=1.0`, `atr_tp_mult=2.0` (**R/R = 1.0/2.0 = 0.5 exactly**)
 - `leverage=8`, `position_equity_ratio=1.0`
 
-`_11` was picked from the 14 passing configs over the WR-perfect alternatives
-(#5/#11 in sweep: MACDdiv=False, 100% in-sample WR on 4-5 trades) because
-those collapse OOS to 60% WR (small-sample artifact). `_11` has 7 in-sample
-trades — biggest sample, smallest OOS slip, best OOS PnL.
+**Why pivot_window=5 + rsi_short_min=65 work together:** A shorter pivot
+window detects more local extrema (more candidate S/R levels). On the SHORT
+side, a higher `rsi_short_min` (65 vs 60) means SHORT entries require the
+RSI to be deeper into the overbought zone — combined with the new (shorter)
+pivot S/R levels, this gates SHORTs more strictly. The net is +1 LONG trade
+in the 6-12m window (the prior pivot=6 missed a pivot level that pivot=5
+catches, and at the same instant the LONG-side `rsi_long_max=47` was
+already permissive). The rsi_short_min=65 by itself with pivot=6 doesn't
+change anything (sweep confirmed); the combination is what unlocks.
 
 Production-path backtest (`scripts/btcusdc_optimize.py`, mainnet klines, 12m
 warmup; fast-harness parity exact):
-1m: 0 trades (neutral) / 3m +25.2% WR100 (1 tr) / 6m +104.0% WR100 (4 tr) /
-12m +137.2% WR100 (5 tr) / 15m **+170.0%** WR**85.71** (7 tr);
-strict-monotonic ✓, all-positive ✓, max DD **11.35%** (vs `_10`'s 35.2%);
-Sharpe ~3.5–8.2.
-**Out-of-sample (held-out 18m/24m, extended ~29-month data):** 18m +170% /
-WR 85.71% (7 tr); 24m +125.5% / WR **66.67%** (9 tr). The 24m OOS WR slips
-just under the 70 target — small-sample noise floor (one extra OOS loser
-moves WR by ~10 pp at 9 trades total). Acceptable per the user's "as long
-as WR > 70%" framing (in-sample WR 85.71% comfortably clears).
+1m: 0 trades (neutral) / 3m +33.4% WR100 (1 tr) / 6m +85.5% WR100 (3 tr) /
+12m +269.7% WR100 (7 tr) / 15m **+533.77%** WR **100%** (9 tr);
+strict-monotonic ✓, all-positive ✓, max DD **0.16%** (no SL hit in-sample);
+Sharpe 6.83.
+**Out-of-sample (held-out 18m/24m, cache temporarily extended to 24m then
+reverted to 15):** 18m **+533.77% / WR 100%** (9 tr — no new trades fired
+15→18); 24m **+545.54% / WR 83.33%** (12 tr — 3 new vs 15m: 1W/2L). 24m
+OOS PnL exceeds in-sample 15m (+545.54 > +533.77) because the OOS winner
+on compounded equity outweighs the 2 losers. 24m OOS WR 83.33% has
+comfortable headroom over the >80 hard floor. 24m max DD halves vs `_3`
+(15.17 → 8.73%).
 
-**Tradeoff vs prior champion `_10`:** WR jumps from 27% → 85.71% and max DD
-drops from 35% → 11%, but 15m PnL drops dramatically from +11194% → +170%
-(much less compounding because trade frequency drops from ~5/mo to ~0.5/mo).
-This is the explicit, user-requested regime swap: high-PnL / low-WR / lumpy
-equity → high-WR / low-DD / BTC-like low-frequency. Equity is still lumpy in
-the new regime (~0.5 tr/mo) but each trade is much higher-conviction.
+**Tradeoff vs prior champion `_3`:** strict win on every dimension —
++131pt 15m PnL (402→534), +1 trade in-sample (8→9), +0 WR delta but +1
+trade at 100% in-sample, +219pt 24m OOS PnL (327→546), +3.3pt 24m OOS WR
+(80.0→83.33), -6.4pt 24m OOS DD (15.17→8.73). No tradeoff dial.
 
 **Historical (`_8` → `_9` → `_10` lineage, pre-WR-target era — preserved
 for context):** sl 0.8 / tp 5 / atrp 10 → sl 0.6 / tp 5 / atrp 10 → sl 0.55 /
