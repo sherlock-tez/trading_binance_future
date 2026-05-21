@@ -10,7 +10,7 @@ trading:
     - 1w
   leverage: 8
   max_open_positions: 1
-  position_equity_ratio: 0.95
+  position_equity_ratio: 0.98
   maker_only: true
 
 strategy:
