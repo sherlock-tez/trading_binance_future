@@ -296,7 +296,7 @@ def test_refresh_symbol_timeframes_async_runs_in_parallel(monkeypatch):
     assert elapsed < 0.4, f"expected parallel (<0.4s), got {elapsed:.2f}s"
 
 
-def test_rest_stale_retry_backs_off_and_alerts(monkeypatch):
+def test_rest_stale_retry_backs_off_without_telegram(monkeypatch):
     svc = _service()
     closes: list[CandleEvent] = []
     alerts: list[str] = []
@@ -339,9 +339,9 @@ def test_rest_stale_retry_backs_off_and_alerts(monkeypatch):
     assert len(closes) == 1
     expected = [0.25, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5]
     assert sleep_delays == expected, sleep_delays
-    # alert fires exactly once, at stale_retries == 5 (iter 6).
-    assert any("stale" in a.lower() for a in alerts), alerts
-    assert sum("stale" in a.lower() for a in alerts) == 1, alerts
+    # Telegram alert is intentionally suppressed; no on_error invocations
+    # for stale retries (operator gets only the WARNING log).
+    assert not any("stale" in a.lower() for a in alerts), alerts
 
 
 def test_rest_only_mode_never_opens_websocket(monkeypatch):

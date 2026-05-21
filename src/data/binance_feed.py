@@ -554,6 +554,9 @@ class BinanceMarketDataService:
                         REST_STALE_BACKOFF_CAP_MS,
                     ) / 1000.0
                     if stale_retries == REST_STALE_ALERT_AFTER:
+                        # WARNING log only; Telegram notification deliberately
+                        # suppressed (stale-retry noise was not actionable for
+                        # the operator and the backoff handles it on its own).
                         logger.warning(
                             "Binance REST stale for %s %s: %d consecutive "
                             "retries past expected close; backing off "
@@ -563,12 +566,6 @@ class BinanceMarketDataService:
                             stale_retries,
                             delay,
                         )
-                        result = emit_failure(
-                            f"REST stale: {timeframe} {','.join(symbols)} "
-                            f"{stale_retries} retries past expected close"
-                        )
-                        if asyncio.iscoroutine(result):
-                            await result
                 else:
                     stale_retries = 0
                     delay = max(
