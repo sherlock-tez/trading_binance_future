@@ -14,16 +14,16 @@ trading:
   maker_only: true
 
 strategy:
-  # SOLUSDC CHAMPION = Loop_20260520_4 (succeeds _3 via pivot_window 6->5 +
+  # SOLUSDC CHAMPION = Loop_20260521_3 (succeeds _3 via pivot_window 6->5 +
   # rsi_short_min 60->65; found by wr80_atr3_cross at the atr_p=3 anchor).
   # USER TARGETS (2026-05-20 round 3): R/R <= 0.5 AND WR > 80 HARD AND
   # strict-mono + all-positive on ACTIVE windows; "increase number of
   # trades" directional. RSI extremity (LONG<50/SHORT>50) + MACDdiv required.
   # Lineage to _4 (each step strict Pareto over previous):
   #   _11 (Loop_20260520_1): atr_p 12, rsi 45/60, pivot 6 -> 15m +170/WR85.7/7tr
-  #   _2  (Loop_20260520_2): rsi_long 45->47 -> 15m +211/WR87.5/8tr
-  #   _3  (Loop_20260520_3): atr_p 8->3 (gradient peak) -> 15m +402/WR100/8tr
-  #   _4  (Loop_20260520_4): pivot 6->5 + rsi_short 60->65 -> 15m +534/WR100/9tr
+  #   _2  (Loop_20260521_1): rsi_long 45->47 -> 15m +211/WR87.5/8tr
+  #   _3  (Loop_20260521_2): atr_p 8->3 (gradient peak) -> 15m +402/WR100/8tr
+  #   _4  (Loop_20260521_3): pivot 6->5 + rsi_short 60->65 -> 15m +534/WR100/9tr
   # _4 source: scripts/solusdc_sweep.py --grid wr80_atr3_cross (864 combos
   # at atr_p=3, varying pivot/dlb/RSI gates/trend EMA/S/R). 66 passers; #1
   # is (pivot=5, rsi_long=47, rsi_short=65, dlb=80, trend=200, sup_res
@@ -52,20 +52,20 @@ strategy:
   macd_slow: 24
   macd_signal: 9
   divergence_lookback: 80  # _11: 52 -> 80 (longer confirmation for high-WR regime)
-  pivot_window: 5  # Loop_20260520_4: was 6 in _3; pivot=5+rsi_short=65 unlocks +1 trade
-  atr_period: 3  # Loop_20260520_3: _2's 8 -> 3 (peak of atr gradient; atr_p=2 BREAKS)
+  pivot_window: 5  # Loop_20260521_3: was 6 in _3; pivot=5+rsi_short=65 unlocks +1 trade
+  atr_period: 3  # Loop_20260521_2: _2's 8 -> 3 (peak of atr gradient; atr_p=2 BREAKS)
   use_atr_stops: true
   atr_sl_mult: 1.0  # at R/R cap 0.5 (sl 1.0 / tp 2.0)
   atr_tp_mult: 2.0
   use_trend_filter: true  # trend filter ON (WR backbone)
   trend_ema_period: 200
-  rsi_long_max: 47.0  # Loop_20260520_2: _11's 45 -> 47 (unlocks 1 extra LONG, still <50 extremity rule)
-  rsi_short_min: 65.0  # Loop_20260520_4: was 60 in _3; pairs with pivot=5
+  rsi_long_max: 47.0  # Loop_20260521_1: _11's 45 -> 47 (unlocks 1 extra LONG, still <50 extremity rule)
+  rsi_short_min: 65.0  # Loop_20260521_3: was 60 in _3; pairs with pivot=5
   require_macd_divergence: true
   min_rr_ratio: 0.0
   max_sl_distance_pct: 0.0
-  loop_id: Loop_20260520_4
-  # Loop_20260520_4 succeeds _3 via wr80_atr3_cross sweep (864 combos at
+  loop_id: Loop_20260521_3
+  # Loop_20260521_3 succeeds _3 via wr80_atr3_cross sweep (864 combos at
   # atr_period=3 anchor): pivot_window 6->5 + rsi_short_min 60->65 unlocks
   # +1 LONG-side trade (15m 8->9, 12m 6->7) while keeping all-100% WR
   # in-sample and lifting 15m PnL +131pt (402->534). 24m OOS PnL grows to

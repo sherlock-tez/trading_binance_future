@@ -46,22 +46,22 @@ HARD** and **re-introduced "increase number of trades" as a directional
 target**. Strict-mono + all-positive HARD remain (ACTIVE windows; zero-trade
 windows neutral). R/R ≤ 0.5 remains. RSI extremity + MACDdiv rules remain.
 
-`Loop_20260520_4` is the new champion. The optimization went through four
+`Loop_20260521_3` is the new champion. The optimization went through four
 strict-Pareto steps in this session (each step strictly better than the prior
 on every dimension):
 
-1. `_2` (`Loop_20260520_2`, atr_period=8, rsi_long_max=47): wr80_freq sweep
+1. `_2` (`Loop_20260521_1`, atr_period=8, rsi_long_max=47): wr80_freq sweep
    winner — 972 combos. The `rsi_long_max 45→47` unlock added +1 LONG entry
    inside the LONG<50 extremity rule.
-2. `_3` (`Loop_20260520_3`, atr_period=3): wr80_atr_fine probe found a smooth
+2. `_3` (`Loop_20260521_2`, atr_period=3): wr80_atr_fine probe found a smooth
    monotonic atr_period gradient from 9→3 (15m PnL: 207.78→402.22) that
    sharply breaks at atr_p=2 (3m -19%/WR0, 6m -12%/WR33). atr_p=3 is the peak.
-3. `_4` (`Loop_20260520_4`, **pivot_window=5**, **rsi_short_min=65**):
+3. `_4` (`Loop_20260521_3`, **pivot_window=5**, **rsi_short_min=65**):
    `wr80_atr3_cross` sweep at the atr_p=3 anchor (864 combos, 66 passers)
    found the (pivot=5, rsi_short=65) combo unlocks +1 LONG trade at 15m
    (8→9) and +1 at 12m (6→7) while keeping all 9 in-sample trades winning.
 
-`Loop_20260520_4` params (only `pivot_window` and `rsi_short_min` changed
+`Loop_20260521_3` params (only `pivot_window` and `rsi_short_min` changed
 vs `_3`):
 - `rsi_period=14`, `rsi_long_max=47`, **`rsi_short_min=65`** (was 60 in `_3`;
   extremity rule preserved: long<50 ✓ short>50 ✓)

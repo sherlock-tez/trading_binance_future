@@ -1,12 +1,12 @@
 # changes.md
 
-## Loop_20260520_4 — SOLUSDC: pivot_window 6→5 + rsi_short_min 60→65 unlocks +1 trade; strict Pareto over `_3`
+## Loop_20260521_3 — SOLUSDC: pivot_window 6→5 + rsi_short_min 60→65 unlocks +1 trade; strict Pareto over `_3`
 
 ### Summary
 Cross-checked at the new `atr_period=3` anchor with `wr80_atr3_cross` sweep (864 combos, 66 passers). Top combo: **`pivot_window 6→5`** + **`rsi_short_min 60→65`** — together (not separately) unlock +1 LONG trade in the 6-12m window. The new trade is a winner, keeping in-sample WR at 100% with 9 trades (was 8). All other dims unchanged from `_3`. RSI extremity (LONG<50/SHORT>50) preserved.
 
 ### Affected Files
-- `solusdc_config.yaml` (pivot_window 6→5, rsi_short_min 60→65, loop_id Loop_20260520_4, header rewritten), `algorithms.md` (SOLUSDC Tuned Profile updated), `changes.md`, `scripts/solusdc_sweep.py` (added `wr80_atr3_cross` grid), `backtest_history/Loop_20260520_4/`.
+- `solusdc_config.yaml` (pivot_window 6→5, rsi_short_min 60→65, loop_id Loop_20260521_3, header rewritten), `algorithms.md` (SOLUSDC Tuned Profile updated), `changes.md`, `scripts/solusdc_sweep.py` (added `wr80_atr3_cross` grid), `backtest_history/Loop_20260521_3/`.
 
 ### Reason / Backtest — wr80_atr3_cross at the new anchor
 At atr_p=3 anchor with all other `_3` settings, the cross-check varied pivot 4/5/6 × dlb 40/52/80 × rsi_long_max 45/47/48/49 × rsi_short_min 52/55/60/65 × trend EMA 100/150/200 × sup_res {[1d,1w], [6h,12h,1d,1w]} = 864 combos. 66 passed all hard.
@@ -18,7 +18,7 @@ Top 2 (identical trade path, only sup_res differs):
 Production path (`btcusdc_optimize.py`, mainnet, 12m warmup; sweep parity exact):
 - 1m: 0 tr (neutral) | 3m +33.4% WR 100% (1 tr) | 6m +85.5% WR 100% (3 tr) | 12m +269.7% WR 100% (7 tr) | 15m **+533.77%** WR **100%** (9 tr)
 - strict-mono ✓, all-positive ✓, max DD **0.16%** (no SL hit in-sample), Sharpe 6.83
-- Loop folder `backtest_history/Loop_20260520_4/`
+- Loop folder `backtest_history/Loop_20260521_3/`
 
 ### Out-of-sample (cache temporarily extended to 24m then reverted)
 - **18m: +533.77% / WR 100% / 9 tr** (no new trades 15→18m)
@@ -49,13 +49,13 @@ Shorter pivot detects more local extrema (more S/R candidates). The combination 
 
 ---
 
-## Loop_20260520_3 — SOLUSDC: atr_period gradient peak (atr_p 8→3); strict Pareto over `_2` on every dim
+## Loop_20260521_2 — SOLUSDC: atr_period gradient peak (atr_p 8→3); strict Pareto over `_2` on every dim
 
 ### Summary
 Walked the `atr_period` gradient from `_2`'s 8 down to its peak at 3 via `wr80_freq_v2` (648 combos confirming a smooth monotonic improvement) and `wr80_atr_fine` (atr_period [2,3,4,5,6] probe). The full gradient at otherwise-fixed `_2` geometry: 15m PnL is 207.78 (atr_p=9) → 402.22 (atr_p=3), monotonically increasing; **atr_p=2 BREAKS** (15m +89/WR62.5, 3m -19%/WR0, 6m -12%/WR33 — 2h ATR is noise-level on 1h data). So `atr_period=3` is the clean local peak, not a single-point overfit. Only `atr_period` changed vs `_2`; all other dims unchanged (rsi_long_max=47, rsi_short_min=60, dlb=80, pivot=6, sl/tp 1.0/2.0, trend EMA 200, MACDdiv ON, leverage 8 / peq 1.0 pinned).
 
 ### Affected Files
-- `solusdc_config.yaml` (atr_period 8→3, loop_id Loop_20260520_3, header comment rewritten), `algorithms.md` (SOLUSDC Tuned Profile updated), `changes.md`, `scripts/solusdc_sweep.py` (added `wr80_atr_fine` + `wr80_freq_v2` grids), `backtest_history/Loop_20260520_3/`.
+- `solusdc_config.yaml` (atr_period 8→3, loop_id Loop_20260521_2, header comment rewritten), `algorithms.md` (SOLUSDC Tuned Profile updated), `changes.md`, `scripts/solusdc_sweep.py` (added `wr80_atr_fine` + `wr80_freq_v2` grids), `backtest_history/Loop_20260521_2/`.
 
 ### Reason / Backtest — smooth gradient is the robustness signal
 The atr_period gradient at fixed `_2` geometry (in-sample 15m, prod path):
@@ -76,7 +76,7 @@ The gradient is smooth and monotonic 9→3, then sharply breaks at 2. That's the
 Production path (`btcusdc_optimize.py`, mainnet, 12m warmup; sweep parity exact):
 - 1m: 0 tr (neutral) | 3m +33.4% WR 100% (1 tr) | 6m +85.5% WR 100% (3 tr) | 12m +192.97% WR 100% (6 tr) | 15m **+402.22%** WR **100%** (8 tr)
 - strict-mono ✓, all-positive ✓, max DD **0.16%** (no SL hit in-sample), Sharpe 5.94–6.00
-- Loop folder `backtest_history/Loop_20260520_3/`
+- Loop folder `backtest_history/Loop_20260521_2/`
 
 ### Out-of-sample (cache temporarily extended to 24m then reverted)
 - **18m: +402.22% / WR 100% / 8 tr** (no new trades 15→18m)
@@ -101,13 +101,13 @@ Strict win on every dimension — no tradeoff dial. Trade frequency unchanged at
 
 ---
 
-## Loop_20260520_2 — SOLUSDC: strict Pareto over `_11` under tightened WR>80 + "more trades" targets
+## Loop_20260521_1 — SOLUSDC: strict Pareto over `_11` under tightened WR>80 + "more trades" targets
 
 ### Summary
-User tightened targets (2026-05-20 round 3): WR floor raised 70 → **80** HARD, and **"increase number of trades"** re-introduced as a directional target. Other rules unchanged (R/R ≤ 0.5, strict-mono, RSI extremity + MACDdiv, no new config keys, leverage 8 / peq 1.0 pinned). New champion `Loop_20260520_2` from `scripts/solusdc_sweep.py --grid wr80_freq` (972 combos): **`rsi_long_max` 45 → 47** (admits one extra LONG entry that's still inside the LONG<50 extremity rule) and **`atr_period` 12 → 8** (faster ATR, top 15m PnL of the trio). Strict Pareto over `_11`: +1 in-sample trade (8 vs 7), +1.8pt WR (87.5 vs 85.71), +41pt 15m PnL (+211 vs +170), -0.5pt max DD (10.83 vs 11.35).
+User tightened targets (2026-05-20 round 3): WR floor raised 70 → **80** HARD, and **"increase number of trades"** re-introduced as a directional target. Other rules unchanged (R/R ≤ 0.5, strict-mono, RSI extremity + MACDdiv, no new config keys, leverage 8 / peq 1.0 pinned). New champion `Loop_20260521_1` from `scripts/solusdc_sweep.py --grid wr80_freq` (972 combos): **`rsi_long_max` 45 → 47** (admits one extra LONG entry that's still inside the LONG<50 extremity rule) and **`atr_period` 12 → 8** (faster ATR, top 15m PnL of the trio). Strict Pareto over `_11`: +1 in-sample trade (8 vs 7), +1.8pt WR (87.5 vs 85.71), +41pt 15m PnL (+211 vs +170), -0.5pt max DD (10.83 vs 11.35).
 
 ### Affected Files
-- `solusdc_config.yaml` (atr_period 12→8, rsi_long_max 45→47, loop_id Loop_20260520_2, header comment rewritten), `algorithms.md` (SOLUSDC Tuned Profile updated), `changes.md`, `scripts/solusdc_sweep.py` (added `wr80_freq` grid), `backtest_history/Loop_20260520_2/`.
+- `solusdc_config.yaml` (atr_period 12→8, rsi_long_max 45→47, loop_id Loop_20260521_1, header comment rewritten), `algorithms.md` (SOLUSDC Tuned Profile updated), `changes.md`, `scripts/solusdc_sweep.py` (added `wr80_freq` grid), `backtest_history/Loop_20260521_1/`.
 
 ### Reason / Backtest — wr80_freq sweep found the +1-trade Pareto
 1. **Re-scored `wr70_pareto` at `--wrfloor 80`** (2376 evals): 12 passers; max 15m trades = 7 (all `_11`-equivalents). The grid was thin on entry-frequency dims (atr_period 12 only, pivot 6 only, dlb 52/80 only, rsi gates ≤45/≥55 only).
@@ -116,7 +116,7 @@ User tightened targets (2026-05-20 round 3): WR floor raised 70 → **80** HARD,
 4. Production path (`btcusdc_optimize.py`, mainnet, 12m warmup; sweep parity exact):
    - 1m: 0 tr (neutral) | 3m +26.4% WR 100% (1 tr) | 6m +66.7% WR 100% (3 tr) | 12m +165.6% WR 100% (6 tr) | 15m **+211.05%** WR **87.5%** (8 tr)
    - strict-mono ✓, all-positive ✓, max DD **10.83%**, Sharpe 3.74–7.24
-   - Loop folder `backtest_history/Loop_20260520_2/`
+   - Loop folder `backtest_history/Loop_20260521_1/`
 
 ### Out-of-sample (cache temporarily extended to 24m then reverted to 15)
 - **18m: +211.05% / WR 87.5% / 8 tr** (identical to 15m — no new trades fired months 15→18)
