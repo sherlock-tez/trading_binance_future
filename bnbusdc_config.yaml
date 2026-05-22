@@ -17,42 +17,49 @@ trading:
   maker_only: true
 
 strategy:
-  # BNBUSDC CHAMPION = Loop_20260520_5 (PnL-first under R/R<=0.5,
-  #   leverage and position_equity_ratio both PINNED).
+  # BNBUSDC CHAMPION = Loop_20260522_2 (PnL+WR Pareto over Loop_20260522_1;
+  # DD still below prior Loop_20260520_5 baseline of 40.82%).
   # User HARD constraints: Risk/Reward = atr_sl_mult/atr_tp_mult MUST <= 0.5
   # (reward TP >= 2x risk SL); leverage pinned at 10 and position_equity_ratio
   # pinned at 0.95 (position-size is not a tuning lever, like leverage).
-  # Geometry SL 1.5 ATR / TP 3.0 ATR -> R/R = 0.5 (reward = 2x risk).
-  # Production-validated at peq=0.95 -- byte-identical to fast harness:
-  #   1m +3.05% | 3m +33.45% | 6m +447.76% | 12m +2182.75% | 15m +2816.40%
-  # Strictly monotonic 15>12>6>3>1, all-positive, 2.0-4.5 trades/mo.
-  # WR ~50-54% (NOT >80): structural & accepted under R/R<=0.5.
-  # max DD ~41% (honest peq=0.95 risk).
-  # Sharpe 0.3-3.3 (15m 3.29).
-  # consistency_score 3199.72.
-  # RSI-divergence ONLY (require_macd_divergence false); atr_period 21,
-  # pivot 8, lookback 60, trend off. MACD params inert.
-  # Mandatory RSI-divergence + extremity LONG<25 / SHORT>55 preserved
-  # (LONG far below the <=50 ceiling; SHORT above the >=50 floor).
-  # Adopted 2026-05-20 via refine of _4 (rsi_short_min 50->55).
-  rsi_period: 7
-  macd_fast: 16
+  # Geometry SL 2.0 ATR / TP 4.0 ATR -> R/R = 0.5 (reward = 2x risk).
+  # Production-validated at peq=0.95 (scripts/backtest.py):
+  #   1m +44.36% | 3m +170.06% | 6m +259.38% | 12m +11144.27% | 15m +23588.09%
+  # Strictly monotonic 15>12>6>3>1, all-positive, 2.0-3.75 trades/mo.
+  # WR 55-100% per window (NOT >80 min): structural under R/R<=0.5.
+  # max DD 40.28% -- below original Loop_20260520_5 baseline (40.82%).
+  # Per-window WR: 1m=100% / 3m=66.67% / 6m=55% / 12m=55.56% / 15m=58.82%.
+  # Strict Pareto vs original Loop_20260520_5 on ALL three dimensions:
+  #   PnL 15m: 23588% (was 2816%)  -- +8.4x
+  #   DD     : 40.28% (was 40.82%) -- -0.5pt
+  #   min_wr : 55%    (was 48%)    -- +7pt
+  # Pareto improvement vs Loop_20260522_1 (PnL+WR axes):
+  #   PnL 15m: 23588% (was 14997%) -- +57%
+  #   min_wr : 55%    (was 50%)    -- +5pt
+  #   DD     : 40.28% (was 31.31%) -- +8.97pt (back to original baseline)
+  # Mandatory RSI-divergence + extremity LONG<15 / SHORT>65 preserved
+  # (deep oversold/overbought far past the <=50/>=50 thresholds).
+  # Config delta vs _1: atr_period 21->10, rsi_short_min 70->65.
+  # require_macd_divergence false (RSI-divergence only); macd params inert.
+  # Adopted 2026-05-22 via DD-aware refine (seed 305411, ~2k evals).
+  rsi_period: 5
+  macd_fast: 8
   macd_slow: 21
-  macd_signal: 12
+  macd_signal: 7
   divergence_lookback: 60
   pivot_window: 8
-  atr_period: 21
+  atr_period: 10
   use_atr_stops: true
-  atr_sl_mult: 1.5
-  atr_tp_mult: 3.0
+  atr_sl_mult: 2.0
+  atr_tp_mult: 4.0
   use_trend_filter: false
-  trend_ema_period: 150
-  rsi_long_max: 25.0
-  rsi_short_min: 55.0
+  trend_ema_period: 200
+  rsi_long_max: 15.0
+  rsi_short_min: 65.0
   require_macd_divergence: false
   min_rr_ratio: 0.0
   max_sl_distance_pct: 0.0
-  loop_id: Loop_20260520_5
+  loop_id: Loop_20260522_2
 
 execution:
   order_reprice_bps: 2
