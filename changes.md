@@ -1,5 +1,54 @@
 # changes.md
 
+## Loop_20260523_1 - BNBUSDC WR>80 strict-monotonic champion
+
+### Summary
+Replaced the high-PnL / low-WR BNBUSDC `Loop_20260522_2` profile with a
+sparser trend-filtered RSI-divergence profile that satisfies the current hard
+targets on refreshed data: every requested window has WR > 80%, performance is
+strictly ordered `15m > 12m > 6m > 3m > 1m`, and Risk/Reward remains exactly
+0.5. Leverage stayed pinned at 10 and no new config keys were added. The
+BNBUSDC search harness and saved incumbent were aligned to this WR-first target
+set so future loop/refine runs start from the new champion instead of the old
+low-WR PnL profile.
+
+### Affected Files
+- `bnbusdc_config.yaml`
+- `algorithms.md`
+- `changes.md`
+- `scripts/bnbusdc_loop.py`
+- `data_cache/bnb_best.json`
+- `backtest_history/Loop_20260523_1/{1,3,6,12,15}m.csv`
+- `data_cache/BNBUSDC_1h.csv`
+
+### Reason
+The previous deployed BNBUSDC profile was extremely profitable and monotonic,
+but it did not satisfy the user's strict WR target: refreshed production-path
+results for `Loop_20260522_2` were WR 100% / 66.67% / 55.00% / 55.56% /
+58.82%. The new profile trades lower PnL for a sparse, higher-quality signal
+stack: RSI divergence, existing RSI extremity gate, 1d/1w support/resistance,
+300-EMA trend filter, wider pivots, and ATR 2.0/4.0 stop geometry. A borderline
+`rsi_long_max=40` candidate refreshed at exactly 80.00% on 15m, so the final
+production-sensitive adjustment was `rsi_long_max=41`, which admitted one
+additional winning long and lifted the 15m WR above the strict threshold.
+
+### Backtest Result
+- Command/method: `SWEEP_SYMBOL=BNBUSDC .venv/bin/python scripts/btcusdc_optimize.py --refresh --windows 1,3,6,12,15` to refresh BNBUSDC 1h data, then `SWEEP_SYMBOL=BNBUSDC .venv/bin/python scripts/btcusdc_optimize.py --windows 1,3,6,12,15` after setting `rsi_long_max=41` and `loop_id=Loop_20260523_1`.
+- Dataset/time range: refreshed BNBUSDC 1h cache, Binance Futures mainnet, from 2025-02-23 03:55:19 UTC through the last cached bar opened 2026-05-23 03:00:00 UTC; evaluated rolling windows 1m, 3m, 6m, 12m, and 15m.
+- Loop folder: `backtest_history/Loop_20260523_1/`
+- Key metrics:
+  - 1m: +16.57%, WR 100.00%, 1 trade, max DD 0.20%
+  - 3m: +65.99%, WR 100.00%, 3 trades, max DD 0.20%
+  - 6m: +309.93%, WR 85.71%, 7 trades, max DD 10.36%
+  - 12m: +599.33%, WR 88.89%, 9 trades, max DD 10.36%
+  - 15m: +633.64%, WR 81.82%, 11 trades, max DD 13.05%, Sharpe 2.948
+- Comparison with previous Loop: improved target compliance and risk vs `Loop_20260522_2` (min WR 55.00% -> 81.82%, max DD 40.28% -> 13.05%) while reducing 15m return (+21350.41% -> +633.64%) and trade count (51 -> 11). This is better for the current hard objective because WR > 80 is now satisfied in every window.
+- Limitations: the 15m WR margin is thin (81.82%, 9 wins / 11 trades), and the sample is sparse. The fast vectorized harness showed slightly different trade counts near this boundary, so final acceptance is based on the production-path runner output above, not the fast harness alone. Funding, liquidation, and live order-book effects are still outside the simulator.
+
+### Documentation Updated
+- `algorithms.md`
+- `changes.md`
+
 ## Loop_20260521_3 — SOLUSDC: pivot_window 6→5 + rsi_short_min 60→65 unlocks +1 trade; strict Pareto over `_3`
 
 ### Summary

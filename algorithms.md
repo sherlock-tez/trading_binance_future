@@ -114,68 +114,46 @@ ATR/MACD geometry; re-validated on the production path before adoption
 
 ### Current BNBUSDC Tuned Profile
 
-`Loop_20260520_5` is the current champion (refine of `_4` with a one-param
-edge: stricter SHORT extremity gate). It satisfies the user HARD constraint
-**Risk/Reward = `atr_sl_mult`/`atr_tp_mult` MUST be ≤ 0.5** with both
-position-size levers pinned, and keeps the mandatory RSI divergence plus
-extremity gate:
+`Loop_20260523_1` is the current BNBUSDC champion under the user's hard
+WR>80 + strict monotonic + R/R<=0.5 regime. It replaces the high-PnL
+`Loop_20260522_2` profile because `_2` stayed structurally profitable but had
+only 55-59% WR on the longer windows. The new profile deliberately trades away
+large compounded PnL to satisfy the win-rate target on every requested window.
 
-- `rsi_period=7`, `rsi_long_max=25`, `rsi_short_min=55` (mandatory rule
-  preserved: LONG only RSI<25 (far below the ≤50 ceiling), SHORT only RSI>55
-  (above the ≥50 floor))
-- `require_macd_divergence=false` — RSI-divergence ONLY; MACD params inert
-- `pivot_window=8`, `divergence_lookback=60`
-- `use_trend_filter=false`, `trend_ema_period=150` (inactive)
-- `use_atr_stops=true`, `atr_period=21`, `atr_sl_mult=1.5`, `atr_tp_mult=3.0`
-  → **Risk/Reward = 1.5/3.0 = 0.5 exactly** (reward = 2× risk)
-- `leverage=10` (PINNED, user requirement), `position_equity_ratio=0.95`
-  (PINNED, user requirement — treated like leverage)
+- `rsi_period=11`, `rsi_long_max=41`, `rsi_short_min=55`
+  (mandatory extremity gate preserved: LONG only RSI<41, SHORT only RSI>55)
+- `require_macd_divergence=false` -- RSI-divergence ONLY; MACD params are inert
+  for entry gating (`macd_fast=10`, `macd_slow=40`, `macd_signal=9`)
+- `pivot_window=15`, `divergence_lookback=140`
+- `sup_res_timeframes=[1d, 1w]`
+- `use_trend_filter=true`, `trend_ema_period=300`
+- `use_atr_stops=true`, `atr_period=18`, `atr_sl_mult=2.0`,
+  `atr_tp_mult=4.0` -> **Risk/Reward = 2.0/4.0 = 0.5 exactly**
+- `leverage=10` (PINNED, user requirement), `position_equity_ratio=0.98`
 
-Production-path backtest at peq=0.95 (byte-identical to the fast parity
-harness): 1m +3.05% / 3m +33.45% / 6m +447.76% / 12m +2182.75% / **15m
-+2816.40%**, strictly monotonic 15>12>6>3>1, all-positive, 2.0–4.5
-trades/month, max drawdown ~41%, consistency_score 3199.72, 15m Sharpe 3.29.
+Production-path backtest (`SWEEP_SYMBOL=BNBUSDC .venv/bin/python
+scripts/btcusdc_optimize.py --windows 1,3,6,12,15`, refreshed BNBUSDC 1h
+cache ending 2026-05-23 03:00 UTC): 1m +16.57% / 3m +65.99% / 6m +309.93% /
+12m +599.33% / **15m +633.64%**. WR is **100 / 100 / 85.71 / 88.89 /
+81.82%**, so every window is strictly above 80. Performance is strictly
+monotonic (`15m > 12m > 6m > 3m > 1m`), all windows are positive, max
+drawdown is 13.05%, 15m Sharpe is 2.948, and trade counts are 1 / 3 / 7 / 9 /
+11.
 
-**Win-rate is ~50–54%, NOT >80%, and structurally cannot reach it.** With
-reward ≥ 2× risk the per-trade hit rate is capped near ~50%; profitability
-comes from each win being ≥ 2× each loss, not from a high hit rate. The WR>80
-*target* and the R/R≤0.5 *MUST* are mathematically in tension — the MUST wins,
-so WR>80 is treated as unreachable under this constraint.
+Why the new edge works: the prior high-PnL BNB family used frequent RSI-only
+divergence entries with no trend filter and made money through 2R winners, but
+its hit rate stayed near 50-60%. The new profile moves to a sparse BTC/SOL-like
+quality stack: wider pivots, longer divergence lookback, 1d/1w S/R context,
+and a 300-EMA trend filter. The final production-sensitive adjustment was
+`rsi_long_max=41`: `40` refreshed at exactly 80.00% WR on 15m (not enough for
+the strict `>80` rule), while `41` admitted one additional winning long without
+adding another loss, lifting 15m WR to 81.82%.
 
-`_20260520_5` is another clean improvement over `_4`: same trade pattern with
-slightly higher PnL (algorithm change reduces a few losing exits), min WR up
-(~46.7% → ~50.0%), maxDD down, Sharpe up across all windows. Min trades/month
-unchanged at the 2.0 hard floor. Single-param algorithm edge:
-`rsi_short_min 50 → 55` (stricter SHORT setup). Numbers above are at peq=0.95
-(live deployment); earlier lineage entries in `changes.md` quote peq=1.0
-numbers from when peq was not yet pinned to 0.95.
-
-This deliberately replaces the prior `Loop_20260519_2` (`atr_sl_mult 6.0 /
-atr_tp_mult 0.6` → R/R = 10.0), a degenerate wide-SL/tiny-TP geometry whose
-perfect in-sample win-rate was a geometry+sample artifact carrying a large
-unrealised tail loss (a 0.6-ATR TP is almost always hit before a 6-ATR SL, but
-the rare SL hit is ~10× a typical win). The user forbade that non-answer by
-capping Risk/Reward at 0.5; the incumbent was reset (old state backed up to
-`data_cache/bnb_best.preR05.json`).
-
-Found via `scripts/bnbusdc_loop.py` (random map + neighbourhood refine,
-drawdown-aware full-pass objective; `MAX_RISK_REWARD=0.5` and
-`_enforce_risk_reward()` repair every candidate to a feasible (sl,tp) grid
-pair; `leverage` pinned to `[10]`), reusing the parity-verified fast engine.
-Under R/R≤0.5 the WR>80 target is unreachable, so the search objective is
-**PnL-first** within the hard MUSTs (all-positive, strict-monotonic,
-≥2 trades/month; R/R≤0.5 and leverage pinned by construction); WR is only a
-minor tiebreak. The forever-loop continues to search for higher feasible PnL
-and adopts only genuine production-validated improvements. Champion lineage:
-`_21` → `_31` → `_32` → `_33` → `_20260519_1` → `_20260519_2` (degenerate,
-discarded) → `_20260519_15` (first feasible under R/R≤0.5) → `_20260519_16`
-(PnL-first refine, 15m +820.9% at peq 0.9) → `_20260520_1`
-(peq pinned at 1.0; same algorithm, 15m +981.1%) → `_20260520_2`
-(`pivot 3→4`, `macd_slow 21→26`; 15m +999.9%) → `_20260520_3`
-(MACD-div dropped, longer ATR/pivot/lookback, stricter LONG / floor SHORT
-gates; 15m +1475.9%) → `_20260520_4` (`pivot 7→8`, `rsi_long_max 30→25`;
-15m +3084.9%, DD 68→52) → `_20260520_5` (`rsi_short_min 50→55`;
-**15m +3231.0%, DD 52→43, Sharpe 3.29, current**).
+Tradeoff vs `Loop_20260522_2`: WR improves from 55-100% to 81.82-100% and
+drawdown drops from 40.28% to 13.05%, but 15m return falls from +21350.41% to
++633.64% and trade count falls from 51 to 11. This is an intentional move to
+satisfy the user's current hard target set rather than maximize PnL under a
+lower-WR regime.
 
 ### Current SOLUSDC Tuned Profile
 

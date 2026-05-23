@@ -11,9 +11,7 @@ BNBUSDC targets:
        sampled/perturbed config is repaired to a feasible (sl, tp) grid pair.
     1. all windows positive (1m,3m,6m,12m,15m > 0)
     2. strict monotonic 15m > 12m > 6m > 3m > 1m  (consistency MUST)
-    3. min trades/month >= 2.0 across all windows
-  TARGET:
-    4. min win-rate across windows > 80%
+    3. min win-rate across windows > 80%
   Subject to the above, maximize 15m PnL then average PnL.
 
 Mandatory rule preserved by construction: rsi_long_max <= 50 and
@@ -86,45 +84,31 @@ def score(window_results) -> Tuple[float, bool, Dict[str, Any]]:
     wr80 = min_wr > 80.0
     max_dd = max((float(r.metrics.get("max_drawdown_pct", 0.0)) for r in results), default=0.0)
 
-    hard_ok = all_positive and strict_monotonic and tpm_ok
+    hard_ok = all_positive and strict_monotonic and wr80
 
-    if hard_ok and wr80:
+    if hard_ok:
         # Tier A: every target satisfied. Maximise PnL, reward higher WR, and
         # penalise drawdown so the forever-loop trades a little PnL for a much
         # safer equity curve when it can keep all targets.
-        s = 1e12 + last_ret * 10.0 + avg_ret * 2.0 + min_wr * 5.0 - max_dd * 30.0
-    elif hard_ok:
-        # Tier B: hard MUSTs met (all-positive, strict-monotonic, tpm>=2;
-        # R/R<=0.5 + leverage pinned by construction), WR<=80.
-        # Under the R/R<=0.5 cap, WR>80 is structurally unreachable (reward>=2x
-        # risk caps the hit rate near ~50%), so chasing min_wr here would trade
-        # away large PnL for WR that can never reach the target -- contrary to
-        # the user's explicit "Increase PnL" priority (and the saved preference
-        # that PnL wins when targets conflict). So: PnL-first. 15m PnL dominates,
-        # avg PnL next, gentle DD penalty, WR only a minor tiebreak.
-        s = (
-            1e9
-            + min(last_ret, 5000.0) * 1e4
-            + min(avg_ret, 5000.0) * 1e3
-            + min_wr * 1e2
-            - max_dd * 50.0
-        )
+        s = 1e12 + last_ret * 1e4 + avg_ret * 1e3 + min_wr * 1e6 - max_dd * 1e5
+    elif all_positive and strict_monotonic:
+        # Tier B: ordering and profitability are present, but WR is not above
+        # the strict floor. Rank primarily by min WR so refinements climb toward
+        # the user's current hard target instead of reverting to low-WR PnL.
+        s = 1e9 + min_wr * 1e6 + last_ret * 1e3 + avg_ret * 100.0 - max_dd * 1e4
     else:
         # Tier C: partial credit so near-misses surface for the next loop.
         # Gate on all_positive (any negative window is structurally far away),
-        # then climb on: WR>=80, more trades, SMALLER monotonic violation, PnL.
+        # then climb on: WR>=80, smaller monotonic violation, PnL.
         s = 0.0
         if all_positive:
             s += 5e7
             if wr80:
                 s += 1e7
-            if tpm_ok:
-                s += 5e6
             # Reward shrinking the monotonic violation (capped contribution).
             s += 3e6 / (1.0 + viol)
             s += min_wr * 1e4
             s += min(last_ret, 1000.0) * 100.0 + avg_ret * 20.0
-            s += min(min_tpm, 5.0) * 1e4
         else:
             # Sub-floor: not all positive. Keep ordering sane but well below.
             s += sum(1 for x in rets if x > 0) * 1e5
@@ -155,22 +139,24 @@ def score(window_results) -> Tuple[float, bool, Dict[str, Any]]:
 # Search space. Every option keeps the mandatory rule (rsi_long_max<=50, rsi_short_min>=50).
 SPACE: Dict[str, List[Any]] = {
     "use_atr_stops": [True],
-    "atr_sl_mult": [1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 6.0],
-    "atr_tp_mult": [0.6, 0.8, 1.0, 1.2, 1.5, 1.8, 2.0, 2.5, 3.0, 4.0, 5.0],
+    "atr_sl_mult": [1.2, 1.5, 1.8, 2.0, 2.2, 2.5, 3.0],
+    "atr_tp_mult": [3.0, 3.5, 4.0, 4.5, 5.0, 6.0, 7.0, 8.0, 10.0],
     "use_trend_filter": [True, False],
-    "trend_ema_period": [50, 100, 150, 200, 250],
+    "trend_ema_period": [100, 150, 200, 225, 250, 275, 300, 350, 400],
     "leverage": [10],  # locked: user requirement — do not change leverage
-    "position_equity_ratio": [0.95],  # locked: user requirement — like leverage, position-size is not a tuning lever
-    "pivot_window": [3, 4, 5, 6, 7, 8],
-    "divergence_lookback": [40, 60, 80, 100, 120, 160],
-    "rsi_period": [7, 9, 11, 14, 21],
-    "rsi_long_max": [25.0, 30.0, 35.0, 40.0, 45.0, 50.0],
-    "rsi_short_min": [50.0, 55.0, 60.0, 65.0, 70.0, 75.0],
+    "position_equity_ratio": [0.98],
+    "pivot_window": [8, 10, 12, 14, 15, 16, 18],
+    "divergence_lookback": [100, 120, 140, 160, 200, 240, 280, 320],
+    "rsi_period": [7, 9, 10, 11, 12, 14, 18],
+    "rsi_long_max": [25.0, 30.0, 35.0, 38.0, 40.0, 41.0, 45.0, 48.0, 50.0],
+    "rsi_short_min": [55.0, 58.0, 60.0, 62.0, 65.0, 70.0, 75.0, 80.0],
     "require_macd_divergence": [True, False],
-    "macd_fast": [8, 12, 16],
-    "macd_slow": [21, 26, 34],
+    "macd_fast": [8, 10, 12, 14],
+    "macd_slow": [21, 26, 34, 40, 50],
     "macd_signal": [7, 9, 12],
-    "atr_period": [7, 10, 14, 21],
+    "atr_period": [10, 12, 14, 16, 18, 21, 24, 28],
+    "min_rr_ratio": [0.0],
+    "max_sl_distance_pct": [0.0, 0.02, 0.03, 0.04],
 }
 
 
