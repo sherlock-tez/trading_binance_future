@@ -12,7 +12,8 @@ BNBUSDC targets:
     1. all windows positive (1m,3m,6m,12m,15m > 0)
     2. strict monotonic 15m > 12m > 6m > 3m > 1m  (consistency MUST)
     3. min win-rate across windows > 80%
-  Subject to the above, maximize 15m PnL then average PnL.
+  Subject to the above, beat the current incumbent's PnL/trade footprint,
+  then maximize 15m PnL and average PnL.
 
 Mandatory rule preserved by construction: rsi_long_max <= 50 and
 rsi_short_min >= 50 in every sampled config (RSI-divergence + extremity gate).
@@ -55,6 +56,12 @@ bf.SYMBOL = "BNBUSDC"
 RESULTS_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data_cache")
 BEST_PATH = os.path.join(RESULTS_DIR, "bnb_best.json")
 
+# Incumbent production-path baseline for Loop_20260524_1. The scorer keeps
+# these explicit so future runs climb from the adopted profile instead of
+# rediscovering older lower-PnL/lower-trade configurations.
+BASELINE_RETURNS = {1: 43.91, 3: 132.46, 6: 422.09, 12: 831.28, 15: 2013.27}
+BASELINE_TRADES = {1: 2, 3: 6, 6: 9, 12: 13, 15: 19}
+
 
 def score(window_results) -> Tuple[float, bool, Dict[str, Any]]:
     results = sorted(window_results, key=lambda r: r.months)
@@ -83,14 +90,42 @@ def score(window_results) -> Tuple[float, bool, Dict[str, Any]]:
     last_ret = rets[-1]  # 15m
     wr80 = min_wr > 80.0
     max_dd = max((float(r.metrics.get("max_drawdown_pct", 0.0)) for r in results), default=0.0)
+    beat_returns_all = all(r.total_return_pct > BASELINE_RETURNS.get(r.months, -1e18) for r in results)
+    beat_trades_all = all(r.trade_count > BASELINE_TRADES.get(r.months, -1) for r in results)
+    beat_15m_trades = trades[-1] > BASELINE_TRADES[15]
+    trade_surplus = sum(r.trade_count - BASELINE_TRADES.get(r.months, 0) for r in results)
+    return_surplus = sum(r.total_return_pct - BASELINE_RETURNS.get(r.months, 0.0) for r in results)
 
     hard_ok = all_positive and strict_monotonic and wr80
 
-    if hard_ok:
-        # Tier A: every target satisfied. Maximise PnL, reward higher WR, and
-        # penalise drawdown so the forever-loop trades a little PnL for a much
-        # safer equity curve when it can keep all targets.
-        s = 1e12 + last_ret * 1e4 + avg_ret * 1e3 + min_wr * 1e6 - max_dd * 1e5
+    if hard_ok and beat_returns_all and beat_trades_all:
+        # Tier A+: strict reading of "more PnL and more trades" on every
+        # requested window.
+        s = (
+            1e15
+            + last_ret * 1e6
+            + avg_ret * 1e5
+            + trade_surplus * 1e7
+            + return_surplus * 1e4
+            + min_wr * 1e6
+            - max_dd * 1e5
+        )
+    elif hard_ok and beat_returns_all and beat_15m_trades:
+        # Tier A: every hard strategy target plus better return on all windows
+        # and more total 15m trades than the incumbent. Keep climbing toward
+        # all-window trade improvement through trade_surplus.
+        s = (
+            1e12
+            + last_ret * 1e5
+            + avg_ret * 1e4
+            + trade_surplus * 1e7
+            + min_wr * 1e6
+            - max_dd * 1e5
+        )
+    elif hard_ok:
+        # Tier B: WR/order/RR are intact, but the incumbent is not beaten on
+        # both return and trade footprint yet.
+        s = 1e11 + last_ret * 1e4 + avg_ret * 1e3 + trade_surplus * 1e6 + min_wr * 1e6 - max_dd * 1e5
     elif all_positive and strict_monotonic:
         # Tier B: ordering and profitability are present, but WR is not above
         # the strict floor. Rank primarily by min WR so refinements climb toward
@@ -128,6 +163,11 @@ def score(window_results) -> Tuple[float, bool, Dict[str, Any]]:
         "avg_wr_pct": round(avg_wr, 2),
         "avg_return_pct": round(avg_ret, 2),
         "ret_15m_pct": round(last_ret, 2),
+        "beat_returns_all": beat_returns_all,
+        "beat_trades_all": beat_trades_all,
+        "beat_15m_trades": beat_15m_trades,
+        "trade_surplus": trade_surplus,
+        "return_surplus": round(return_surplus, 2),
         "returns": {m: round(r, 2) for m, r in zip(months, rets)},
         "win_rates": {m: round(w, 2) for m, w in zip(months, wrs)},
         "trades": {m: t for m, t in zip(months, trades)},
@@ -140,23 +180,24 @@ def score(window_results) -> Tuple[float, bool, Dict[str, Any]]:
 SPACE: Dict[str, List[Any]] = {
     "use_atr_stops": [True],
     "atr_sl_mult": [1.2, 1.5, 1.8, 2.0, 2.2, 2.5, 3.0],
-    "atr_tp_mult": [3.0, 3.5, 4.0, 4.5, 5.0, 6.0, 7.0, 8.0, 10.0],
+    "atr_tp_mult": [3.0, 3.5, 4.0, 4.1, 4.5, 5.0, 6.0, 7.0, 8.0, 10.0],
     "use_trend_filter": [True, False],
     "trend_ema_period": [100, 150, 200, 225, 250, 275, 300, 350, 400],
+    "sup_res_timeframes": [["1d", "1w"], ["6h", "12h", "1d", "1w"], ["3h", "6h", "12h", "1d", "1w"]],
     "leverage": [10],  # locked: user requirement — do not change leverage
-    "position_equity_ratio": [0.98],
-    "pivot_window": [8, 10, 12, 14, 15, 16, 18],
-    "divergence_lookback": [100, 120, 140, 160, 200, 240, 280, 320],
-    "rsi_period": [7, 9, 10, 11, 12, 14, 18],
-    "rsi_long_max": [25.0, 30.0, 35.0, 38.0, 40.0, 41.0, 45.0, 48.0, 50.0],
+    "position_equity_ratio": [0.98, 1.0],
+    "pivot_window": [8, 10, 12, 14, 15, 16, 18, 20, 22],
+    "divergence_lookback": [100, 120, 140, 160, 200, 220, 240, 280, 320],
+    "rsi_period": [5, 7, 9, 10, 11, 12, 14, 18],
+    "rsi_long_max": [25.0, 30.0, 35.0, 38.0, 40.0, 41.0, 45.0, 46.0, 48.0, 50.0],
     "rsi_short_min": [55.0, 58.0, 60.0, 62.0, 65.0, 70.0, 75.0, 80.0],
     "require_macd_divergence": [True, False],
     "macd_fast": [8, 10, 12, 14],
     "macd_slow": [21, 26, 34, 40, 50],
     "macd_signal": [7, 9, 12],
-    "atr_period": [10, 12, 14, 16, 18, 21, 24, 28],
+    "atr_period": [10, 12, 14, 16, 18, 21, 24, 28, 34, 36],
     "min_rr_ratio": [0.0],
-    "max_sl_distance_pct": [0.0, 0.02, 0.03, 0.04],
+    "max_sl_distance_pct": [0.0, 0.02, 0.022, 0.03, 0.04],
 }
 
 

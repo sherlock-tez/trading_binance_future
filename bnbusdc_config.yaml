@@ -6,41 +6,44 @@ trading:
     - BNBUSDC
   signal_timeframe: 1h
   sup_res_timeframes:
+    - 3h
+    - 6h
+    - 12h
     - 1d
     - 1w
   leverage: 10
   max_open_positions: 1
-  position_equity_ratio: 0.98
+  position_equity_ratio: 1.0
   maker_only: true
 
 strategy:
-  # BNBUSDC CHAMPION = Loop_20260523_1 (WR>80 strict-monotonic production pass).
+  # BNBUSDC CHAMPION = Loop_20260524_1 (full PnL/trade-count improvement over Loop_20260523_2).
   # User HARD constraints: Risk/Reward = atr_sl_mult/atr_tp_mult MUST <= 0.5
   # (reward TP >= 2x risk SL); leverage pinned at 10.
-  # Geometry SL 2.0 ATR / TP 4.0 ATR -> R/R = 0.5 (reward = 2x risk).
+  # Geometry SL 2.0 ATR / TP 4.1 ATR -> R/R = 0.488 (reward > 2x risk).
   # Production-path candidate:
-  #   1m +16.57% | 3m +65.99% | 6m +309.93% | 12m +599.33% | 15m +633.64%
-  #   WR 100% / 100% / 85.71% / 88.89% / 81.82%, strict 15>12>6>3>1.
-  # Mandatory RSI-divergence + extremity LONG<41 / SHORT>55 preserved.
+  #   1m +43.91% | 3m +132.46% | 6m +422.09% | 12m +831.28% | 15m +2013.27%
+  #   WR 100% / 83.33% / 88.89% / 84.62% / 84.21%, strict 15>12>6>3>1.
+  # Mandatory RSI-divergence + extremity LONG<46 / SHORT>70 preserved.
   # require_macd_divergence false (RSI-divergence only); macd params inert.
-  rsi_period: 11
+  rsi_period: 5
   macd_fast: 10
   macd_slow: 40
   macd_signal: 9
-  divergence_lookback: 140
-  pivot_window: 15
-  atr_period: 18
+  divergence_lookback: 220
+  pivot_window: 20
+  atr_period: 34
   use_atr_stops: true
   atr_sl_mult: 2.0
-  atr_tp_mult: 4.0
+  atr_tp_mult: 4.1
   use_trend_filter: true
-  trend_ema_period: 300
-  rsi_long_max: 41.0
-  rsi_short_min: 55.0
+  trend_ema_period: 150
+  rsi_long_max: 46.0
+  rsi_short_min: 70.0
   require_macd_divergence: false
   min_rr_ratio: 0.0
-  max_sl_distance_pct: 0.0
-  loop_id: Loop_20260523_1
+  max_sl_distance_pct: 0.022
+  loop_id: Loop_20260524_1
 
 execution:
   order_reprice_bps: 2

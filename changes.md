@@ -1,5 +1,97 @@
 # changes.md
 
+## Loop_20260524_1 - BNBUSDC Full PnL and Trade-Count Breakout
+
+### Summary
+Replaced `Loop_20260523_2` with a production-validated BNBUSDC profile that
+beats the prior champion on both PnL and trade count across every requested
+window (1m, 3m, 6m, 12m, 15m). The profile keeps leverage pinned at 10, keeps
+the mandatory RSI-divergence + extremity gate, keeps `require_macd_divergence:
+false`, and improves the ATR reward leg from 4.0 to 4.1 while keeping
+Risk/Reward below the 0.5 cap.
+
+### Affected Files
+- `bnbusdc_config.yaml`
+- `algorithms.md`
+- `changes.md`
+- `scripts/bnbusdc_loop.py`
+- `data_cache/bnb_best.json`
+- `backtest_history/Loop_20260524_1/{1,3,6,12,15}m.csv`
+
+### Reason
+The previous champion met WR/order/R/R but did not fully satisfy the user's new
+"more PnL and more trades" target because its 1m trade count stayed at one.
+Focused search found a low-RSI-period, wider-pivot family that unlocks the
+second 1m trade and substantially more 15m trades. The final exact candidate
+uses broader 3h-1w S/R context, a deeper SHORT extremity gate, a 150-EMA trend
+filter, `max_sl_distance_pct=0.022`, and `atr_tp_mult=4.1`; the extra 0.1 ATR
+on the reward leg is what pushed the last missing 6m return margin above the
+prior Loop while preserving WR > 80.
+
+### Backtest Result
+- Command/method: fast harness search for the exact all-window PnL/trade-count candidate, then production validation with `SWEEP_SYMBOL=BNBUSDC .venv/bin/python scripts/btcusdc_optimize.py --windows 1,3,6,12,15`.
+- Dataset/time range: BNBUSDC 1h cache, Binance Futures mainnet, 10896 rows from 2025-02-23 09:00:00 UTC through the last cached bar opened 2026-05-23 08:00:00 UTC; evaluated rolling windows 1m, 3m, 6m, 12m, and 15m.
+- Loop folder: `backtest_history/Loop_20260524_1/`
+- Key metrics:
+  - 1m: +43.91%, WR 100.00%, 2 trades, max DD 0.20%
+  - 3m: +132.46%, WR 83.33%, 6 trades, max DD 17.73%
+  - 6m: +422.09%, WR 88.89%, 9 trades, max DD 17.73%
+  - 12m: +831.28%, WR 84.62%, 13 trades, max DD 18.94%
+  - 15m: +2013.27%, WR 84.21%, 19 trades, max DD 19.39%, Sharpe 4.597
+- Comparison with previous Loop: returns improved on every requested window vs `Loop_20260523_2` (+16.91/+101.07/+403.67/+767.48/+810.43 -> +43.91/+132.46/+422.09/+831.28/+2013.27). Trade counts improved on every requested window (1/4/8/10/12 -> 2/6/9/13/19). Strict monotonic performance holds, min WR remains above 80% (83.33%), and R/R improves from 0.500 to 0.488. Max DD worsened from 13.32% to 19.39%.
+- Limitations: the improvement is in-sample on the same 15m cache and remains a sparse trade sample (19 total 15m trades). Funding, liquidation, slippage beyond modeled maker fees, and live order-book effects remain outside the simulator.
+
+### Documentation Updated
+- `algorithms.md`
+- `changes.md`
+
+## Loop_20260523_2 - BNBUSDC PnL and trade-count refine
+
+### Summary
+Refined BNBUSDC from `Loop_20260523_1` to a higher-PnL, higher-15m-trade-count
+profile while preserving WR > 80%, strict monotonic performance, R/R = 0.5,
+leverage 10, and the mandatory RSI divergence + extremity rule. The final
+production-validated delta is intentionally small: `pivot_window 15 -> 14` and
+`position_equity_ratio 0.98 -> 1.0`. No new config keys were added.
+
+### Affected Files
+- `bnbusdc_config.yaml`
+- `algorithms.md`
+- `changes.md`
+- `scripts/bnbusdc_loop.py`
+- `data_cache/bnb_best.json`
+- `backtest_history/Loop_20260523_2/{1,3,6,12,15}m.csv`
+- `data_cache/BNBUSDC_1h.csv`
+
+### Reason
+The user added two new targets on top of the previous WR/order/R/R rules: more
+PnL than the current profile and more trades than the current profile. A
+4,000-eval broad fast-harness search found no candidate with more trades on
+every requested window, but it found a stable family that improves return on
+all five windows and increases trade count on 3m/6m/12m/15m. A focused
+12,000-sample 1m gate found 17 candidates with at least two profitable 1m
+trades, but every one failed the longer-window WR/order target, typically
+collapsing 12m/15m WR into the 40-60% range. `Loop_20260523_2` is therefore
+the best verified movement toward the added PnL/trade-count objective without
+breaking the hard WR, monotonicity, R/R, leverage, or extremity constraints.
+
+### Backtest Result
+- Command/method: refreshed BNBUSDC data with `SWEEP_SYMBOL=BNBUSDC .venv/bin/python scripts/btcusdc_optimize.py --refresh --windows 1,3,6,12,15`, searched with the parity fast harness, then production-validated the adopted config with `SWEEP_SYMBOL=BNBUSDC .venv/bin/python scripts/btcusdc_optimize.py --windows 1,3,6,12,15`.
+- Dataset/time range: refreshed BNBUSDC 1h cache, Binance Futures mainnet, from 2025-02-23 09:00:00 UTC through the last cached bar opened 2026-05-23 08:00:00 UTC; evaluated rolling windows 1m, 3m, 6m, 12m, and 15m.
+- Loop folder: `backtest_history/Loop_20260523_2/`
+- Key metrics:
+  - 1m: +16.91%, WR 100.00%, 1 trade, max DD 0.20%
+  - 3m: +101.07%, WR 100.00%, 4 trades, max DD 0.20%
+  - 6m: +403.67%, WR 87.50%, 8 trades, max DD 10.57%
+  - 12m: +767.48%, WR 90.00%, 10 trades, max DD 10.57%
+  - 15m: +810.43%, WR 83.33%, 12 trades, max DD 13.32%, Sharpe 3.183
+- Comparison with previous Loop: returns improved on every requested window vs `Loop_20260523_1` (+16.57/+65.99/+309.93/+599.33/+633.64 -> +16.91/+101.07/+403.67/+767.48/+810.43). Trade counts improved on 3m/6m/12m/15m (3/7/9/11 -> 4/8/10/12) and tied on 1m (1 -> 1). Min WR improved 81.82% -> 83.33%; max DD rose slightly 13.05% -> 13.32%.
+- Limitations: the strictest possible reading of "more trades" on every window is not fully satisfied because 1m remains one trade. The focused 1m search did not find a two-plus-trade candidate that also preserved the longer-window hard gates. Final acceptance here is based on production-path validation, not the fast harness alone. Funding, liquidation, and live order-book effects remain outside the simulator.
+
+### Documentation Updated
+- `algorithms.md`
+- `changes.md`
+
 ## Loop_20260523_1 - BNBUSDC WR>80 strict-monotonic champion
 
 ### Summary
