@@ -50,14 +50,14 @@ real live tail risk.
 
 ### Current ETHUSDC Tuned Profile
 
-`Loop_20260520_10` is the WR>80 + R/R≤0.5 champion, a refine of `_9` that
-nudges `atr_period 7→9` and `macd_slow 26→21`. User raised the WR floor from
->70 to >80 and added strict-monotonic (`15m>12m>6m>3m>1m`) as MUST. After
-~7k more evals on top of the prior ~42k under R/R≤0.5, the only window pair
-that can't go strictly monotonic on ETHUSDC is `1m<3m`: the high-WR signal
-fires once in month 1 and the second qualifying entry doesn't arrive until
-month 4-6, so `1m == 3m` is structural. Every other pair (`3m<6m<12m<15m`)
-holds strictly. The refine improves PnL with no change to WR, DD, or R/R:
+`Loop_20260524_3` is the current ETHUSDC baseline. It explicitly rejects
+`Loop_20260524_2` because `_2` improved returns only by changing
+`position_equity_ratio 0.98→1.0`, which is sizing rather than algorithmic edge.
+ETHUSDC now treats `position_equity_ratio=0.98` as pinned alongside leverage
+17. The strict-monotonic MUST is still not fully solved: the high-WR signal
+fires once in month 1 and no second qualifying entry appears until the 4-6m
+window, so `1m == 3m` remains the structural ETHUSDC floor. Every later pair
+(`3m<6m<12m<15m`) holds strictly.
 
 - `rsi_period=24`, `rsi_long_max=45`, `rsi_short_min=50`
 - `require_macd_divergence=true` (RSI divergence still mandatory)
@@ -66,19 +66,17 @@ holds strictly. The refine improves PnL with no change to WR, DD, or R/R:
 - `use_atr_stops=true`, `atr_period=9`, `atr_sl_mult=1.0`, `atr_tp_mult=2.0`
   (**R/R = 0.5 exactly — at the constraint cap**)
 - `macd_fast=8`, `macd_slow=21`, `macd_signal=7`
-- `leverage=17`, `position_equity_ratio=0.98` (pinned per user instruction)
+- `leverage=17` and `position_equity_ratio=0.98` (both pinned; not tuning levers)
 
-Production-path canonical backtest (`scripts/backtest.py --symbol ETHUSDC`,
-real `SignalEngine + run_trade_cycle + SimulatedExecutionAdapter`):
+Production-path canonical backtest (`SWEEP_SYMBOL=ETHUSDC .venv/bin/python
+scripts/btcusdc_optimize.py --windows 1,3,6,12,15`, real `SignalEngine +
+run_trade_cycle + SimulatedExecutionAdapter`):
 1m +10.50% / 3m +10.50% / 6m +86.51% / 12m +195.04% / 15m **+276.75%**;
 **win-rate 100/100/100/100/100% (min 100% across every window)**;
 all-positive; **max drawdown 0.33% across all windows**; Sharpe rises
-3.99→6.74→8.16 on 6m→12m→15m. 6 trades total over 15 months (1/1/3/5/6 by
-window). Delta vs `_9`: +71.48pt on 15m, +53.65pt on 12m, +2.07pt on 6m,
-+1.05pt on 1m=3m, +1 trade (5→6). The extra month-12 trade plus the
-strengthened 15m trade together account for the lift; DD and WR are unchanged
-because every trade still hit TP cleanly. Strict-monotonic holds for
-3m→6m→12m→15m; 1m=3m tie is the structural floor.
+4.27→6.74→8.16 on 6m→12m→15m. 6 trades total over 15 months (1/1/3/5/6 by
+window). Strict-monotonic holds for 3m→6m→12m→15m; 1m=3m tie remains
+unresolved.
 
 The favorable R:R geometry (tp 2.0×ATR vs sl 1.0×ATR) inverts the prior
 champion's per-trade payoff: each win pays ~2× the risk per trade, so even
@@ -90,26 +88,22 @@ average, so live there can be long inactive periods. The 100% WR is
 small-sample (n=5) and almost certainly does not generalize — a more
 realistic forward-WR estimate is the BTC analogue's ~90.9% at n=11.
 
-Found via `scripts/ethusdc_loop.py` (`hard_ok = all_positive AND
-strict_monotonic`; `_enforce_rr()` enforces R/R ≤ 0.5 in every sampled/
-neighbor config; `wr_ok` threshold = 80). Search history this regime:
-~49k cumulative evals across multiple target sets (WR>80 → WR>70 → WR>80
-again with strict-mono re-imposed). True Tier A (`all_positive +
-strict_monotonic + WR>80`) has never surfaced for ETHUSDC across any seed —
-the 1m=3m structural tie blocks strict-monotonic at the cumulative floor.
-Tier C top candidates always converge to the same shape: high-WR few-trade
-clusters with the same 1m=3m plateau. The refine that produced `_10` was
-seeded directly from `_9`'s exact config and perturbed the local
-ATR/MACD geometry; re-validated on the production path before adoption
-(identical numbers to fast engine).
+Search history this regime: `scripts/ethusdc_loop.py` refine, S/R timeframe
+sweep, MACD-geometry probe, ATR-only probe, duplicate-policy probe, ETHUSDT-
+shape probe, and targeted RSI-gate probe all kept R/R ≤ 0.5 and leverage
+unchanged. Configs that admitted the missing April 2026 3m trade also admitted
+older losing clusters and collapsed 6m/12m/15m WR, typically below 70%. True
+Tier A (`all_positive + strict_monotonic + WR>80`) still has not surfaced for
+ETHUSDC across the ~49k prior evals plus the 2026-05-24 probes. Future searches
+must not tune `position_equity_ratio`; it is pinned with leverage.
 
 **Caveats:**
-1. Sample size is tiny (5 trades over 15 months). Treat the 100% in-sample
+1. Sample size is tiny (6 trades over 15 months). Treat the 100% in-sample
    WR as the upper bound, not the expectation.
 2. Long inactivity periods are expected. Live operators should monitor that
    the trend filter + divergence stack isn't permanently quiet.
-3. `leverage=17` (equity 0.98) is still aggressive. With DD ~0.33% in-sample
-   the leverage choice looks safe, but only 5 trades have stressed it. A
+3. `leverage=17` with `position_equity_ratio=0.98` is still aggressive. With
+   DD ~0.33% in-sample the leverage choice looks safe, but only 6 trades have stressed it. A
    single adverse tail at this leverage remains a live-account risk.
 
 ### Current BNBUSDC Tuned Profile

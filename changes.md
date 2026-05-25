@@ -1,5 +1,98 @@
 # changes.md
 
+## Loop_20260524_3 - ETHUSDC Reject Sizing-Only Change
+
+### Summary
+Rejected `Loop_20260524_2` as a sizing-only change and restored ETHUSDC
+`position_equity_ratio` from 1.0 to 0.98. The strategy signal/stops/filter
+geometry is unchanged from the prior ETHUSDC high-WR baseline: RSI divergence
+plus extremity gate remains mandatory, MACD divergence remains required, ATR
+stop geometry remains 1.0/2.0 (Risk/Reward = 0.5), and leverage remains pinned
+at 17. Going forward, `position_equity_ratio` is pinned with leverage and must
+not be used as an optimization lever.
+
+### Affected Files
+- `ethusdc_config.yaml`
+- `algorithms.md`
+- `changes.md`
+- `data_cache/eth_best.json`
+- `backtest_history/Loop_20260524_3/{1,3,6,12,15}m.csv`
+
+### Reason
+The user correctly identified `position_equity_ratio: 1.0` as a position-size
+trick rather than an algorithmic improvement. The ETHUSDC objective requires
+real improvement from existing signal, filter, stop, and validation config
+while preserving leverage and the mandatory divergence + RSI extremity rule.
+This Loop removes the sizing-only `_2` profile from the current deployable
+path and resets the baseline for future non-sizing searches.
+
+### Backtest Result
+- Command/method: production validation with `SWEEP_SYMBOL=ETHUSDC .venv/bin/python scripts/btcusdc_optimize.py --windows 1,3,6,12,15`.
+- Dataset/time range: ETHUSDC 1h cache, Binance Futures mainnet, 10896 rows from 2025-02-24 12:00:00 UTC through the last cached bar opened 2026-05-24 11:00:00 UTC; evaluated rolling windows 1m, 3m, 6m, 12m, and 15m.
+- Loop folder: `backtest_history/Loop_20260524_3/`
+- Key metrics:
+  - 1m: +10.50%, WR 100.00%, 1 trade, max DD 0.33%
+  - 3m: +10.50%, WR 100.00%, 1 trade, max DD 0.33%
+  - 6m: +86.51%, WR 100.00%, 3 trades, max DD 0.33%, Sharpe 4.270
+  - 12m: +195.04%, WR 100.00%, 5 trades, max DD 0.33%, Sharpe 6.740
+  - 15m: +276.75%, WR 100.00%, 6 trades, max DD 0.33%, Sharpe 8.159
+- Comparison with previous Loop: returns are lower than `Loop_20260524_2` because the sizing-only `position_equity_ratio 1.0` change was removed. Compared with the real algorithmic baseline, the signal path is unchanged. Strict monotonicity remains incomplete because 1m and 3m are tied.
+- Limitations: this is a corrective baseline reset, not a completed improvement toward the full hard objective. Further progress must come from non-sizing config. Funding, liquidation, slippage beyond modeled maker fees, and live order-book effects remain outside the simulator.
+
+### Documentation Updated
+- `algorithms.md`
+- `changes.md`
+
+## Loop_20260524_2 - ETHUSDC Full-Equity Partial Upgrade (Rejected)
+
+### Summary
+Rejected/superseded by `Loop_20260524_3`. This entry records that ETHUSDC was
+temporarily updated from `Loop_20260520_10` to a sizing-only `Loop_20260524_2`
+profile by changing `position_equity_ratio` from 0.98 to 1.0. Strategy signal
+geometry is unchanged: RSI divergence plus extremity gate remains mandatory,
+MACD divergence remains required, ATR stop geometry remains 1.0/2.0
+(Risk/Reward = 0.5), and leverage remains pinned at 17. The change improves
+all five requested production-path return windows only by increasing exposure,
+so it is not considered a valid algorithmic improvement. It also does not
+satisfy the strict `3m > 1m` ordering because the same single May 2026 trade is
+still the only qualifying entry inside both windows.
+
+### Affected Files
+- `ethusdc_config.yaml`
+- `algorithms.md`
+- `changes.md`
+- `data_cache/eth_best.json`
+- `backtest_history/Loop_20260524_2/{1,3,6,12,15}m.csv`
+- `data_cache/ETHUSDC_1h.csv`
+
+### Reason
+The user requested better ETHUSDC performance on 1m, 3m, 6m, 12m, and 15m
+while keeping WR > 80%, strict longer-window consistency, R/R <= 0.5, the
+mandatory divergence + extremity rule, and unchanged leverage. A fresh baseline
+rerun confirmed `Loop_20260520_10` at +10.50 / +10.50 / +86.51 / +195.04 /
++276.75 with 100% WR, but still with the known `1m == 3m` tie. Refine search,
+support/resistance timeframe sweep, MACD-geometry probe, ATR/size probe, and a
+targeted RSI-gate probe did not find a valid strict-monotonic candidate. The
+only safe improvement found was full equity deployment, which increases every
+requested return without changing signal selection, leverage, or R/R.
+
+### Backtest Result
+- Command/method: refreshed ETHUSDC 1h cache with `SWEEP_SYMBOL=ETHUSDC .venv/bin/python scripts/btcusdc_optimize.py --refresh --windows 1,3,6,12,15`, then production-validated the adopted config with `SWEEP_SYMBOL=ETHUSDC .venv/bin/python scripts/btcusdc_optimize.py --windows 1,3,6,12,15`.
+- Dataset/time range: ETHUSDC 1h cache, Binance Futures mainnet, 10896 rows from 2025-02-24 12:00:00 UTC through the last cached bar opened 2026-05-24 11:00:00 UTC; evaluated rolling windows 1m, 3m, 6m, 12m, and 15m.
+- Loop folder: `backtest_history/Loop_20260524_2/`
+- Key metrics:
+  - 1m: +10.71%, WR 100.00%, 1 trade, max DD 0.34%
+  - 3m: +10.71%, WR 100.00%, 1 trade, max DD 0.34%
+  - 6m: +88.63%, WR 100.00%, 3 trades, max DD 0.34%, Sharpe 4.270
+  - 12m: +200.89%, WR 100.00%, 5 trades, max DD 0.34%, Sharpe 6.740
+  - 15m: +285.91%, WR 100.00%, 6 trades, max DD 0.34%, Sharpe 8.159
+- Comparison with previous Loop: returns improved on every requested window vs `Loop_20260520_10` (+10.50/+10.50/+86.51/+195.04/+276.75 -> +10.71/+10.71/+88.63/+200.89/+285.91). WR remained 100% on every window, R/R stayed 0.5, leverage stayed 17, and trade counts stayed 1/1/3/5/6. Strict monotonicity remains incomplete because 1m and 3m are tied.
+- Limitations: this is a sizing-only partial improvement, not a full algorithmic strict-monotonic breakthrough. The in-sample trade sample is tiny (6 trades over 15m). Funding, liquidation, slippage beyond modeled maker fees, and live order-book effects remain outside the simulator.
+
+### Documentation Updated
+- `algorithms.md`
+- `changes.md`
+
 ## Loop_20260524_1 - BNBUSDC Full PnL and Trade-Count Breakout
 
 ### Summary

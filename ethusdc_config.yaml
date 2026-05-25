@@ -17,16 +17,10 @@ trading:
   maker_only: true
 
 strategy:
-  # ETH Loop_20260520_10: refine around _9 found atr_period 7->9 lifts the
-  # signal slightly, firing one extra winning trade (5->6) inside 15m without
-  # changing R/R, WR, or DD. Production-path validated (BacktestRunner):
-  # WR 100% across all 5 windows, all-positive, R/R=0.5 cap, 15m +276.75%
-  # (vs _9 +205.27%, +71pt), 12m +195%, 6m +86%, 3m=1m at 10.5 (single trade
-  # ties — structural; ETHUSDC fires no 2nd trade until month 4-6), DD 0.33%.
-  # All other window pairs strictly monotonic: 3m=10.5 < 6m=86.51 < 12m=195
-  # < 15m=277. Search verdict (this round +7000 evals, prior 42k): adding a
-  # 2nd month-2/3 trade under WR>80 + R/R<=0.5 is empirically infeasible on
-  # ETHUSDC; this is the closest-to-monotonic high-WR/high-PnL config.
+  # ETH Loop_20260524_3: restores the real ETHUSDC algorithmic baseline after
+  # rejecting Loop_20260524_2's sizing-only position_equity_ratio 0.98->1.0
+  # change. position_equity_ratio is pinned at 0.98 and is no longer treated as
+  # a tuning lever; future improvement must come from signal/stops/filter config.
   rsi_period: 24
   macd_fast: 8
   macd_slow: 21
@@ -57,9 +51,9 @@ strategy:
   # Reward/risk + max-SL-distance gates (currently inactive; preserved for future tuning).
   min_rr_ratio: 0.0
   max_sl_distance_pct: 0.0
-  # Loop identifier. Loop_20260520_10 = ETHUSDC champion under R/R<=0.5 + WR>80
-  # regime (refine of _9 with atr_period 7->9 lifting 15m +71pt).
-  loop_id: Loop_20260520_10
+  # Loop identifier. Loop_20260524_3 rejects the sizing-only Loop_20260524_2
+  # and returns to the prior ETHUSDC signal/stops profile with peq pinned.
+  loop_id: Loop_20260524_3
 
 execution:
   order_reprice_bps: 2
