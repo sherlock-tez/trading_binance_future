@@ -14,39 +14,43 @@ A trade is valid only when all required conditions agree on the same direction.
 
 ### Current BTCUSDC Tuned Profile
 
-`Loop_20260519_6` is the deployable BTCUSDC champion. It keeps the mandatory
+`Loop_20260606_1` is the deployable BTCUSDC champion. It keeps the mandatory
 RSI divergence plus the extremity gate and uses a moderate-conviction
 trend-filtered ATR setup tuned so that **every** backtest window is strictly
-WR > 80 (the user's #1 MUST), strict monotonic `15>12>6>3>1`, all-positive:
+WR > 80 (the user's #1 MUST), all-positive, and strictly rising across the
+validated `1m/3m/6m/9m/12m/15m` windows:
 
 - `rsi_period=12`, `rsi_long_max=47`, `rsi_short_min=62`
 - `require_macd_divergence=false` (RSI divergence still mandatory; the MACD
   line never gates entries, so `macd_fast/slow/signal` are inert)
 - `pivot_window=4`, `divergence_lookback=100`
 - `use_trend_filter=true`, `trend_ema_period=225`
-- `use_atr_stops=true`, `atr_period=9`, `atr_sl_mult=1.5`, `atr_tp_mult=4.0`
-  (RR = 2.67)
-- `leverage=25`, `position_equity_ratio=1.0`
+- `use_atr_stops=true`, `atr_period=12`, `atr_sl_mult=1.5`, `atr_tp_mult=4.2`
+  (reward/risk = 2.80; risk/reward = 0.357, below the 0.5 cap)
+- `leverage=15`, `position_equity_ratio=0.98`
 
-Production-path backtest (parity-verified vs the fast harness): 1m +48.5% /
-3m +122.3% / 6m +467.1% / 12m +3370.4% / 15m +15127.7%, win-rate
-100/100/100/100/90.91 (min 90.91 > 80 on every window), strict monotonic,
-24 trades total (1/2/3/7/11), max drawdown 0.5% on 1m–12m and 24.9% on 15m.
-This lineage replaces `Loop_20260513_10`, whose 6m window was exactly 80.00%
-WR and therefore failed the strict `WR > 80` requirement, and roughly
-3.6x's its 15m PnL (`_5` adopted the WR>80 structure at +14210%; `_6`
-refined `atr_period 14->9` for +15128% at lower drawdown).
+Production-path backtest after the 2026-06-06 cache refresh (same
+`SignalEngine + run_trade_cycle + SimulatedExecutionAdapter` path as live
+trading): 1m +30.65% / 3m +70.63% / 6m +245.64% / 9m +496.98% /
+12m +1020.24% / 15m +3648.68%, win-rate
+100/100/100/100/100/100 (strictly above 80 on every window), 28 cumulative
+window trades (1/2/3/5/7/10), and max drawdown 0.29% on every window. The
+loop improves every PnL window over the refreshed `Loop_20260519_6` geometry
+on the same dataset while preserving leverage, equity sizing, RSI gates, and
+RSI-divergence-only entry gating.
 
-`rsi_long_max=47` is the key edge: it is the intermediate long-extremity
-threshold that admits the extra high-conviction longs (24 trades vs the
-18-trade over-tight set) without dropping any window to <=80% WR. Two BTCUSDC
-properties bound this profile: (1) trade frequency cannot reach the 2-5/month
-target while holding WR > 80 — loosening pivots/gates for frequency collapses
-WR to 30-45% and blows the account; (2) the reward leg cannot exceed ~4xATR —
-TP at 5-8xATR turns the bounded divergence wins into losses and breaks the
-WR>80 gate. PnL magnitude is leverage(25) x full-equity x compounding; the
-simulator models no liquidation/funding, so the single 15m losing trade is a
-real live tail risk.
+The adopted edge is stop geometry, not entry frequency: `atr_period 9->12`
+smooths the ATR estimate and `atr_tp_mult 4.0->4.2` extends the reward leg
+without breaking the WR floor. A nearby entry-frequency candidate
+(`rsi_long_max=48`) increases 15m trades from 11 to 12 and keeps WR above 80,
+but lowers 15m return to roughly +2117%; it is therefore rejected for the
+current "increase trades and PnL" objective. Under the mandatory divergence +
+RSI-extremity gate, adding trades while preserving the current PnL remains the
+binding BTCUSDC constraint. After the 2026-06-06 cache refresh, the current
+loop has fewer rolling-window trades but higher 15m PnL; a compact refreshed
+probe found no `>10`-trade 15m candidate with WR > 80 in the first 200 local
+RSI/ATR variants. The simulator still omits funding, liquidation, ADL, and
+live order-book slippage beyond the modeled maker fills/rejections.
 
 ### Current ETHUSDC Tuned Profile
 

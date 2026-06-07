@@ -65,7 +65,8 @@ A shared strategy core is used by both live trading and backtest simulation.
   - Calls shared runtime trade-cycle function
   - Sends a read-only account/config snapshot to Telegram when the runner starts and when it stops.
 - Backtest runner:
-  - Loads historical windows (3m, 6m, 12m, 15m)
+  - Loads the per-symbol configured historical windows. BTCUSDC currently
+    validates 1m, 3m, 6m, 9m, 12m, and 15m.
   - Calls the same shared runtime trade-cycle function as live runner
 
 ### Shared Trade Cycle

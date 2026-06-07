@@ -1,5 +1,54 @@
 # changes.md
 
+## Loop_20260606_1 - BTCUSDC ATR Reward Extension
+
+### Summary
+Updated BTCUSDC stop geometry from `atr_period=9`, `atr_tp_mult=4.0` to
+`atr_period=12`, `atr_tp_mult=4.2`, and added the 9m validation window to
+`btcusdc_config.yaml`. On the 2026-06-06 continuation, refreshed the BTCUSDC
+1h cache and reran the same production-path backtest, overwriting the same
+Loop history files as intended for same-loop reruns. The entry logic is
+unchanged: RSI divergence remains mandatory, MACD divergence remains disabled,
+the extremity gate remains `LONG RSI < 47` and `SHORT RSI > 62`, trend
+filtering remains enabled, leverage stays 15, and `position_equity_ratio`
+stays 0.98. Risk/reward is `1.5 / 4.2 = 0.357`, below the 0.5 cap.
+
+### Affected Files
+- `btcusdc_config.yaml`
+- `algorithms.md`
+- `architecture.md`
+- `changes.md`
+- `data_cache/BTCUSDC_1h.csv`
+- `backtest_history/Loop_20260606_1/{1,3,6,9,12,15}m.csv`
+
+### Reason
+The user requested higher BTCUSDC trade count and PnL while keeping WR > 80%,
+risk/reward <= 0.5, unchanged leverage, no new config keys, and the mandatory
+divergence + RSI extremity rule. Focused parity-fast screening found one
+trade-count unlock (`rsi_long_max=48`) that raised 15m trades from 11 to 12 but
+reduced 15m return to about +2117%, so it was rejected. The promoted ATR
+geometry improves PnL on every required window without sacrificing WR, leverage,
+or the current signal gate.
+
+### Backtest Result
+- Command/method: `.venv/bin/python scripts/btcusdc_optimize.py --refresh --windows 1,3,6,9,12,15` with `strategy.loop_id=Loop_20260606_1`; this is the production-parity path using `SignalEngine`, `run_trade_cycle`, and `SimulatedExecutionAdapter`.
+- Dataset/time range: refreshed Binance Futures BTCUSDC 1h mainnet data, 10,968 rows from 2025-03-06 15:00:00 UTC through 2026-06-06 14:00:00 UTC; rolling windows 1m, 3m, 6m, 9m, 12m, and 15m.
+- Loop folder: `backtest_history/Loop_20260606_1/`
+- Key metrics:
+  - 1m: +30.65%, WR 100.00%, 1 trade, max DD 0.29%, Sharpe 0.000
+  - 3m: +70.63%, WR 100.00%, 2 trades, max DD 0.29%, Sharpe 2028.096
+  - 6m: +245.64%, WR 100.00%, 3 trades, max DD 0.29%, Sharpe 2.804
+  - 9m: +496.98%, WR 100.00%, 5 trades, max DD 0.29%, Sharpe 3.551
+  - 12m: +1020.24%, WR 100.00%, 7 trades, max DD 0.29%, Sharpe 4.449
+  - 15m: +3648.68%, WR 100.00%, 10 trades, max DD 0.29%, Sharpe 5.926
+- Comparison with previous Loop: compared with the refreshed-cache rerun of the previous `Loop_20260519_6` ATR geometry, returns improved on every required window: +28.50/+66.05/+217.54/+447.19/+920.42/+3177.23 -> +30.65/+70.63/+245.64/+496.98/+1020.24/+3648.68. WR stayed 100% on every refreshed window and trade counts stayed 1/2/3/5/7/10. The trade-count objective is unchanged rather than improved; the closest higher-frequency candidates failed either PnL or the strict WR > 80 rule.
+- Limitations: this is a PnL improvement, not a trade-count improvement. On the pre-refresh cache, fast-harness exploratory sweeps showed the nearest valid extra-trade profile (`rsi_long_max=48`) raised 15m trades to 12 but lowered compounded 15m return to +2116.94% at `position_equity_ratio=0.98` and +2229.74% at `position_equity_ratio=1.0`, so it was rejected. After the refresh, a compact local RSI/ATR probe found no `>10`-trade 15m candidate with WR > 80 among the first 200 checked variants. The existing `max_sl_distance_pct` gate around the extra-trade cluster reduced both trade count and PnL, and an accepted-only signal de-duplication probe matched the promoted pre-refresh 15m result exactly at 11 trades and +3073.50%. Funding, liquidation, ADL, and live order-book slippage beyond modeled maker fills/rejections remain outside the simulator.
+
+### Documentation Updated
+- `algorithms.md`
+- `architecture.md`
+- `changes.md`
+
 ## Loop_20260524_3 - ETHUSDC Reject Sizing-Only Change
 
 ### Summary
